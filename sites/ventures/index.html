@@ -1,74 +1,767 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>West Peek Ventures</title>
-  <meta name="description" content="Founder-first venture capital built on trust and community.">
-  <link rel="canonical" href="https://westpeek.ventures/"/>
-  <link rel="stylesheet" href="assets/base.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>West Peek Ventures</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --bg-card: #111111;
+    --bg-elevated: #1a1a1a;
+    --white: #f5f0eb;
+    --white-pure: #ffffff;
+    --gray: #888;
+    --gray-dim: #555;
+    --accent: #c45a3c;
+    --accent-light: #d4715a;
+    --accent-glow: rgba(196,90,60,0.15);
+    --green: #4a9e6e;
+    --border: rgba(255,255,255,0.07);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--white);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  ::selection { background: var(--accent); color: white; }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 1.2rem 3rem;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(10,10,10,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+  .nav-logo-img {
+    width: 32px; height: 32px; object-fit: contain;
+  }
+  .nav-logo-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem; font-weight: 700; color: var(--white);
+    letter-spacing: -0.01em;
+  }
+  .nav-logo-text span { color: var(--accent); }
+  .nav-links { display: flex; gap: 2.5rem; align-items: center; }
+  .nav-links a {
+    color: var(--gray); text-decoration: none; font-size: 0.82rem;
+    font-weight: 500; letter-spacing: 0.01em; transition: color 0.3s;
+  }
+  .nav-links a:hover { color: var(--white); }
+  .nav-cta {
+    background: var(--accent) !important; color: white !important;
+    padding: 0.55rem 1.4rem; border-radius: 4px;
+    font-weight: 600 !important; transition: background 0.3s !important;
+  }
+  .nav-cta:hover { background: var(--accent-light) !important; }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    text-align: center;
+    padding: 8rem 2rem 5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -15%; left: 50%; transform: translateX(-50%);
+    width: 800px; height: 800px;
+    background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-logo {
+    width: 64px; height: 64px; object-fit: contain;
+    margin-bottom: 2rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards 0.15s;
+  }
+
+  .hero h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(3rem, 6vw, 5.2rem);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    max-width: 850px;
+    margin-bottom: 1.8rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards 0.3s;
+  }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+
+  /* CYCLING WORDS */
+  .cycle-container {
+    display: inline-block;
+    position: relative;
+    min-width: 200px;
+    text-align: center;
+  }
+  .cycle-word {
+    display: inline-block;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    color: var(--accent);
+    font-style: italic;
+  }
+  .cycle-word.active {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .cycle-word.exit-up {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  .cycle-word.enter-below {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+
+  .hero-sub {
+    font-size: 1.1rem;
+    color: var(--gray);
+    max-width: 480px;
+    line-height: 1.7;
+    font-weight: 400;
+    margin-bottom: 2.5rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards 0.5s;
+  }
+
+  .hero-ctas {
+    opacity: 0; animation: fadeUp 0.8s ease forwards 0.65s;
+  }
+  .btn-primary {
+    background: var(--accent); color: white;
+    padding: 0.9rem 2.2rem; border: none; border-radius: 4px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+    font-weight: 600; cursor: pointer; text-decoration: none;
+    transition: all 0.3s; display: inline-block;
+  }
+  .btn-primary:hover { background: var(--accent-light); transform: translateY(-1px); }
+
+  /* DIVIDER */
+  .divider {
+    border: none; border-top: 1px solid var(--border);
+    margin: 0;
+  }
+
+  /* SECTIONS SHARED */
+  .section-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; color: var(--accent);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-tag::before {
+    content: ''; width: 24px; height: 1px; background: var(--accent);
+  }
+
+  /* WHAT WE BELIEVE */
+  .believe {
+    padding: 6rem 3rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .believe h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.1; letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+  }
+  .believe p {
+    font-size: 1.05rem; color: var(--gray);
+    line-height: 1.8; max-width: 680px;
+  }
+  .believe p + p { margin-top: 1rem; }
+  .believe p strong { color: var(--white); font-weight: 500; }
+
+  /* SECTORS */
+  .sectors {
+    padding: 5rem 3rem;
+    border-top: 1px solid var(--border);
+  }
+  .sectors-inner {
+    max-width: 1100px; margin: 0 auto;
+  }
+  .sector-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    margin-top: 2.5rem;
+  }
+  .sector-card {
+    background: var(--bg-card);
+    padding: 2.5rem 2rem;
+    transition: background 0.3s;
+  }
+  .sector-card:hover { background: var(--bg-elevated); }
+  .sector-card h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem; font-weight: 600;
+    margin-bottom: 0.6rem;
+  }
+  .sector-card p {
+    font-size: 0.85rem; color: var(--gray); line-height: 1.6;
+  }
+
+  /* TEAM */
+  .team {
+    padding: 6rem 3rem;
+    border-top: 1px solid var(--border);
+  }
+  .team-inner {
+    max-width: 1000px; margin: 0 auto;
+  }
+  .team-label-line {
+    display: flex; align-items: center; gap: 1.5rem;
+    margin-bottom: 3rem;
+  }
+  .team-label-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; color: var(--accent);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .team-label-rule {
+    flex: 1; height: 1px; background: var(--border);
+  }
+
+  .team-duo-label {
+    text-align: center;
+    margin-bottom: 3.5rem;
+  }
+  .team-duo-label h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.1; letter-spacing: -0.02em;
+    margin-bottom: 0.6rem;
+  }
+  .duo-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--accent);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .team-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+  }
+  .team-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .team-card:hover { border-color: rgba(255,255,255,0.12); }
+  .team-photo {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+  }
+  .team-info { padding: 2rem; }
+  .team-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.6rem;
+    margin-bottom: 0.2rem;
+  }
+  .team-role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+  .team-bio {
+    font-size: 0.9rem;
+    color: var(--gray);
+    line-height: 1.7;
+  }
+  .team-bio strong {
+    color: var(--white);
+    font-weight: 500;
+  }
+
+  /* JOIN COMMUNITY */
+  .community {
+    padding: 6rem 3rem;
+    border-top: 1px solid var(--border);
+  }
+  .community-inner {
+    max-width: 900px; margin: 0 auto;
+    text-align: center;
+  }
+  .community h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.1; letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+  }
+  .community p {
+    font-size: 1.05rem; color: var(--gray);
+    line-height: 1.8; max-width: 620px;
+    margin: 0 auto 2rem;
+  }
+  .stat-row {
+    display: flex; justify-content: center; gap: 4rem;
+    margin-top: 2.5rem;
+  }
+  .stat { text-align: center; }
+  .stat-num {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2.5rem;
+    color: var(--white);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+  .stat-label {
+    font-size: 0.78rem;
+    color: var(--gray-dim);
+    letter-spacing: 0.05em;
+  }
+
+  /* APPLICATION FORM */
+  .apply {
+    padding: 6rem 3rem 4rem;
+    border-top: 1px solid var(--border);
+  }
+  .apply-inner {
+    max-width: 680px; margin: 0 auto;
+  }
+  .apply-inner h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 3vw, 2.5rem);
+    margin-bottom: 0.8rem;
+    text-align: center;
+  }
+  .apply-inner > p {
+    font-size: 1rem; color: var(--gray);
+    line-height: 1.7; margin-bottom: 2.5rem;
+    text-align: center;
+  }
+  .apply-form {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2.5rem;
+  }
+  .form-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  .form-group label {
+    font-size: 0.78rem; font-weight: 500;
+    color: var(--gray); display: block;
+    margin-bottom: 0.4rem;
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.7rem 0.9rem;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-color: var(--accent);
+  }
+  .form-group input::placeholder,
+  .form-group textarea::placeholder {
+    color: var(--gray-dim);
+  }
+  .form-group textarea {
+    resize: vertical; min-height: 100px;
+  }
+
+  /* FILE UPLOAD */
+  .file-upload {
+    width: 100%;
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.3s, background 0.3s;
+    position: relative;
+  }
+  .file-upload:hover {
+    border-color: var(--accent);
+    background: rgba(196,90,60,0.04);
+  }
+  .file-upload input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    width: 100%; height: 100%;
+  }
+  .file-upload-icon {
+    font-size: 1.5rem; margin-bottom: 0.5rem; display: block;
+    color: var(--gray-dim);
+  }
+  .file-upload-text {
+    font-size: 0.85rem; color: var(--gray);
+  }
+  .file-upload-text strong {
+    color: var(--accent); font-weight: 600;
+  }
+  .file-upload-hint {
+    font-size: 0.72rem; color: var(--gray-dim);
+    margin-top: 0.3rem;
+  }
+  .file-name {
+    font-size: 0.82rem; color: var(--accent);
+    margin-top: 0.5rem; display: none;
+  }
+
+  .btn-submit {
+    width: 100%;
+    background: var(--accent); color: white;
+    padding: 0.9rem; border: none; border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; transition: all 0.3s;
+    margin-top: 0.5rem;
+  }
+  .btn-submit:hover {
+    background: var(--accent-light); transform: translateY(-1px);
+  }
+
+  /* FOOTER */
+  footer {
+    padding: 2rem 3rem;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.75rem; color: var(--gray-dim);
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(25px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .reveal {
+    opacity: 0; transform: translateY(30px);
+    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal.visible {
+    opacity: 1; transform: translateY(0);
+  }
+
+  /* MOBILE */
+  @media (max-width: 768px) {
+    nav { padding: 1rem 1.5rem; }
+    .nav-links a:not(.nav-cta) { display: none; }
+    .hero { padding: 7rem 1.5rem 4rem; }
+    .believe, .sectors, .team, .community, .apply { padding: 4rem 1.5rem; }
+    .sector-grid { grid-template-columns: 1fr 1fr; }
+    .team-grid { grid-template-columns: 1fr; }
+    .stat-row { gap: 2rem; flex-wrap: wrap; }
+    .form-row { grid-template-columns: 1fr; }
+    .apply-form { padding: 1.5rem; }
+    footer { flex-direction: column; gap: 0.5rem; text-align: center; }
+  }
+</style>
 </head>
 <body>
-<header>
-  <div class="nav">
-    <div class="brand"><img src="assets/img/ventures-logo.png" alt="West Peek Ventures logo"><span>West Peek Ventures</span></div>
-    <nav class="navlinks"><a href="index.html">Home</a><a href="thesis.html">Thesis</a><a href="what-we-look-for.html">What we look for</a><a href="companies.html">Companies</a><a href="team.html">Team</a><a href="pitch.html">Pitch</a></nav>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">
+    <img src="WP_Logo_1080x1080.png" alt="West Peek" class="nav-logo-img">
+    <span class="nav-logo-text">West Peek <span>Ventures</span></span>
+  </a>
+  <div class="nav-links">
+    <a href="#believe">What We Believe</a>
+    <a href="#team">Team</a>
+    <a href="#community">Community</a>
+    <a href="#apply" class="nav-cta">Submit Your Company</a>
   </div>
-</header><div class="container">
-  <div class="hero">
-    <div class="img" style="background-image:url('assets/img/ventures-hero.jpg')"></div>
-    <div class="copy">
-      <div class="kicker">West Peek Ventures</div>
-      <h1>We believe the next billion-dollar ideas will be rooted in community.</h1>
-      <p>West Peek Ventures partners with founders early, before growth is obvious to everyone. We believe trust is the new moat — and community is the catalyst.</p>
-      <div class="one-liner">Good people should meet good people.</div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <img src="WP_Logo_1080x1080.png" alt="West Peek Ventures" class="hero-logo">
+  <h1>We back founders where<br><span class="cycle-container" id="cycleContainer"></span><br>can't be faked.</h1>
+  <p class="hero-sub">A pre-seed fund backing founders at the earliest stages.</p>
+  <div class="hero-ctas">
+    <a href="#apply" class="btn-primary">Submit Your Company</a>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- WHAT WE BELIEVE -->
+<section class="believe reveal" id="believe">
+  <div class="section-tag">What We Believe</div>
+  <h2>Community creates competitive advantage in early-stage companies.</h2>
+  <p>In the early stages of building a company, no matter the sector, the path to scale runs through people — your first believers, your earliest customers, the voices that carry your name before your brand can carry itself. <strong>Community is a unique point of leverage</strong> that compounds over time and stays with a company for years to come.</p>
+  <p>We're looking for founders who are uniquely building community within their industry — specifically in industries where trust matters most: <strong>healthcare, education, consumer, and the future of work.</strong></p>
+</section>
+
+<!-- FOCUS SECTORS -->
+<section class="sectors reveal" id="sectors">
+  <div class="sectors-inner">
+    <div class="section-tag">Focus Sectors</div>
+    <div class="sector-grid">
+      <div class="sector-card">
+        <h3>Healthcare</h3>
+        <p>Patient trust drives adoption. Community compounds clinical credibility.</p>
+      </div>
+      <div class="sector-card">
+        <h3>Education</h3>
+        <p>Learning is social. The best edtech is built on real relationships.</p>
+      </div>
+      <div class="sector-card">
+        <h3>Consumer</h3>
+        <p>Brand loyalty starts in community. Word-of-mouth beats paid acquisition.</p>
+      </div>
+      <div class="sector-card">
+        <h3>Future of Work</h3>
+        <p>As humans and AI work side by side, trust between people becomes the layer that holds teams, tools, and organizations together.</p>
+      </div>
     </div>
   </div>
+</section>
 
-  <section class="section">
-    <h2>What we believe</h2>
-    <p>In a world where software and capital are increasingly abundant, trust is scarce. The strongest companies are built inside trusted networks — long before they are obvious to the market.</p>
-  </section>
-  <section class="section">
-    <h2>What we look for</h2>
-    <div class="card-grid">
-      <div class="card"><h3>Founder signal</h3><p>Operators with real insight into the problem they’re solving — not just pitch polish.</p></div>
-      <div class="card"><h3>Early conviction</h3><p>Teams building with urgency and clarity before external validation arrives.</p></div>
-      <div class="card"><h3>Relationship-first mindset</h3><p>Founders who want partners, not just capital.</p></div>
+<!-- TEAM -->
+<section class="team reveal" id="team">
+  <div class="team-inner">
+    <div class="team-label-line">
+      <span class="team-label-text">The Team</span>
+      <span class="team-label-rule"></span>
     </div>
-  </section>
-<section class="section">
-  <h2>Pitch West Peek</h2>
-  <p>If you’re building something real and want a thoughtful first conversation, share a few details. We read every submission.</p>
-  <div class="form">
-    <form data-westpeek-form action="/api/lead" method="POST">
-      <input type="hidden" name="site" value="ventures">
-      <input type="hidden" name="lead_type" value="founder_pitch">
-      <input type="text" name="website" autocomplete="off" tabindex="-1" style="display:none">
-      
-<label>Name</label><input name="name" required>
-<label>Email</label><input name="email" type="email" required>
-<label>Company name</label><input name="company" required>
-<label>Website (optional)</label><input name="company_website">
-<label>Stage</label>
-<select name="stage" required>
-  <option value="">Select…</option>
-  <option>Idea</option><option>MVP</option><option>Early revenue</option><option>Seed</option><option>Series A+</option>
-</select>
-<label>What are you building?</label><textarea name="description" required></textarea>
-<label>Deck link (optional)</label><input name="deck">
 
-      <button type="submit">Send pitch</button>
-      <div class="small" data-form-status style="margin-top:10px"></div>
-      <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
+    <div class="team-duo-label">
+      <h2>We've been in your shoes.</h2>
+      <div class="duo-tag">BROTHER-SISTER DUO</div>
+    </div>
+
+    <div class="team-grid">
+      <div class="team-card">
+        <img src="scooter_taylor.jpg" alt="Scooter Taylor" class="team-photo">
+        <div class="team-info">
+          <div class="team-name">Scooter Taylor</div>
+          <div class="team-role">General Partner</div>
+          <p class="team-bio">
+            <strong>Y Combinator-backed founder</strong> and community builder who grew a 5,000-person network through 300+ days of consistent content creation. He's built companies from zero, advised early-stage startups across healthcare, education, and consumer, and knows firsthand what it takes to go from idea to traction. Scooter leads with relationships — his network is how West Peek finds founders before anyone else does.
+          </p>
+        </div>
+      </div>
+
+      <div class="team-card">
+        <img src="sequoia_taylor.png" alt="Sequoia Taylor" class="team-photo">
+        <div class="team-info">
+          <div class="team-name">Sequoia Taylor</div>
+          <div class="team-role">General Partner</div>
+          <p class="team-bio">
+            <strong>Investment banking background</strong> and early employee at YC-backed companies — she's been in the trenches of high-growth startups and knows what building from zero actually looks like from the inside. Sequoia brings financial rigor, operational depth, and a founder-first approach to every conversation. She's the partner who helps you think through the hard questions before they become hard problems.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- JOIN OUR COMMUNITY -->
+<section class="community reveal" id="community">
+  <div class="community-inner">
+    <div class="section-tag" style="justify-content:center;">Join Our Community</div>
+    <h2>Your next co-founder, first customer, or biggest believer might already be here.</h2>
+    <p>Our 5,000+ member community of founders, creatives, and operators is where early-stage founders find their next co-founders, land their first customers, and validate their ideas with people who actually get it.</p>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-num">5,000+</div>
+        <div class="stat-label">Community members</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">500+</div>
+        <div class="stat-label">Events produced</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">3+</div>
+        <div class="stat-label">Years building</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- APPLICATION FORM -->
+<section class="apply reveal" id="apply">
+  <div class="apply-inner">
+    <h2>Submit your company.</h2>
+    <p>Tell us what you're building and how community plays a role. We read every submission.</p>
+
+    <form class="apply-form" id="applyForm" onsubmit="return false;">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" placeholder="Full name" required>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" placeholder="you@company.com" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>City</label>
+          <input type="text" placeholder="Where are you based?">
+        </div>
+        <div class="form-group">
+          <label>Company Name</label>
+          <input type="text" placeholder="Your company" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Upload Your Pitch Deck</label>
+        <div class="file-upload" id="fileUpload">
+          <span class="file-upload-icon">↑</span>
+          <div class="file-upload-text"><strong>Click to upload</strong> or drag and drop</div>
+          <div class="file-upload-hint">PDF, PPT, or PPTX up to 25MB</div>
+          <div class="file-name" id="fileName"></div>
+          <input type="file" accept=".pdf,.ppt,.pptx" id="fileInput">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>How are you leveraging community?</label>
+        <textarea rows="4" placeholder="Tell us how community plays a role in what you're building..."></textarea>
+      </div>
+      <button type="submit" class="btn-submit" id="formSubmitBtn">Submit →</button>
     </form>
   </div>
-</section></div><footer>
-  <div><a href="https://www.linkedin.com/in/scootertaylor/" target="_blank" rel="noopener">LinkedIn</a> · <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a> · <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a></div>
-  <div style="margin-top:10px">Contact: <a href="mailto:scooter@westpeek.ventures">scooter@westpeek.ventures</a></div>
-  <div class="one-liner" style="margin-top:10px">Good people should meet good people.</div>
-  <div class="small" style="margin-top:10px">© West Peek Ventures</div>
+</section>
+
+<footer>
+  <span>© 2026 West Peek Ventures. All rights reserved.</span>
+  <span>New York City</span>
 </footer>
-<script src="assets/js/forms.js"></script>
+
+<script>
+  // CYCLING WORDS - all centered
+  const words = ['trust', 'community', 'credibility', 'relationships', 'connection', 'reputation'];
+  const container = document.getElementById('cycleContainer');
+  let currentIndex = 0;
+
+  // Set container width based on longest word
+  const tempSpan = document.createElement('span');
+  tempSpan.style.visibility = 'hidden';
+  tempSpan.style.position = 'absolute';
+  tempSpan.style.fontFamily = "'Instrument Serif', serif";
+  tempSpan.style.fontSize = window.innerWidth > 768 ? 'clamp(3rem, 6vw, 5.2rem)' : '3rem';
+  tempSpan.style.fontStyle = 'italic';
+  tempSpan.style.letterSpacing = '-0.03em';
+  document.body.appendChild(tempSpan);
+
+  let maxWidth = 0;
+  words.forEach(w => {
+    tempSpan.textContent = w;
+    const width = tempSpan.getBoundingClientRect().width;
+    if (width > maxWidth) maxWidth = width;
+  });
+  document.body.removeChild(tempSpan);
+
+  container.style.width = maxWidth + 'px';
+  container.style.height = '1.15em';
+  container.style.verticalAlign = 'bottom';
+
+  // Create word elements
+  words.forEach((word, i) => {
+    const span = document.createElement('span');
+    span.className = 'cycle-word' + (i === 0 ? ' active' : ' enter-below');
+    span.textContent = word;
+    container.appendChild(span);
+  });
+
+  function cycleWords() {
+    const wordEls = container.querySelectorAll('.cycle-word');
+    const current = wordEls[currentIndex];
+    currentIndex = (currentIndex + 1) % words.length;
+    const next = wordEls[currentIndex];
+
+    current.classList.remove('active');
+    current.classList.add('exit-up');
+
+    next.classList.remove('enter-below', 'exit-up');
+    next.classList.add('active');
+
+    setTimeout(() => {
+      current.classList.remove('exit-up');
+      current.classList.add('enter-below');
+    }, 500);
+  }
+
+  setInterval(cycleWords, 2200);
+
+  // File upload display
+  document.getElementById('fileInput').addEventListener('change', function() {
+    const nameEl = document.getElementById('fileName');
+    if (this.files.length > 0) {
+      nameEl.textContent = '\u{1F4CE} ' + this.files[0].name;
+      nameEl.style.display = 'block';
+    }
+  });
+
+  // Form submit
+  document.getElementById('formSubmitBtn').addEventListener('click', function() {
+    const btn = this;
+    btn.textContent = 'Submitted \u2713';
+    btn.style.background = '#4a9e6e';
+    setTimeout(() => {
+      btn.textContent = 'Submit \u2192';
+      btn.style.background = '';
+    }, 3000);
+  });
+
+  // Scroll reveals
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // Smooth scroll
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+</script>
 </body>
 </html>
