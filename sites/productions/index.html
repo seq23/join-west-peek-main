@@ -9,33 +9,97 @@
   <link rel="stylesheet" href="assets/base.css">
 
   <style>
-    .hero .img {
+    .hero {
       position: relative;
+      min-height: 720px;
+      border-radius: 18px;
+      overflow: hidden;
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      border-radius: 18px;
-      overflow: hidden;
-      min-height: 420px;
+      padding: 64px 56px;
+      display: flex;
+      align-items: flex-end;
     }
 
-    .hero .img::after {
+    .hero::before {
       content: "";
       position: absolute;
       inset: 0;
-      background: linear-gradient(to right, rgba(0,0,0,0.28), rgba(0,0,0,0.06));
-      pointer-events: none;
+      background:
+        linear-gradient(
+          90deg,
+          rgba(0,0,0,0.82) 0%,
+          rgba(0,0,0,0.72) 32%,
+          rgba(0,0,0,0.42) 58%,
+          rgba(0,0,0,0.12) 100%
+        );
+      z-index: 1;
+    }
+
+    .hero .copy {
+      position: relative;
+      z-index: 2;
+      max-width: 650px;
+      color: #fff;
+    }
+
+    .hero .kicker,
+    .hero h1,
+    .hero p,
+    .hero .one-liner {
+      color: #fff;
+    }
+
+    .hero .kicker {
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+
+    .hero h1 {
+      font-size: clamp(52px, 7vw, 86px);
+      line-height: 0.95;
+      margin: 10px 0 18px;
+    }
+
+    .hero p {
+      font-size: 20px;
+      line-height: 1.5;
+    }
+
+    .hero-cta {
+      margin-top: 22px;
+      margin-bottom: 18px;
+    }
+
+    .inquiry-button {
+      display: inline-block;
+      background-color: #ff7a00;
+      color: #ffffff;
+      padding: 16px 32px;
+      font-size: 18px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+      transition: all 0.2s ease;
+    }
+
+    .inquiry-button:hover {
+      background-color: #e66a00;
+      transform: translateY(-1px);
     }
 
     .hero-carousel-controls {
       position: absolute;
-      left: 16px;
-      right: 16px;
-      bottom: 16px;
+      left: 24px;
+      right: 24px;
+      bottom: 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      z-index: 2;
+      z-index: 3;
       pointer-events: none;
     }
 
@@ -50,7 +114,7 @@
       width: 42px;
       height: 42px;
       border-radius: 999px;
-      background: rgba(0,0,0,0.45);
+      background: rgba(0,0,0,0.42);
       color: #fff;
       font-size: 22px;
       line-height: 1;
@@ -77,32 +141,23 @@
       background: #ffffff;
     }
 
-    .hero-cta {
-      margin-top: 22px;
-      margin-bottom: 18px;
-    }
-
-    .inquiry-button {
-      display: inline-block;
-      background-color: #ff7a00;
-      color: #ffffff;
-      padding: 16px 32px;
-      font-size: 18px;
-      font-weight: 700;
-      text-decoration: none;
-      border-radius: 8px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
-      transition: all 0.2s ease;
-    }
-
-    .inquiry-button:hover {
-      background-color: #e66a00;
-      transform: translateY(-1px);
-    }
-
     @media (max-width: 900px) {
-      .hero .img {
-        min-height: 320px;
+      .hero {
+        min-height: 620px;
+        padding: 40px 28px;
+        align-items: flex-end;
+      }
+
+      .hero h1 {
+        font-size: clamp(40px, 11vw, 62px);
+      }
+
+      .hero p {
+        font-size: 18px;
+      }
+
+      .hero .copy {
+        max-width: 100%;
       }
     }
   </style>
@@ -116,17 +171,7 @@
 </header>
 
 <div class="container">
-  <div class="hero">
-    <div class="img" id="heroImage" style="background-image:url('assets/img/productions-hero-1.jpg')">
-      <div class="hero-carousel-controls">
-        <div class="hero-carousel-arrow-group">
-          <button class="hero-carousel-arrow" id="heroPrev" aria-label="Previous image">‹</button>
-          <button class="hero-carousel-arrow" id="heroNext" aria-label="Next image">›</button>
-        </div>
-        <div class="hero-carousel-dots" id="heroDots"></div>
-      </div>
-    </div>
-
+  <div class="hero" id="heroImage" style="background-image:url('assets/img/productions-hero-1.jpg')">
     <div class="copy">
       <div class="kicker">West Peek Productions</div>
       <h1>We produce the moment — and help it perform.</h1>
@@ -153,6 +198,14 @@
           — Scooter Taylor, CEO of West Peek Productions
         </span>
       </div>
+    </div>
+
+    <div class="hero-carousel-controls">
+      <div class="hero-carousel-arrow-group">
+        <button class="hero-carousel-arrow" id="heroPrev" aria-label="Previous image">‹</button>
+        <button class="hero-carousel-arrow" id="heroNext" aria-label="Next image">›</button>
+      </div>
+      <div class="hero-carousel-dots" id="heroDots"></div>
     </div>
   </div>
 
