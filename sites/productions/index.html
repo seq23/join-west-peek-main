@@ -43,7 +43,7 @@
 
 <div class="container">
   <div class="hero">
-    <div class="img" id="heroImage" style="background-image:url('assets/img/productions-hero-1.jpg')"></div>
+    <div class="img" id="heroImage" style="background-image:url('assets/img/productions-hero-1.jpg'); background-position:30% center;"></div>
 
     <div class="copy">
       <div class="kicker">West Peek Productions</div>
@@ -139,23 +139,30 @@
     if (!hero) return;
 
     const images = [
-      'assets/img/productions-hero-1.jpg',
-      'assets/img/productions-hero-2.jpg',
-      'assets/img/productions-hero-3.jpg',
-      'assets/img/productions-hero-4.jpg',
-      'assets/img/productions-hero-5.jpg'
+      { src: 'assets/img/productions-hero-1.jpg', position: '30% center' },
+      { src: 'assets/img/productions-hero-2.jpg', position: '50% center' },
+      { src: 'assets/img/productions-hero-3.jpg', position: '28% center' },
+      { src: 'assets/img/productions-hero-4.jpg', position: '32% center' },
+      { src: 'assets/img/productions-hero-5.jpg', position: '50% center' }
     ];
 
     let current = 0;
 
-    images.forEach((src) => {
+    images.forEach((item) => {
       const img = new Image();
-      img.src = src;
+      img.src = item.src;
     });
+
+    function updateHero() {
+      hero.style.backgroundImage = "url('" + images[current].src + "')";
+      hero.style.backgroundPosition = images[current].position;
+    }
+
+    updateHero();
 
     setInterval(() => {
       current = (current + 1) % images.length;
-      hero.style.backgroundImage = "url('" + images[current] + "')";
+      updateHero();
     }, 5000);
   })();
 </script>
