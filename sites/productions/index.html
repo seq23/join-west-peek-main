@@ -5,69 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>West Peek Productions</title>
   <meta name="description" content="Virtual and hybrid event production, storytelling, brand building, and audience growth — built to drive real outcomes.">
-  <link rel="canonical" href="https://westpeek.productions/"/>
+  <link rel="canonical" href="https://westpeekproductions.com/"/>
   <link rel="stylesheet" href="assets/base.css">
 
   <style>
-    .hero {
-      position: relative;
-      min-height: 720px;
-      border-radius: 18px;
-      overflow: hidden;
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      padding: 64px 56px;
-      display: flex;
-      align-items: flex-end;
-    }
-
-    .hero::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(
-          90deg,
-          rgba(0,0,0,0.82) 0%,
-          rgba(0,0,0,0.72) 32%,
-          rgba(0,0,0,0.42) 58%,
-          rgba(0,0,0,0.12) 100%
-        );
-      z-index: 1;
-    }
-
-    .hero .copy {
-      position: relative;
-      z-index: 2;
-      max-width: 650px;
-      color: #fff;
-    }
-
-    .hero .kicker,
-    .hero h1,
-    .hero p,
-    .hero .one-liner {
-      color: #fff;
-    }
-
-    .hero .kicker {
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      opacity: 0.9;
-    }
-
-    .hero h1 {
-      font-size: clamp(52px, 7vw, 86px);
-      line-height: 0.95;
-      margin: 10px 0 18px;
-    }
-
-    .hero p {
-      font-size: 20px;
-      line-height: 1.5;
-    }
-
     .hero-cta {
       margin-top: 22px;
       margin-bottom: 18px;
@@ -90,76 +31,6 @@
       background-color: #e66a00;
       transform: translateY(-1px);
     }
-
-    .hero-carousel-controls {
-      position: absolute;
-      left: 24px;
-      right: 24px;
-      bottom: 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      z-index: 3;
-      pointer-events: none;
-    }
-
-    .hero-carousel-arrow-group {
-      display: flex;
-      gap: 10px;
-      pointer-events: auto;
-    }
-
-    .hero-carousel-arrow {
-      border: 0;
-      width: 42px;
-      height: 42px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.42);
-      color: #fff;
-      font-size: 22px;
-      line-height: 1;
-      cursor: pointer;
-    }
-
-    .hero-carousel-dots {
-      display: flex;
-      gap: 8px;
-      pointer-events: auto;
-    }
-
-    .hero-carousel-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      border: 0;
-      background: rgba(255,255,255,0.55);
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .hero-carousel-dot.active {
-      background: #ffffff;
-    }
-
-    @media (max-width: 900px) {
-      .hero {
-        min-height: 620px;
-        padding: 40px 28px;
-        align-items: flex-end;
-      }
-
-      .hero h1 {
-        font-size: clamp(40px, 11vw, 62px);
-      }
-
-      .hero p {
-        font-size: 18px;
-      }
-
-      .hero .copy {
-        max-width: 100%;
-      }
-    }
   </style>
 </head>
 <body>
@@ -171,7 +42,9 @@
 </header>
 
 <div class="container">
-  <div class="hero" id="heroImage" style="background-image:url('assets/img/productions-hero-1.jpg')">
+  <div class="hero">
+    <div class="img" id="heroImage" style="background-image:url('assets/img/productions-hero-1.jpg')"></div>
+
     <div class="copy">
       <div class="kicker">West Peek Productions</div>
       <h1>We produce the moment — and help it perform.</h1>
@@ -184,7 +57,10 @@
       <p>Today, while virtual and hybrid event production remains our flagship, we operate more broadly across storytelling, brand building, and audience growth — supporting how organizations reach, engage, and move the right audience.</p>
 
       <div class="hero-cta">
-        <a class="inquiry-button" href="https://forms.gle/qUrkAwHruFsh8WLC8" target="_blank" rel="noopener">
+        <a class="inquiry-button"
+           href="https://forms.gle/qUrkAwHruFsh8WLC8"
+           target="_blank"
+           rel="noopener">
           Start your inquiry →
         </a>
       </div>
@@ -199,51 +75,20 @@
         </span>
       </div>
     </div>
-
-    <div class="hero-carousel-controls">
-      <div class="hero-carousel-arrow-group">
-        <button class="hero-carousel-arrow" id="heroPrev" aria-label="Previous image">‹</button>
-        <button class="hero-carousel-arrow" id="heroNext" aria-label="Next image">›</button>
-      </div>
-      <div class="hero-carousel-dots" id="heroDots"></div>
-    </div>
   </div>
 
   <section class="section">
     <h2>About</h2>
 
     <p style="font-size:1.08em; line-height:1.75;">
-      <strong>Turnkey virtual and hybrid event production is our flagship.</strong>
-      West Peek Productions delivers live experiences that are seamless, credible, and professionally run from start to finish. Our work spans conferences, summits, galas, career fairs, internal events, and other high-visibility moments where execution matters.
-    </p>
-    
-    <p style="line-height:1.75;">
-      <strong>We bring real range and operating experience.</strong>
-      We’ve produced more than 400 virtual and hybrid events across enterprise organizations, national nonprofits, and high-growth companies — supporting multi-session experiences, distributed audiences, and initiatives designed to reach at scale. Our approach is straightforward: clear planning, strong execution, and a production standard that holds up under pressure.
+      <strong>Turnkey virtual and hybrid event production is our flagship, and it’s where we’ve built deep operating credibility.</strong>
+      West Peek Productions delivers live experiences that are seamless, credible, and professionally run from start to finish. Our work spans conferences, summits, galas, career fairs, internal events, and other high-visibility moments where execution matters. We’ve produced more than 400 virtual and hybrid events across enterprise organizations, national nonprofits, and high-growth companies — supporting multi-session experiences, distributed audiences, and initiatives designed to reach at scale. Our approach is straightforward: clear planning, strong execution, and a production standard that holds up under pressure.
     </p>
     
     <p style="line-height:1.75;">
       <strong>We do not treat events as isolated moments.</strong>
       In most cases, they’re part of a larger objective — whether that’s telling a story, reaching the right audience, or driving a specific outcome. We build with that in mind, and when needed, we support the content, messaging, podcast, and audience side of the work so the effort actually delivers — whether or not it starts with a live event.
     </p>
-  </section>
-
-  <section class="section">
-    <h2>Here’s how it works</h2>
-    <div class="card-grid">
-      <div class="card">
-        <h3>Before</h3>
-        <p>We start by getting clear on what success looks like — who the event needs to reach, what it needs to communicate, and how it should land.</p>
-      </div>
-      <div class="card">
-        <h3>During</h3>
-        <p>We run the live experience in real time — managing speakers, flow, transitions, and technical execution so the event feels smooth and professional from start to finish, while ensuring the experience holds up in real time.</p>
-      </div>
-      <div class="card">
-        <h3>After</h3>
-        <p>We make sure the work continues to create value. That can include recordings, usable content, and follow-through so the work continues to deliver value beyond the live moment.</p>
-      </div>
-    </div>
   </section>
 
   <section class="section">
@@ -291,9 +136,7 @@
 
   (function () {
     const hero = document.getElementById('heroImage');
-    const dotsContainer = document.getElementById('heroDots');
-    const prevBtn = document.getElementById('heroPrev');
-    const nextBtn = document.getElementById('heroNext');
+    if (!hero) return;
 
     const images = [
       'assets/img/productions-hero-1.jpg',
@@ -304,70 +147,16 @@
     ];
 
     let current = 0;
-    let intervalId = null;
-    const delay = 5000;
 
-    images.forEach((_, index) => {
-      const dot = document.createElement('button');
-      dot.className = 'hero-carousel-dot' + (index === 0 ? ' active' : '');
-      dot.setAttribute('aria-label', 'Go to image ' + (index + 1));
-      dot.addEventListener('click', () => {
-        goToSlide(index);
-        restartAutoplay();
-      });
-      dotsContainer.appendChild(dot);
+    images.forEach((src) => {
+      const img = new Image();
+      img.src = src;
     });
 
-    const dots = Array.from(dotsContainer.querySelectorAll('.hero-carousel-dot'));
-
-    function updateHero() {
+    setInterval(() => {
+      current = (current + 1) % images.length;
       hero.style.backgroundImage = "url('" + images[current] + "')";
-      dots.forEach((dot, index) => {
-        dot.classList.toggle('active', index === current);
-      });
-    }
-
-    function goToSlide(index) {
-      current = (index + images.length) % images.length;
-      updateHero();
-    }
-
-    function nextSlide() {
-      goToSlide(current + 1);
-    }
-
-    function prevSlide() {
-      goToSlide(current - 1);
-    }
-
-    function startAutoplay() {
-      intervalId = setInterval(nextSlide, delay);
-    }
-
-    function stopAutoplay() {
-      clearInterval(intervalId);
-    }
-
-    function restartAutoplay() {
-      stopAutoplay();
-      startAutoplay();
-    }
-
-    nextBtn.addEventListener('click', () => {
-      nextSlide();
-      restartAutoplay();
-    });
-
-    prevBtn.addEventListener('click', () => {
-      prevSlide();
-      restartAutoplay();
-    });
-
-    hero.addEventListener('mouseenter', stopAutoplay);
-    hero.addEventListener('mouseleave', startAutoplay);
-
-    updateHero();
-    startAutoplay();
+    }, 5000);
   })();
 </script>
 </body>
