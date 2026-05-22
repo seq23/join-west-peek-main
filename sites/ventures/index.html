@@ -54,12 +54,14 @@
     letter-spacing: -0.01em;
   }
   .nav-logo-text span { color: var(--accent); }
-  .nav-links { display: flex; gap: 2.5rem; align-items: center; }
+  .nav-links { display: flex; gap: 1.35rem; flex-wrap: wrap; align-items: center; }
   .nav-links a {
     color: var(--gray); text-decoration: none; font-size: 0.82rem;
     font-weight: 500; letter-spacing: 0.01em; transition: color 0.3s;
   }
   .nav-links a:hover { color: var(--white); }
+  .nav-live span { color: #ff7a00; font-style: italic; font-weight: 800; }
+  .nav-home { color: var(--gray-light) !important; }
   .nav-cta {
     background: var(--accent) !important; color: white !important;
     padding: 0.55rem 1.4rem; border-radius: 4px;
@@ -484,7 +486,12 @@
   /* MOBILE */
   @media (max-width: 768px) {
     nav { padding: 1rem 1.5rem; }
-    .nav-links a:not(.nav-cta) { display: none; }
+    nav { align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+    .nav-links { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+    .nav-links a { min-height: 42px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 999px; padding: 0.65rem 0.75rem; text-align: center; background: rgba(255,255,255,0.03); }
+    .nav-links .nav-cta { border-color: var(--accent); }
+    .nav-logo { width: 100%; }
+    @media (max-width: 420px) { .nav-links { grid-template-columns: 1fr; } }
     .hero { padding: 7rem 1.5rem 4rem; }
     .believe, .sectors, .team, .community, .apply { padding: 4rem 1.5rem; }
     .sector-grid { grid-template-columns: 1fr 1fr; }
@@ -502,20 +509,22 @@
 <!-- NAV -->
 <nav>
   <a href="#top" class="nav-logo">
-    <img src="assets/images/WP_Logo_1080x1080.png" alt="West Peek" class="nav-logo-img">
+    <img src="assets/img/WP_Logo_1080x1080.png" alt="West Peek" class="nav-logo-img">
     <span class="nav-logo-text">West Peek <span>Ventures</span></span>
   </a>
   <div class="nav-links">
+    <a href="https://joinwestpeek.com/" class="nav-home">West Peek Home</a>
     <a href="#believe">What We Believe</a>
     <a href="#team">Team</a>
-    <a href="#community">Community</a>
+    <a href="#community">Network</a>
+    <a href="https://westpeek.live/" class="nav-live">West Peek <span>Live!</span></a>
     <a href="#apply" class="nav-cta">Submit Your Company</a>
   </div>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
-  <img src="assets/images/wp-white-logo.png" alt="West Peek Ventures" class="hero-logo">
+  <img src="assets/img/ventures-logo.png" alt="West Peek Ventures" class="hero-logo">
   <h1>We back founders where<br><span class="cycle-container" id="cycleContainer"></span><br>can't be faked.</h1>
   <p class="hero-sub">A pre-seed fund backing founders at the earliest stages.</p>
   <div class="hero-ctas">
@@ -573,7 +582,7 @@
 
     <div class="team-grid">
       <div class="team-card">
-        <img src="assets/images/scooter_taylor.jpg" alt="Scooter Taylor" class="team-photo">
+        <img src="assets/img/scooter_taylor.jpg" alt="Scooter Taylor" class="team-photo">
         <div class="team-info">
           <div class="team-name">Scooter Taylor</div>
           <div class="team-role">General Partner</div>
@@ -584,7 +593,7 @@
       </div>
 
       <div class="team-card">
-        <img src="assets/images/sequoia_taylor.jpg" alt="Sequoia Taylor" class="team-photo">
+        <img src="assets/img/sequoia_taylor.jpg" alt="Sequoia Taylor" class="team-photo">
         <div class="team-info">
           <div class="team-name">Sequoia Taylor</div>
           <div class="team-role">General Partner</div>
@@ -668,6 +677,7 @@
 
 <footer>
   <span>© 2026 West Peek Ventures. All rights reserved.</span>
+  <span class="network-footer" aria-label="West Peek network"><a href="https://joinwestpeek.com/">West Peek Home</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Productions</a><a class="nav-live" href="https://westpeek.live/">West Peek <span>Live!</span></a></span>
   <span>New York City</span>
 </footer>
 

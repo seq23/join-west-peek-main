@@ -1,0 +1,12 @@
+{
+  "name": "west-peek-community",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:community": "node scripts/build.mjs community",
+    "build:ventures": "node scripts/build.mjs ventures",
+    "build:productions": "node scripts/build.mjs productions",
+    "build": "node scripts/build.mjs community && node scripts/build.mjs ventures && node scripts/build.mjs productions"
+  }
+}

@@ -77,3 +77,24 @@ footer a{color:var(--link)}
 .profile .bio{margin:0;color:#dedede;line-height:1.6}
 .profile .meta{margin-top:14px;display:flex;gap:12px;flex-wrap:wrap}
 .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #2a2a2b;color:#e8e8e8;font-size:13px}
+
+
+/* West Peek cross-property navigation */
+.navlinks a{display:inline-flex;align-items:center;min-height:36px}
+.live-link .live-mark{color:#ff7a00;font-style:italic;font-weight:900;letter-spacing:.01em}
+.network-footer{margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center}
+.network-footer a{display:inline-flex;align-items:center;min-height:32px;color:#eaeaea;font-weight:700}
+.network-footer .live-mark{color:#ff7a00;font-style:italic;font-weight:900}
+@media (max-width:860px){
+  .nav{gap:12px;padding:14px 18px}
+  .brand{width:100%;line-height:1.2}
+  .brand span{font-size:14px}
+  .navlinks{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .navlinks a{border:1px solid #242426;border-radius:999px;padding:9px 10px;justify-content:center;text-align:center;font-size:13px;background:rgba(255,255,255,.035)}
+  .navlinks a.nav-primary{background:#fff;color:#000}
+  .network-footer{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;margin-left:auto;margin-right:auto}
+  .network-footer a{justify-content:center;border:1px solid #242426;border-radius:999px;padding:8px 10px;background:rgba(255,255,255,.03)}
+}
+@media (max-width:420px){
+  .navlinks,.network-footer{grid-template-columns:1fr}
+}

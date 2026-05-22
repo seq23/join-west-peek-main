@@ -4,7 +4,7 @@ This repo deploys three static sites from one GitHub repo using **three separate
 
 ## Sites
 - **West Peek Ventures** → `westpeek.ventures`
-- **West Peek Productions** → `westpeek.productions`
+- **West Peek Productions** → `westpeekproductions.com`
 - **West Peek Community** → `joinwestpeek.com`
 
 ## Cloudflare Pages settings (per project)
@@ -30,3 +30,23 @@ Each site includes a real contact form that POSTs to `/api/lead` (expected to be
 
 ## Community hero image
 - `shared/assets/img/community-hero.jpg` is used on the community homepage hero.
+
+
+## Canonical domain map
+
+Use one canonical public domain per West Peek property:
+
+- **Community / Hub** → `joinwestpeek.com`
+- **Ventures** → `westpeek.ventures`
+- **Productions** → `westpeekproductions.com`
+- **West Peek Live** → `westpeek.live`
+
+Redirect-only / alias domains:
+
+- `westpeek.co` → `https://joinwestpeek.com/`
+- `westpeekventures.com` → `https://westpeek.ventures/`
+- `ventures.joinwestpeek.com` → `https://westpeek.ventures/`
+- `westpeek-productions.com` → `https://westpeekproductions.com/`
+- `productions.joinwestpeek.com` → `https://westpeekproductions.com/`
+
+Do not use the dot-productions variant; that domain is not owned.
