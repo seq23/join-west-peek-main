@@ -108,17 +108,19 @@ footer a{color:var(--link)}
 .tools-grid{margin-top:24px}
 
 /* 2026 global navigation hierarchy */
-.global-nav{max-width:1240px}
+.global-nav{max-width:1440px}
 .global-nav .brand{color:#fff}
 .global-nav .brand:hover{text-decoration:none}
-.global-navlinks{align-items:center;gap:14px;flex-wrap:nowrap}
-.global-navlinks .nav-group{display:inline-flex;align-items:center;gap:18px}
+.global-navlinks{align-items:center;gap:20px;flex-wrap:nowrap}
+.global-navlinks .nav-group{display:inline-flex;align-items:center}
+.global-navlinks .nav-group-primary{gap:26px}
+.global-navlinks .nav-group-secondary{gap:22px}
 .global-navlinks .nav-group-primary a{font-weight:700;color:#f5f5f5;opacity:1}
 .global-navlinks .nav-group-primary a.active{color:#ff8a00}
-.global-navlinks .nav-group-secondary a{font-weight:600;color:#e2e2e2;opacity:.88}
-.global-navlinks .nav-divider{width:1px;height:24px;background:#303033;display:inline-block;margin:0 2px}
-.global-navlinks .nav-utility{font-size:12px;font-weight:500;color:#85858a;opacity:.78;margin-left:8px;white-space:nowrap}
-.global-navlinks .nav-utility:hover{color:#c4c4c7;opacity:1;text-decoration:none}
+.global-navlinks .nav-group-secondary a{font-size:13px;font-weight:500;color:#c8c8cb;opacity:.82}
+.global-navlinks .nav-divider{width:1px;height:24px;background:#303033;display:inline-block;margin:0 8px}
+.global-navlinks .nav-utility{font-size:11px;font-weight:400;color:#77797c;opacity:.52;margin-left:28px;white-space:nowrap}
+.global-navlinks .nav-utility:hover{color:#a5a5aa;opacity:.82;text-decoration:none}
 
 /* West Peek Productions — Community-as-a-Service agency page */
 .agency-page{--agency-orange:#ff8500;--agency-panel:#121416;--agency-panel-2:#16191b;--agency-line:#27292b;--agency-copy:#d8d9da;--max:1240px}
