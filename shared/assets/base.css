@@ -223,3 +223,196 @@ footer a{color:var(--link)}
   .agency-section h2,.agency-section-narrow h2{font-size:30px}
   .agency-flow{justify-content:start}
 }
+
+/* NAV-HIERARCHY-FIX-START */
+/*
+  Locked West Peek navigation hierarchy:
+  PRIMARY: Community / Ventures / Agency
+  SECONDARY: Founder Dilution Dashboard / West Peek Live!
+  TERTIARY: Operator Login
+*/
+
+/* Give the navigation enough horizontal room to breathe. */
+.global-nav{
+  max-width:1320px;
+  gap:30px;
+}
+
+.global-navlinks{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:nowrap;
+  gap:0;
+}
+
+/* PRIMARY BUSINESS NAV */
+.global-navlinks .nav-group-primary{
+  display:inline-flex;
+  align-items:center;
+  gap:0;
+}
+
+.global-navlinks .nav-group-primary a{
+  font-size:14px;
+  font-weight:700;
+  color:#f5f5f5;
+  opacity:1;
+  white-space:nowrap;
+}
+
+/* Explicit spacing between primary links. */
+.global-navlinks .nav-group-primary a + a{
+  margin-left:28px;
+}
+
+.global-navlinks .nav-group-primary a.active{
+  color:#ff8a00;
+}
+
+/* Divider creates a clear break between businesses and public products. */
+.global-navlinks .nav-divider{
+  display:inline-block;
+  flex:0 0 1px;
+  width:1px;
+  height:23px;
+  margin:0 26px;
+  background:#343438;
+}
+
+/* SECONDARY PUBLIC PRODUCTS */
+.global-navlinks .nav-group-secondary{
+  display:inline-flex;
+  align-items:center;
+  gap:0;
+}
+
+.global-navlinks .nav-group-secondary a{
+  font-size:13px;
+  font-weight:600;
+  color:#d2d2d5;
+  opacity:.88;
+  white-space:nowrap;
+}
+
+.global-navlinks .nav-group-secondary a + a{
+  margin-left:24px;
+}
+
+.global-navlinks .nav-group-secondary a:hover{
+  color:#fff;
+  opacity:1;
+}
+
+/*
+  TERTIARY UTILITY ACCESS.
+  Intentionally discoverable but NOT promoted.
+*/
+.global-navlinks > .nav-utility{
+  margin-left:42px;
+  padding:0;
+  min-height:auto;
+  border:0;
+  background:transparent;
+  font-size:11px;
+  line-height:1;
+  font-weight:400;
+  letter-spacing:.01em;
+  color:#77797d;
+  opacity:.52;
+  white-space:nowrap;
+}
+
+.global-navlinks > .nav-utility:hover{
+  color:#a5a5aa;
+  opacity:.82;
+  text-decoration:none;
+}
+
+/* Tablet: reduce spacing gradually before switching to mobile layout. */
+@media (max-width:1180px) and (min-width:861px){
+  .global-nav{
+    gap:20px;
+  }
+
+  .global-navlinks .nav-group-primary a + a{
+    margin-left:20px;
+  }
+
+  .global-navlinks .nav-divider{
+    margin-left:18px;
+    margin-right:18px;
+  }
+
+  .global-navlinks .nav-group-secondary a + a{
+    margin-left:18px;
+  }
+
+  .global-navlinks > .nav-utility{
+    margin-left:26px;
+  }
+}
+
+/*
+  Mobile:
+  Primary businesses first.
+  Public products second.
+  Operator Login becomes its own quiet utility row.
+*/
+@media (max-width:860px){
+  .global-navlinks{
+    display:grid;
+    grid-template-columns:1fr;
+    width:100%;
+    gap:13px;
+  }
+
+  .global-navlinks .nav-group-primary{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:9px;
+  }
+
+  .global-navlinks .nav-group-secondary{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:9px;
+  }
+
+  .global-navlinks .nav-group-primary a + a,
+  .global-navlinks .nav-group-secondary a + a{
+    margin-left:0;
+  }
+
+  .global-navlinks .nav-group-primary a,
+  .global-navlinks .nav-group-secondary a{
+    justify-content:center;
+    text-align:center;
+  }
+
+  .global-navlinks .nav-divider{
+    display:none;
+  }
+
+  .global-navlinks > .nav-utility{
+    display:inline-flex;
+    justify-self:start;
+    width:auto;
+    margin:4px 0 0;
+    padding:4px 1px;
+    border:0;
+    background:transparent;
+    font-size:11px;
+    font-weight:400;
+    color:#737378;
+    opacity:.55;
+  }
+}
+
+@media (max-width:560px){
+  .global-navlinks .nav-group-primary,
+  .global-navlinks .nav-group-secondary{
+    grid-template-columns:1fr;
+  }
+}
+/* NAV-HIERARCHY-FIX-END */
