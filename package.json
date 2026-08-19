@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "validate": "npm run build",
     "build:community": "node scripts/build.mjs community",
     "build:ventures": "node scripts/build.mjs ventures",
     "build:productions": "node scripts/build.mjs productions",
