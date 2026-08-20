@@ -1,0 +1,72 @@
+name: Entity Validation
+
+on:
+  push:
+    branches:
+      - 'work/**'
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate-entity-graph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate structured data
+        run: |
+          python - <<'PY'
+          import json, pathlib, re
+
+          targets = {
+              'sites/community/index.html': 'https://joinwestpeek.com/#organization',
+              'sites/ventures/index.html': 'https://westpeek.ventures/#organization',
+              'sites/productions/index.html': 'https://westpeekproductions.com/#organization',
+          }
+
+          parsed = {}
+          for path, org_id in targets.items():
+              html = pathlib.Path(path).read_text(encoding='utf-8')
+              blocks = re.findall(r'<script\s+type="application/ld\+json">\s*(.*?)\s*</script>', html, flags=re.S)
+              assert blocks, f'No JSON-LD block found in {path}'
+              data = json.loads(blocks[0])
+              assert data.get('@context') == 'https://schema.org', path
+              graph = data.get('@graph')
+              assert isinstance(graph, list) and graph, f'Missing @graph in {path}'
+              by_id = {n.get('@id'): n for n in graph if isinstance(n, dict) and n.get('@id')}
+              assert org_id in by_id, f'Missing {org_id} in {path}'
+              parsed[path] = by_id
+
+          community = parsed['sites/community/index.html']['https://joinwestpeek.com/#organization']
+          productions = parsed['sites/productions/index.html']['https://westpeekproductions.com/#organization']
+          ventures_map = parsed['sites/ventures/index.html']
+          ventures = ventures_map['https://westpeek.ventures/#organization']
+
+          assert community['@id'] != productions['@id'] != ventures['@id']
+
+          members = ventures.get('member', [])
+          refs = {m.get('@id') for m in members if isinstance(m, dict)}
+          assert 'https://scootertaylor.com/#person' in refs
+          assert 'https://sequoiataylor.com/#person' in refs
+
+          scooter = ventures_map['https://scootertaylor.com/#person']
+          sequoia = ventures_map['https://sequoiataylor.com/#person']
+          assert scooter.get('jobTitle') == 'General Partner'
+          assert sequoia.get('jobTitle') == 'General Partner'
+          assert scooter.get('worksFor', {}).get('@id') == ventures['@id']
+          assert sequoia.get('worksFor', {}).get('@id') == ventures['@id']
+
+          assert 'https://westpeek.ventures/' in community.get('relatedLink', [])
+          assert 'https://westpeekproductions.com/' in community.get('relatedLink', [])
+          assert 'https://joinwestpeek.com/' in productions.get('relatedLink', [])
+          assert 'https://joinwestpeek.com/' in ventures.get('relatedLink', [])
+
+          print('West Peek entity graph validation PASS')
+          PY
