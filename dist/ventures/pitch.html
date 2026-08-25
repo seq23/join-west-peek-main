@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pitch — West Peek Ventures</title>
+  <meta name="description" content="Submit a pitch to West Peek Ventures.">
+  <link rel="canonical" href="https://westpeek.ventures/pitch"/>
+  <link rel="stylesheet" href="assets/base.css">
+</head>
+<body>
+<header>
+  <div class="nav">
+    <div class="brand"><img src="assets/img/ventures-logo.png" alt="West Peek Ventures logo"><span>West Peek Ventures</span></div>
+    <nav class="navlinks"><a href="https://joinwestpeek.com/">West Peek Home</a><a href="index.html">Ventures Home</a><a href="thesis.html">Thesis</a><a href="what-we-look-for.html">What we look for</a><a href="team.html">Team</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a><a href="operator.html">Operator Login</a><a class="nav-primary" href="pitch.html">Pitch</a></nav>
+  </div>
+</header><div class="container"><h1>Pitch</h1>
+    <p>If you’re exploring a fundraise or you want a thoughtful sanity check, send the basics. You’ll get a real reply.</p><section class="section">
+  <h2>Submit a pitch</h2>
+  <p>We’re founder-facing. We don’t need perfection — we need clarity.</p>
+  <div class="form">
+    <form data-westpeek-form action="/api/lead" method="POST">
+      <input type="hidden" name="site" value="ventures">
+      <input type="hidden" name="lead_type" value="founder_pitch">
+      <input type="text" name="website" autocomplete="off" tabindex="-1" style="display:none">
+      
+<label>Name</label><input name="name" required>
+<label>Email</label><input name="email" type="email" required>
+<label>Company name</label><input name="company" required>
+<label>Website (optional)</label><input name="company_website">
+<label>Stage</label>
+<select name="stage" required>
+  <option value="">Select…</option>
+  <option>Idea</option><option>MVP</option><option>Early revenue</option><option>Seed</option><option>Series A+</option>
+</select>
+<label>What are you building?</label><textarea name="description" required></textarea>
+<label>Deck link (optional)</label><input name="deck">
+
+      <button type="submit">Send</button>
+      <div class="small" data-form-status style="margin-top:10px"></div>
+      <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
+    </form>
+  </div>
+</section></div><footer>
+  <div><a href="https://www.linkedin.com/in/scootertaylor/" target="_blank" rel="noopener">LinkedIn</a> · <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a> · <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a></div>
+  <div style="margin-top:10px">Contact: <a href="mailto:scooter@westpeek.ventures">scooter@westpeek.ventures</a></div>
+  <div class="one-liner" style="margin-top:10px">Good people should meet good people.</div>
+  <div class="small" style="margin-top:10px">© West Peek Ventures</div>
+<div class="network-footer" aria-label="West Peek network"><a href="https://joinwestpeek.com/">West Peek Home</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a><a href="operator.html">Operator Login</a></div>
+</footer>
+<script src="assets/js/forms.js"></script>
+</body>
+</html>
