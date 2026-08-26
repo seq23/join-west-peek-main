@@ -9,6 +9,7 @@
     "build:ventures": "node scripts/build.mjs ventures",
     "build:productions": "node scripts/build.mjs productions",
     "build": "node scripts/build.mjs community && node scripts/build.mjs ventures && node scripts/build.mjs productions",
-    "validate:operator-doc-currency": "node scripts/validate_operator_doc_currency.mjs docs"
+    "validate:operator-doc-currency": "node scripts/validate_operator_doc_currency.mjs docs",
+    "portfolio:status": "node scripts/portfolio_status.mjs --write"
   }
 }
