@@ -35,23 +35,23 @@ has not been verified.
 | repo | in_sync | uncommitted | workflows_green | workflows_red |
 |---|---|---|---|---|
 | sprylabs-hpc-site | yes | 0 | 2 | 0 |
-| local-guides-citation-velocity | yes | 0 | 3 | 0 |
+| local-guides-citation-velocity | yes | 0 | 2 | 0 |
 | WPP-llm | yes | 0 | 4 | 0 |
 | authority-backlink-network | yes | 0 | 1 | 0 |
-| p-n-p | yes | 0 | 1 | 0 |
-| approvalprep | yes | 0 | 3 | 0 |
-| dream-wedding-builder | yes | 0 | 3 | 0 |
-| join-west-peek-main | yes | 2 | 1 | 0 |
-| local-guides-generator | yes | 1 | 6 | 0 |
+| p-n-p | yes | 0 | 0 | 0 |
+| approvalprep | yes | 0 | 7 | 0 |
+| dream-wedding-builder | yes | 0 | 2 | 2 |
+| join-west-peek-main | yes | 1 | 1 | 0 |
+| local-guides-generator | yes | 0 | 3 | 0 |
 | hicks-consulting-canonical | yes | 0 | 5 | 0 |
-| horse-legal-guide-velocity | yes | 603 | 2 | 0 |
+| horse-legal-guide-velocity | yes | 598 | 1 | 0 |
 
 ## Open findings
 
 - **Source exposed**: `/package.json` returns 200 on virtualagency-os.com, porchandparty901.com, partyandporch.com.
 - Every domain returns a real 404 for unknown paths.
 - **No Clarity tag**: aplayermode.com, hormonesivhair.com, uscisexam.com, theaccidentguides.com, neuroevalguides.com, dentistryguides.com.
-- No red workflows in the most recent run of each.
+- **Red workflows**: dream-wedding-builder (2).
 
 ## Not verifiable from here
 
