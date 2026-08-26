@@ -41,10 +41,10 @@ has not been verified.
 | p-n-p | yes | 0 | 0 | 0 |
 | approvalprep | yes | 0 | 7 | 0 |
 | dream-wedding-builder | yes | 0 | 2 | 2 |
-| join-west-peek-main | yes | 1 | 1 | 0 |
+| join-west-peek-main | yes | 0 | 1 | 0 |
 | local-guides-generator | yes | 0 | 3 | 0 |
 | hicks-consulting-canonical | yes | 0 | 5 | 0 |
-| horse-legal-guide-velocity | yes | 598 | 1 | 0 |
+| horse-legal-guide-velocity | yes | 598 | 2 | 0 |
 
 ## Open findings
 
