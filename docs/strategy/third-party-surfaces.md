@@ -107,10 +107,27 @@ the robots layer is the engine that cites LinkedIn least, by roughly 3x. That is
 a mechanism, not a coincidence, and it means **crawler access is a leading
 indicator you can check for free before spending a quarter on a surface.**
 
-Critically, `/pulse/` (LinkedIn Articles) and `/posts/` are **not** in the
-disallow list for either `OAI-SearchBot` or `Googlebot`. Articles and public
-posts are readable. `/public-profile/` and `/people/search/` are disallowed even
-for the allowed bots.
+Two caveats that keep this honest. First, "blocked" is not "absent": Perplexity
+is blanket-blocked at both agents yet is still measured citing LinkedIn 5.3% of
+the time. Cloudflare has documented Perplexity "ignoring — or sometimes failing
+to even fetch — robots.txt files" and using undeclared crawlers with generic
+Chrome user-agents across rotating IPs, and de-listed it as a verified bot
+([Cloudflare, 2025-08-04](https://blog.cloudflare.com/perplexity-is-using-stealth-undeclared-crawlers-to-evade-website-no-crawl-directives/)).
+Second, LinkedIn does not appear to enforce by user-agent at the server layer —
+the block is policy, not a wall. Neither caveat changes the direction; both mean
+robots.txt predicts *relative* citation rate, not a hard zero.
+
+**Three path rules that are directly actionable** (parsed from the file
+2026-08-26, verified per user-agent block):
+
+| Path | Who is blocked | So |
+|---|---|---|
+| `/pulse/` (Articles) | **nobody** | Articles are readable by every allowed bot. Best format. |
+| `/posts/…` | **nobody** | The canonical shareable post URL. Readable by all. |
+| `/feed/update/urn:li:activity:…` | **Googlebot and Bingbot** (not OAI-SearchBot, not Claude-SearchBot) | **Always share the `/posts/…` form. The `/feed/update/…` form is invisible to Google, and therefore to AI Overviews and AI Mode.** This is the cheapest win in the whole document. |
+| `/public-profile/`, `/people/search/` | **OAI-SearchBot and Claude-SearchBot** (not Googlebot) | LinkedIn deliberately withholds bulk people-discovery from AI search bots. Don't build on profile URLs. |
+
+There is no `Sitemap:` directive anywhere in LinkedIn's robots.txt.
 
 **b) Medium blocks the two crawlers that matter most to us for training, and
 that is enough to disqualify it.** Medium names eight agents and gives them
@@ -119,6 +136,25 @@ that is enough to disqualify it.** Medium names eight agents and gives them
 name `OAI-SearchBot`, `Claude-SearchBot` or `PerplexityBot`, so those fall under
 `*` and can read article paths. Net: Medium content can be *retrieved* live but
 cannot be *learned*. Combined with §5, Medium is out.
+
+**b2) YouTube is open — but its transcripts are not, and that explains the
+strangest number in this document.** YouTube's robots.txt names no AI crawler at
+all; everything falls under one `User-agent: *`. But that block contains
+`Disallow: /api/`, `Disallow: /timedtext_video` and `Disallow: /results`
+[PRIMARY]. A video's transcript is served from `/api/timedtext`. So a
+robots-compliant crawler can read a video's **title, description and chapter
+timestamps** — and **not its spoken content**. It also cannot walk YouTube
+search.
+
+That is the cleanest available explanation for why YouTube is a rounding error
+on ChatGPT (0.2% per BrightEdge, 4.4% of YouTube citations per Otterly) while
+being the single most-cited domain on Google's own AI surfaces, where Google has
+the transcript regardless of robots.txt. It is inference, not a statement from
+any engine — no primary source exists on how OpenAI or Anthropic handle YouTube
+transcripts. But it is mechanically consistent, and it drives a concrete
+instruction: **the description and the chapters are the parts of your video an
+AI crawler is actually permitted to read. Write them like they are the content,
+because for several engines they are.**
 
 **c) Reddit is `Disallow: /` to everyone.** Reddit's robots.txt blocks all
 automated access and points at its
@@ -141,7 +177,7 @@ algorithm, we are watching a supply contract. See §1.4.
 | Reddit share of ChatGPT citations, Jul 18–Aug 7 2026 | 3.83% | Promptwatch, via [SEJ 2026-08-19](https://www.searchenginejournal.com/why-reddits-chatgpt-citation-drop-isnt-fully-explained/586479/) | [VENDOR] — note this is *share of citations*, a different metric from *% of responses* |
 | Reddit share of ChatGPT citations, Aug 14–17 2026 | 0.52% | ibid. | [VENDOR] — an 86.4% relative drop, **nine days before this document** |
 | YouTube share of *all* AI citations | ~1.8% (31.8% of social, social = 5.54% of all) | [Otterly, 2026-03-02](https://otterly.ai/blog/youtube-ai-citation-study-2026/), 100M citation instances, 30 days, 6 engines | [VENDOR] |
-| YouTube share of Google AI Overview citations | 23.3% | 5W Research, 2026 | [VENDOR] — an order of magnitude apart from the line above |
+| YouTube share of Google AI Overview citations | 23.3% | [5W Research, 2026](https://www.5wpr.com/research/youtube-ai-citation-share-report-2026/) | [VENDOR] — an order of magnitude apart from the line above; methodology not obtained |
 | LinkedIn cited in AI responses, avg across 3 engines | 11% | [Semrush 2026-03-10](https://www.semrush.com/blog/linkedin-ai-visibility-study/) | [VENDOR] |
 
 Search Engine Journal's own reporting on the Reddit drop notes the measurement
@@ -172,8 +208,8 @@ survives even if the numbers are soft.
 |---|---|
 | Most brand mentions AI surfaces originate on pages the brand doesn't own | Still **[UNVERIFIED]**. No traceable source found. Do not quote it. |
 | Reddit, LinkedIn, Wikipedia, Medium and YouTube are disproportionately represented among cited domains | **Partly confirmed, one refuted.** Reddit, LinkedIn and YouTube appear at the top of every vendor ranking found. **Medium does not** — it blocks GPTBot and ClaudeBot outright [PRIMARY] and its only supporting mention was as a post-Sept-2025 "biggest winner" on ChatGPT with no figure attached ([Semrush 2025-11-10](https://www.semrush.com/blog/most-cited-domains-ai/)). Drop Medium from the list. |
-| Different engines draw on substantially different domain sets | **Confirmed, with a mechanism.** LinkedIn: 14.3% ChatGPT / 13.5% AI Mode / 5.3% Perplexity [VENDOR], explained by Perplexity being robots-blocked [PRIMARY]. Otterly's YouTube citations split Perplexity 38.7% / AIO 36.6% / AI Mode 19.6% / ChatGPT 4.4% / Copilot 0.5% / Gemini 0.2% [VENDOR]. |
-| Listicles, comparisons and roundups carry most third-party brand mentions | Still **[UNVERIFIED]**. |
+| Different engines draw on substantially different domain sets | **Confirmed, with a mechanism, and it is the most useful finding in this document.** LinkedIn is strong on ChatGPT (14.3%) and Google AI Mode (13.5%), weak on Perplexity (5.3%) — and is robots-blocked to Perplexity [PRIMARY]. YouTube is the inverse: #1 on Google's AI surfaces (21–29.5%) and a rounding error on ChatGPT (0.2%) — and its transcripts sit behind a `Disallow: /api/` path [PRIMARY]. **The two surfaces are complements, not alternatives.** Running both is the only way to reach both engine families; running one leaves half the engines untouched. |
+| Listicles, comparisons and roundups carry most third-party brand mentions | Still **[UNVERIFIED]** as stated. But a related and better-evidenced shape did turn up: **Q&A format carries >50% of all Reddit citations**, and on LinkedIn 54–64% of cited posts are knowledge-sharing or practical advice rather than promotion [VENDOR]. The transferable finding is *answer shape*, not listicle format. |
 
 ---
 
@@ -204,9 +240,27 @@ with under 2,000 followers is inside the observed distribution of cited
 content.** LinkedIn's citation mechanic is not virality. It is consistency plus
 topical clarity. That is a job a busy owner can actually do.
 
-Profound's tracking reportedly put LinkedIn at #5 on ChatGPT by February 2026,
-up from ~#11 in November 2025 [VENDOR, secondhand] — I could not open the
-primary, so treat the rank as colour, not evidence.
+Semrush's own study adds the finding that matters most to an account starting
+from nothing: **creators under 500 followers were cited at essentially the same
+rate as large accounts**, and posting frequency beat follower count as a
+predictor. Profound separately measured LinkedIn rising to the **5th most-cited
+source between November 2025 and February 2026, from outside the top 20** —
+reported via
+[Social Media Today, 2026-03-10](https://www.socialmediatoday.com/news/linkedin-is-a-leading-source-for-ai-answers/814388/)
+[VENDOR].
+
+**The dissenting datapoint, recorded because it is large.** Profound's earlier
+analysis (680M citations, Aug 2024 – Jun 2025) put LinkedIn at just **1.3% of
+Google AI Overviews citations and 0.8% of Perplexity's**, absent from ChatGPT's
+top four
+([Profound, 2025-06-05](https://www.tryprofound.com/blog/ai-platform-citation-patterns)).
+Semrush's early-2026 figure is roughly 10x that. Some of the gap is real growth
+— Profound's own later data shows the climb — and some is that the two vendors
+measure different denominators (share of all citations vs. percentage of
+responses containing at least one citation). Neither publishes a reproducible
+methodology. **Treat "LinkedIn is the #2 AI source" as directional. The
+robots.txt evidence in §1.3 is the part that is genuinely verifiable, and it is
+what this recommendation actually rests on.**
 
 ### 2.2 The rules that get you removed
 
@@ -228,12 +282,24 @@ Concretely, for us:
   (hicksconsulting.org, horselegalguide.com) — "a client of mine" in the post
   body. This is the same standard as the `rel="sponsored nofollow"` already
   applied on owned properties.
-- **Reach mechanics:** the widely-repeated claim that LinkedIn suppresses posts
-  containing external links is **[UNVERIFIED]** — LinkedIn has never confirmed
-  it and I found no primary source. Do not build the workflow around it. But
-  note the citation-relevant version of the question is different anyway: the
-  *LinkedIn URL itself* is what gets cited, not your link out. Put the substance
-  in the post.
+- **The link penalty, resolved as well as it can be.** LinkedIn's official
+  position is that links do not intentionally limit reach *provided the post
+  stands alone without the link* — Rishi Jobanputra, Sr. Director of Product
+  Management, [stated so publicly](https://www.linkedin.com/feed/update/urn:li:activity:7370869955623542785/).
+  Two vendor studies disagree with the company: Ordinal (900k+ posts, Feb 2023 –
+  Feb 2026) measured a **26.5% reach penalty** on link posts; Richard van der
+  Blom's Algorithm Insights 2026 (1.3M posts) measured **18.8% lower median
+  reach** [VENDOR]. Both vendors sell tooling that moves links to the first
+  comment — direct commercial interest in the penalty being real, and neither
+  study page could be fetched directly, so both figures are read from search
+  indexes. A third (Saywhat, Q1 2026, ~398k posts) found link posts performing
+  *better*. The widely-circulated "60% penalty" figure exceeds every underlying
+  study and should not be repeated.
+
+  **Working rule:** somewhere in the 15–30% range, direction consistent,
+  magnitude unknowable. Follow LinkedIn's own stated condition — make the post
+  complete without the link — which is what you want for citation anyway, since
+  **the LinkedIn URL itself is what gets cited, not your link out.**
 
 ### 2.3 What to actually publish, mapped to these brands
 
@@ -259,6 +325,17 @@ treat "it's just a LinkedIn post" as outside the approval scope — it is more
 public than the site.
 
 ### 2.4 Cadence and effort
+
+**Two mechanical steps that cost nothing and are skipped by default:**
+
+1. **Set the SEO title and description on every Article and Newsletter.**
+   LinkedIn exposes these explicitly and says they appear "on search engine
+   result pages, such as Google search" — SEO title ~60 chars, description
+   140–160 ([LinkedIn Help](https://www.linkedin.com/help/linkedin/answer/a6244140)).
+   Left blank, LinkedIn guesses.
+2. **Copy the `/posts/…` link, never the `/feed/update/…` link.** See §1.3.
+   Googlebot is blocked from `/feed/update/`, so the second form cannot reach
+   AI Overviews or AI Mode at all.
 
 | Activity | Frequency | Hours/week |
 |---|---|---|
@@ -327,14 +404,60 @@ exists, and it is the finding that makes YouTube viable for a portfolio with no
 audience. **Description length is the one metadata signal that moved (r ≈ 0.31,
 weak-to-moderate).** Write real descriptions.
 
-Caveat, stated plainly: Otterly puts YouTube at ~1.8% of *all* AI citations
-(31.8% of social × 5.54% social share) while 5W puts it at 23.3% of *Google AI
-Overview* citations. Those are not reconcilable without both methodologies, and
-I could not obtain them. **Do not quote either externally.** The robust part is
-the qualitative shape: small channels get cited, long-form gets cited,
-timestamps get cited repeatedly, and Google surfaces carry all of the timestamped
-citations (73% AI Overviews / 27% AI Mode; zero observed in ChatGPT, Gemini or
-Copilot).
+### 3.1b Two caveats that should temper the YouTube enthusiasm
+
+**Caveat 1: the vendor spread on YouTube is the worst in this document — a
+15x range on the same platform.**
+
+| Source | Surface | YouTube share |
+|---|---|---|
+| [BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/youtube-presence-ai-search) (May 2024 – Sept 2025) | AI Overviews | **29.5%, #1** |
+| [Ahrefs](https://ahrefs.com/blog/most-cited-domains-ai-overviews/) (3M+ US queries, Jul 2026) | AI Overviews | **21.1%, #1** |
+| [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns) (680M citations, Jun 2025) | AI Overviews | **1.9%** |
+| BrightEdge | **ChatGPT** | **0.2%** |
+| Otterly (share of YouTube citations by platform) | ChatGPT | 4.4% |
+
+Ahrefs' figure carries a methodology caveat that inflates it and is rarely
+quoted alongside it: Ahrefs computes "mention share" as a domain's citations as
+a percentage of the **top 50 sources only**, not of all citations.
+
+**Caveat 2: YouTube's headline numbers are Google citing Google.** In the same
+Ahrefs table, Google-owned properties take 28.2% of top-50 mention share
+(youtube.com 21.1% + google.com 7.1%). The European Commission opened a formal
+antitrust probe on 2025-12-09 into Google's use of publisher and
+YouTube-uploaded content for AI, explicitly concerned that YouTube content
+trains Google's models "whilst rivals are barred from using such content"
+([CNBC](https://www.cnbc.com/2025/12/09/google-hit-with-eu-antitrust-probe-over-use-of-online-content-for-ai.html),
+[TechCrunch](https://techcrunch.com/2025/12/09/eu-launches-antitrust-probe-into-googles-ai-search-tools/)).
+Combined with §1.3(b2), the picture is coherent: **YouTube is a strong surface
+for Google's answer engines and a weak one for ChatGPT.** Plan accordingly — and
+note this is the mirror image of LinkedIn, which is strong on ChatGPT. The two
+together cover more engines than either alone, which is the actual argument for
+running both.
+
+Also worth knowing: Google's own Search Central documentation states there are
+"no additional requirements to appear in AI Overviews or AI Mode, nor other
+special optimizations necessary"
+([AI Features and Your Website](https://developers.google.com/search/docs/appearance/ai-features)),
+and says nothing about video in AI surfaces at all. Every "optimize YouTube for
+AI citations" tactic in circulation is inference, including the ones in this
+document. The one documented mechanism is below.
+
+**The one officially documented mechanism.** Google Search Central states that
+for YouTube-hosted video "you can specify the exact timestamps and labels in the
+video description on YouTube," and that "**we will prioritize key moments set by
+you**"
+([Video best practices](https://developers.google.com/search/docs/appearance/video)).
+That is a first-party statement that chapters in your description change how
+Google surfaces the video. It is the only such statement I found across all four
+platforms, and it is why chapters are non-negotiable in §3.4.
+
+**What is NOT documented, contrary to widespread claims:** there is **no
+source** — from YouTube, Google, or any study — that manually uploaded captions
+outperform auto-captions for search, discovery or AI retrieval. YouTube's
+caption documentation is framed entirely around accessibility. Correct your
+captions because auto-captions garble domain terms and because it is the right
+thing to do, not because a blog said it drives citations.
 
 ### 3.2 The rules that get you removed
 
@@ -354,12 +477,32 @@ videos. That approach is now named in policy as the thing that gets
 demonetised, and — more importantly for us — it is the opposite of what gets
 cited.
 
-Also: monetisation is not the goal and YPP thresholds are irrelevant to
-citation. A video with 200 views can be cited (40.83% of cited videos had under
-1,000). Do not spend a minute on subscriber counts.
+Two clarifications that reduce the perceived risk, both from YouTube's own
+[response to creator questions](https://support.google.com/youtube/thread/356734251/response-to-creator-questions-about-ypp-policies-july-2025):
+this content was **always** ineligible for monetisation, so the update is a
+clarification and **not an AI ban**; and enforcement is at the **channel level**,
+not per video. The separate "reused content" policy is unchanged.
 
-Disclose synthetic media. YouTube requires creators to disclose realistic
-altered or synthetic content in the upload flow.
+**Monetisation is not the goal and YPP thresholds are irrelevant to citation.**
+For the record, the current thresholds are 500 subscribers + 3 valid public
+uploads in 90 days + 3,000 qualified watch hours (or 3M Shorts views) for the
+lower tier, and 1,000 subscribers + 4,000 watch hours (or 10M Shorts views) for
+ad revenue
+([YouTube Help](https://support.google.com/youtube/answer/13429240)). Note also
+that YPP terms update effective 2027-02-01, requiring acceptance in Studio by
+2027-01-31. None of this affects citation. Do not spend a minute on subscriber
+counts — 40.83% of cited videos had under 1,000 views [VENDOR].
+
+**AI disclosure, precisely.** Disclosure is required when AI makes a real person
+appear to say or do something they did not, alters footage of a real event or
+place, or generates a realistic scene that did not occur; it is **not** required
+for scripts, titles, descriptions, planning, clearly unrealistic content, beauty
+filters, or cloning your own voice for voiceover
+([YouTube Help](https://support.google.com/youtube/answer/14328491),
+[YouTube blog](https://blog.youtube/news-and-events/disclosing-ai-generated-content/)).
+Set it in Studio under Details → Attributes → "AI use". Consistent
+non-disclosure can mean a manually applied label, content removal, or YPP
+suspension.
 
 ### 3.3 What to actually publish, mapped to these brands
 
@@ -392,9 +535,19 @@ Realistic, single-take, no editing beyond top-and-tail:
 format is set. A VA can do trim/upload/chapters/captions (~1.0 hr of that); the
 recording cannot be delegated.
 
-Do the caption correction. Auto-captions on domain terms — "equine", "USCIS",
-"N-400", "balloon garland" — are unreliable, and the transcript is what the
-retrieval layer reads.
+**Spend the effort on the description and chapters, not on production value.**
+Those are the two things a robots-compliant crawler is actually allowed to read
+(§1.3(b2)), and chapters are the one mechanism Google documents first-party
+(§3.1b). Correct the auto-captions too — auto-captions garble domain terms like
+"equine", "USCIS", "N-400" and "balloon garland", and YouTube itself warns they
+"might misrepresent the spoken content"
+([YouTube Help](https://support.google.com/youtube/answer/6373554)) — but do it
+for accessibility and for on-platform search, **not** because it drives AI
+citation. No source supports that claim (§3.1b).
+
+Chapter requirements, officially: first timestamp must be `00:00`, at least
+three timestamps in ascending order, each segment at least 10 seconds
+([YouTube Help](https://support.google.com/youtube/answer/9884579)).
 
 ### 3.5 How to tell if it worked
 
@@ -450,37 +603,148 @@ pipeline changes, your work evaporates in four days and you get no notice. That
 is a categorically different risk from LinkedIn or YouTube, where the content is
 openly crawlable and your position degrades gradually.
 
+**But here is the finding that actually settles Reddit's place in the plan, and
+it is not the volatility.** Semrush analysed 217,000 prompts producing **248,000
+unique cited Reddit URLs** across Google AI Mode, Perplexity and ChatGPT Search
+([2025-11-10](https://www.semrush.com/blog/reddit-ai-search-visibility-study/))
+[VENDOR]:
+
+| Finding | Figure |
+|---|---|
+| Cited posts with **fewer than 20 upvotes** | **80%** (median 5–8) |
+| Cited posts with fewer than 20 comments | 70% (median 11–19) |
+| **Average age of a cited post** | **~900 days (≈2.5 years)** |
+| Median cited length | ~80 words |
+| Q&A-format threads | **>50% of all citations** |
+| Citation rate, ChatGPT Search | 12.6% of responses |
+| Citation rate, Google AI Mode | 9% |
+| Citation rate, Perplexity | 3.5% |
+| Semantic similarity, **response** ↔ post | 0.53–0.54 |
+| Semantic similarity, **prompt** ↔ post | **0.04–0.05** |
+
+Read the age row. **The average Reddit post an AI cites is two and a half years
+old.** Upvotes are near-irrelevant (80% under 20). What predicts citation is
+semantic match to the *answer* (0.53) rather than to the *prompt* (0.05), and
+Q&A shape.
+
+That is a genuinely good mechanism — and it is the wrong shape for a 90-day
+plan. A comment written today is competing against threads from 2024, and its
+own payoff arrives around 2028. Reddit is a **two-year compounding asset with a
+four-day downside risk**. Both halves of that sentence argue for the same thing:
+start now, keep it small, and do not put it on the critical path.
+
 **Conclusion: participate on Reddit because it is genuinely useful for a local
-services business and for niche legal/immigration questions. Do not build a
-citation programme on it.**
+services business and for niche legal/immigration questions, and because the
+asset compounds. Do not build a 90-day citation programme on it.**
 
 ### 4.2 The rules that get you removed
 
-This is the surface where the downside is real and asymmetric. A subreddit ban
-is permanent, visible to other mods, and — for `r/memphis` specifically —
-removes the single best organic surface Porch & Party has.
+This is the surface where the downside is real and asymmetric, and where the
+rules changed materially in 2026.
 
-- **Reddit's [Content Policy](https://redditinc.com/policies/content-policy)**
-  prohibits spam, vote manipulation, and impersonation.
-- **The 9:1 rule** (nine non-promotional contributions per self-promotional one)
-  is **[UNVERIFIED] as current official policy** — it originates in old
-  self-promotion guidance and reddiquette, both of which Reddit has since
-  deprecated or moved. It survives as strong community folklore and many
-  subreddits encode a stricter version in their own rules. **Treat it as a floor,
-  not a ceiling.** I could not fetch Reddit's help centre to confirm its current
-  status (403 to automated access, consistent with §1.3(c)).
+**Correction to a claim commonly made (including in an earlier draft of this
+document): the 9:1 rule is NOT deprecated folklore.** It is live, verbatim, on
+Reddit's own help centre today. From
+[Reddiquette](https://support.reddithelp.com/hc/en-us/articles/205926439-Reddiquette)
+(`edited_at` 2025-08-18, retrieved 2026-08-26) [PRIMARY]:
+
+> "Feel free to post links to your own content (within reason). But if that's
+> all you ever post, or it always seems to get voted down, take a good hard look
+> in the mirror — you just might be a spammer. **A widely used rule of thumb is
+> the 9:1 ratio, i.e. only 1 out of every 10 of your submissions should be your
+> own content.**"
+
+A stricter mod-facing variant also stands: "Other communities abide by the 10%
+rule: only 10% of your posting and comment history in the community can be
+self-promotional in nature… It is ultimately up to you and your team to decide
+what works best for your community"
+([How do I keep spam out of my community](https://support.reddithelp.com/hc/en-us/articles/28012014962580-How-do-I-keep-spam-out-of-my-community),
+edited 2026-03-28) [PRIMARY].
+
+The accurate framing is neither "folklore" nor "sitewide rule": **Reddit
+publishes the ratio in two live places, both explicitly as informal custom and
+per-community discretion.** Reddiquette's own first line calls itself "an
+informal expression of the values of many redditors." Treat 9:1 as a floor, not
+a ceiling, and expect individual subreddits to be stricter.
+
+*(Note on retrieval: `support.reddithelp.com` returns 403 to automated HTML
+fetches, but its Zendesk API — `/api/v2/help_center/en-us/articles/{id}.json` —
+serves full article bodies with authoritative `edited_at` timestamps. Every
+Reddit help-centre quote in this section was verified through that endpoint on
+2026-08-26, not read from a search snippet.)*
+
+**The 2026 changes, all primary-sourced, all tightening:**
+
+- **Reddit's "Content Policy" is now "Reddit Rules"** —
+  `redditinc.com/policies/content-policy` 301-redirects to
+  [redditinc.com/policies/reddit-rules](https://redditinc.com/policies/reddit-rules)
+  [PRIMARY]. Rule 2: "Participate authentically in communities where you have a
+  personal interest, and do not spam or engage in disruptive behaviors
+  (including content manipulation)." Rule 5 covers impersonation and deception.
+- **★ Link-based pre-submission blocking, live in 100% of communities.**
+  Reddit's [changelog of 2026-02-04](https://support.reddithelp.com/hc/en-us/articles/45959071783316)
+  [PRIMARY] states mods can now write Post and
+  Comment Guidance rules that "trigger when a post or comment includes a specific
+  domain, URL pattern, or type of link," applying "to the URL field on link posts
+  and to links included in the body of text posts **or comments**," and can
+  "catch common link-related problems **before a post or comment is submitted**."
+  Rolled out to 100% of communities. **This is the single most consequential
+  mechanic for anyone planning to link. A mod can silently block your domain
+  before you ever hit submit.**
+- **Human verification with a seven-day deadline.** If Reddit detects automated
+  activity, "you may be asked to verify that there is a real person behind your
+  username." Verification is via device passkey (Face ID / fingerprint / PIN).
+  ([How to verify you're human](https://support.reddithelp.com/hc/en-us/articles/50051922501268),
+  created 2026-06-08) [PRIMARY].
+- **Responsible Builder Policy** (created 2025-10-28, edited 2026-06-05)
+  [PRIMARY] binds "developer, moderator, researcher, or an app," requires
+  approval before API access, and explicitly prohibits "posting identical or
+  **substantially similar content across subreddits**."
+- **[App] labels.** Automated accounts are labelled publicly; the first set
+  appeared 2026-03-31.
+- **Gating has moved off karma.** The
+  [Contributor Quality Score](https://support.reddithelp.com/hc/en-us/articles/19023371170196)
+  (edited 2026-06-23) [PRIMARY] places every account in one of five tiers using
+  "past actions taken on a redditor's account, **network and location signals**,
+  and steps a redditor has taken to secure their account (e.g. email
+  verification)" — and mods filter on it directly. Reddit's reputation filter is
+  described in its own docs as "a more nuanced approach than u/AutoModerator
+  karma or account age limits."
+
+  **Implication: karma farming is a depreciating asset.** Reddit is deliberately
+  migrating gating from signals you can farm (karma, account age) to signals you
+  cannot (network, location, account security). Do not spend a single hour
+  building karma; spend it on a verified email, a passkey, and real answers.
+
+**Still true, and still the operational rule:**
+
 - **Subreddit rules override everything and are not machine-readable.** Rules
-  change, mod teams change, and no API access is available to us. **Before the
-  first post in any subreddit, a human must open the subreddit, read the rules
-  tab, read the pinned posts, and log the date read.** Do not skip this because
-  a doc listed a subreddit name.
-- **Automod gates.** New accounts, low-karma accounts, and link posts are
-  commonly auto-removed. Expect the first two weeks of any new account to be
-  invisible. Do not react by posting more.
+  change, mod teams change, and we have no API access. **Before the first post in
+  any subreddit, a human must open the subreddit, read the rules tab, read the
+  pinned posts, and log the date read.** Do not skip this because a document
+  listed a subreddit name.
 - **Never post as a brand.** Post as a person who runs the business, and say so
   the first time it is relevant.
 
+A subreddit ban is permanent, visible to other mods, and — for `r/memphis`
+specifically — removes the single best organic surface Porch & Party has. Expect
+the first two weeks of a new account to be effectively invisible behind these
+filters. Do not react to that by posting more.
+
 ### 4.3 What to actually publish, mapped to these brands
+
+**The format the data points at, before the brand map.** Per §4.1, cited Reddit
+content is short (~80 words median), Q&A-shaped (>50% of citations), low-scored
+(80% under 20 upvotes), and matched to the *answer* not the *prompt*. So:
+
+- **Write the answer, not the pitch.** ~80–150 words, direct, specific, no
+  preamble. The thing being measured is whether your comment reads like the
+  answer to the question.
+- **Answer questions; do not start threads.** Q&A threads carry over half of all
+  Reddit citations. A question someone else asked, answered well, is worth more
+  than a post you originate.
+- **Do not chase upvotes.** 80% of cited posts are under 20. Voting is not the
+  mechanism, and Reddit is actively engineering karma out of its own gating.
 
 **Verify every subreddit's current rules before posting — see §4.2.** The
 following are candidates, not clearances.
@@ -512,21 +776,39 @@ target. If the owner will not do it personally, do not do it.
 
 ### 4.5 How to tell if it worked
 
-- **Leading:** comment karma on topical answers, and whether the account survives
-  90 days without a removal. Survival is a real metric here.
+- **Leading:** whether the account survives 90 days without a removal, and
+  whether comments stay visible rather than being auto-collapsed. Survival is a
+  real metric here. **Karma is not** — see §4.2.
 - **Real signal:** grounded probe returning a `reddit.com` URI on a priority
   query. Expect this to be rare and unstable — that is the finding, not a failure.
+- **Set the expectation honestly:** the average cited Reddit post is ~900 days
+  old [VENDOR]. A comment written in week 8 of this plan is not a 90-day asset.
+  Judge Reddit at 12 months, not at 12 weeks, and judge it on whether the
+  comments still exist and still rank.
 - **Target for 90 days:** zero bans, ≥20 substantive answers, ≥1 answer that
   ranks in Google for its thread title.
 
 ### 4.6 What NOT to do
 
-- Do not create an account and immediately post a link. Automod will remove it
-  and mods will note it.
-- Do not have a VA or an agency post on the owner's behalf.
-- Do not post the same answer in multiple subreddits.
+- Do not create an account and immediately post a link. Post & Comment Guidance
+  can now block a specific domain **before submission**, in 100% of communities
+  (§4.2) — you may not even get a removal notice.
+- **Do not post the same answer in multiple subreddits.** This is no longer just
+  bad manners: the Responsible Builder Policy explicitly prohibits "posting
+  identical or substantially similar content across subreddits" [PRIMARY].
+- **Do not farm karma.** Reddit has moved gating to Contributor Quality Score,
+  which weighs network, location and account-security signals you cannot farm
+  (§4.2). Hours spent on karma are hours wasted by design.
+- Do not have a VA or an agency post on the owner's behalf. Beyond the honesty
+  problem, an account flagged for automated activity now has **seven days** to
+  pass passkey human verification or be labelled an app and restricted from
+  posting [PRIMARY].
+- Do not use any bot, scheduler or generative tool that posts on your behalf.
+  Reddit's Spam policy names "tools (e.g., bots, generative AI tools) that may
+  break Reddit or facilitate the proliferation of spam" [PRIMARY].
 - Do not argue with a moderator. Ever. Accept the removal and move on.
 - Do not treat Reddit as a channel with a forecast. §4.1 is why.
+- Do not judge it at 90 days. §4.5 is why.
 
 ---
 
@@ -666,16 +948,24 @@ when you start two things at once.
 
 ### Week 8 — add Reddit, capped (~7 hrs/week total)
 
-10. One account, owner's real identity, disclosed. Two weeks of answering only —
-    no links at all — while automod gates lift.
-11. Rule-read and log for `r/memphis` and the wedding subs before the first
+10. One account, owner's real identity, disclosed. **Verify the email and set a
+    passkey on day one** — those are Contributor Quality Score inputs, and the
+    passkey is what clears human verification if the account is ever flagged
+    (§4.2). Do not spend any time on karma.
+11. Two weeks of answering only — no links at all — while the filters settle.
+    Note that link-based blocking now runs pre-submission in 100% of communities,
+    so a link may fail silently.
+12. Rule-read and log for `r/memphis` and the wedding subs before the first
     comment.
-12. Hard cap 1.5 hrs/week. Do not let Reddit crowd out LinkedIn.
+13. Hard cap 1.5 hrs/week. Do not let Reddit crowd out LinkedIn. Judge it at 12
+    months, not at week 12 (§4.5).
 
 ### Week 12 — decide (~1 hr)
 
-13. Grounded probe run #3 against the week-1 baseline.
-14. Decision rule, stated in advance so it cannot be rationalised later:
+14. Grounded probe run #3 against the week-1 baseline.
+15. Decision rule, stated in advance so it cannot be rationalised later.
+    **Reddit is explicitly excluded from this decision** — its payoff horizon is
+    years, so judging it here would produce the wrong answer:
     - **≥1 grounded observation citing a LinkedIn or YouTube URL of ours** →
       the mechanism works. Double down on whichever produced it.
     - **Zero, but LinkedIn Articles are indexed and videos are getting search
@@ -690,7 +980,8 @@ when you start two things at once.
 |---|---|
 | **Medium, entirely** | Blocks GPTBot and ClaudeBot [PRIMARY]; commercial content structurally excluded from distribution; canonical import points back at the pages that already don't work. §5. |
 | **A fourth owned publication** | A fourth closed loop. Already settled in `where-citations-come-from.md`. |
-| **Reddit before week 8** | It is the highest-variance surface and it lost 86% of its ChatGPT citation share nine days ago. Learn the cadence habit on a stable surface first. |
+| **Reddit before week 8** | Highest-variance surface (lost 86% of its ChatGPT citation share nine days ago) *and* the slowest — the average cited Reddit post is ~900 days old, so nothing started here pays inside 90 days. Learn the cadence habit on a stable, faster surface first. |
+| **Karma farming on Reddit** | Reddit has moved its gating to Contributor Quality Score, which weighs network, location and account-security signals rather than karma [PRIMARY]. Farming karma is optimising a signal being deliberately retired. |
 | **YouTube Shorts** | 5.7% of YouTube's AI citations [VENDOR]. |
 | **Health-vertical third-party posting** | YMYL without a credentialed presenter. §6. |
 | **Any paid/automated engagement** | Terms violation on all four platforms, and the data says virality isn't the mechanism anyway (median cited LinkedIn post: 15–25 reactions). |
@@ -722,7 +1013,12 @@ Carried directly from the standard already applied on owned properties, where
 **What this can achieve.** It can put pages carrying these brands' names on
 surfaces that AI retrieval crawlers are permitted to read — which, per §1.3, is
 something the current 9,700 owned pages and 562 owned-to-owned nofollow links
-structurally cannot do. LinkedIn's own data says the bar is a post with 15–25
+structurally cannot do. And it can do it across *both* engine families, because
+LinkedIn and YouTube fail in opposite directions: LinkedIn is readable by
+ChatGPT's and Google's retrieval bots and invisible to Perplexity; YouTube is
+dominant on Google's AI surfaces and a rounding error on ChatGPT. That
+complementarity is the reason the plan runs two surfaces rather than one, and it
+is the reason a third and fourth surface add much less than they appear to. LinkedIn's own data says the bar is a post with 15–25
 reactions from an account with under 2,000 followers, posted consistently.
 YouTube's says views and subscribers correlate at roughly zero with citation.
 Neither of those requires an audience, a budget, or a year. They require about
@@ -742,6 +1038,10 @@ work on two surfaces is a realistic shot at *one* observed grounded citation of 
 third-party page carrying one of these brands. One. Set against a baseline of
 zero across 24 observations, one is a genuine and falsifiable result — but it is
 not traffic, it is not revenue, and it will not feel like progress in week six.
+Reddit is slower still: the average Reddit post an AI cites is about 900 days
+old, so a comment written in week 8 is an asset for 2028, not for this quarter.
+That is an argument for starting it, and an argument against measuring it in
+December.
 
 **What would actually change the answer.** The largest single asset identified
 in this document is not a surface, it is a person: the health verticals, which
@@ -766,8 +1066,20 @@ someone else's platform, where it can also get you banned.
 - [linkedin.com/robots.txt](https://www.linkedin.com/robots.txt)
 - [medium.com/robots.txt](https://medium.com/robots.txt)
 - [reddit.com/robots.txt](https://www.reddit.com/robots.txt)
-- [Reddit Public Content Policy](https://support.reddithelp.com/hc/en-us/articles/26410290525844-Public-Content-Policy) (linked from Reddit's robots.txt; the help centre returns 403 to automated fetches)
-- [Reddit Content Policy](https://redditinc.com/policies/content-policy)
+- [Reddit Public Content Policy](https://support.reddithelp.com/hc/en-us/articles/26410290525844-Public-Content-Policy) (linked from Reddit's robots.txt)
+- [Reddit Rules](https://redditinc.com/policies/reddit-rules) — the old `/policies/content-policy` URL 301-redirects here
+- [Reddiquette](https://support.reddithelp.com/hc/en-us/articles/205926439-Reddiquette) — the live 9:1 text, `edited_at` 2025-08-18
+- [How do I keep spam out of my community](https://support.reddithelp.com/hc/en-us/articles/28012014962580-How-do-I-keep-spam-out-of-my-community) — the mod-facing 10% variant, edited 2026-03-28
+- [Reddit changelog 2026-02-04](https://support.reddithelp.com/hc/en-us/articles/45959071783316) — link-based Post & Comment Guidance, 100% of communities
+- [Reddit Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564) — created 2025-10-28, edited 2026-06-05
+- [How to verify you're human when asked by Reddit](https://support.reddithelp.com/hc/en-us/articles/50051922501268) — passkey verification, seven-day deadline, created 2026-06-08
+- [What is the Contributor Quality Score?](https://support.reddithelp.com/hc/en-us/articles/19023371170196) — five tiers, edited 2026-06-23
+
+  Reddit's help centre returns HTTP 403 to automated HTML fetches, but its
+  Zendesk API is open: `https://support.reddithelp.com/api/v2/help_center/en-us/articles/{id}.json`
+  returns the full body and an authoritative `edited_at`. Every Reddit
+  help-centre quotation above was verified through that endpoint on 2026-08-26.
+  This is a reusable method, not a one-off.
 - [LinkedIn User Agreement](https://www.linkedin.com/legal/user-agreement)
 - [LinkedIn Professional Community Policies](https://www.linkedin.com/legal/professional-community-policies)
 - [Medium Rules](https://policy.medium.com/medium-rules-30e5502c4eb4)
@@ -781,13 +1093,38 @@ someone else's platform, where it can also get you banned.
   directly and returned 200.
 - [YouTube channel monetization policies](https://support.google.com/youtube/answer/1311392)
 - [YouTube response to creator questions about YPP policies, July 2025](https://support.google.com/youtube/thread/356734251/response-to-creator-questions-about-ypp-policies-july-2025)
+- [YouTube Partner Program eligibility](https://support.google.com/youtube/answer/13429240)
+- [YouTube — disclosing AI-generated content](https://support.google.com/youtube/answer/14328491) and the [announcement](https://blog.youtube/news-and-events/disclosing-ai-generated-content/)
+- [YouTube — automatic captions](https://support.google.com/youtube/answer/6373554)
+- [YouTube — add chapters to your video](https://support.google.com/youtube/answer/9884579)
+- [Google Search Central — Video best practices](https://developers.google.com/search/docs/appearance/video) (the "we will prioritize key moments set by you" statement)
+- [Google Search Central — AI Features and Your Website](https://developers.google.com/search/docs/appearance/ai-features) ("no additional requirements to appear in AI Overviews or AI Mode")
+- [OpenAI — bots and crawlers](https://developers.openai.com/api/docs/bots) (OAI-SearchBot = retrieval, GPTBot = training)
+- [Anthropic — does Anthropic crawl the web](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) (Claude-SearchBot = retrieval, ClaudeBot = training)
+- [Google — common crawlers](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) (Google-Extended does not affect Search inclusion)
+- [LinkedIn Help — customize SEO title and description on Articles and Newsletters](https://www.linkedin.com/help/linkedin/answer/a6244140)
+- [LinkedIn Help — prohibited software and extensions](https://www.linkedin.com/help/linkedin/answer/a1341387)
+- [LinkedIn Help — automated activity](https://www.linkedin.com/help/linkedin/answer/a1340567)
+- [Cloudflare — Perplexity is using stealth, undeclared crawlers, 2025-08-04](https://blog.cloudflare.com/perplexity-is-using-stealth-undeclared-crawlers-to-evade-website-no-crawl-directives/)
 
 **Vendor studies (methodology stated, commercially motivated)**
 - [Semrush — We Analyzed 89K LinkedIn URLs Cited in AI Search, 2026-03-10](https://www.semrush.com/blog/linkedin-ai-visibility-study/) — 325k prompts, Jan–Feb 2026, ChatGPT Search / Google AI Mode / Perplexity
 - [Semrush — The Most-Cited Domains in AI: A 3-Month Study, 2025-11-10](https://www.semrush.com/blog/most-cited-domains-ai/) — 230k prompts, 100M+ citations, Jul 14 – Oct 12 2025
+- [Semrush — We Analyzed 248K Reddit Posts, 2025-11-10](https://www.semrush.com/blog/reddit-ai-search-visibility-study/) — 217k prompts, 248k cited Reddit URLs, Google AI Mode / Perplexity / ChatGPT Search. The source for the ~900-day age and sub-20-upvote findings.
 - [Otterly — YouTube AI Citation Study 2026, 2026-03-02](https://otterly.ai/blog/youtube-ai-citation-study-2026/) — 100M citation instances, 30 days, 6 engines
 - [Search Engine Journal — Why Reddit's ChatGPT Citation Drop Isn't Fully Explained, 2026-08-19](https://www.searchenginejournal.com/why-reddits-chatgpt-citation-drop-isnt-fully-explained/586479/) — reporting Promptwatch data
 - [Search Engine Land — AI search engines cite Reddit, YouTube, and LinkedIn most, 2026-03-31](https://searchengineland.com/ai-search-engines-cite-reddit-youtube-and-linkedin-most-study-473138) — reporting Peec AI, 30M sources
+- [5W Research — YouTube AI citation share report, 2026](https://www.5wpr.com/research/youtube-ai-citation-share-report-2026/) — methodology not obtained; cited only to show it conflicts with Otterly by an order of magnitude
+- [Ahrefs — most-cited domains in AI Overviews, Jul 2026](https://ahrefs.com/blog/most-cited-domains-ai-overviews/) — 3M+ US queries; **mention share is computed over the top 50 sources only, which inflates every figure**
+- [BrightEdge — YouTube presence in AI search](https://www.brightedge.com/resources/weekly-ai-search-insights/youtube-presence-ai-search), May 2024 – Sept 2025; trade coverage [Search Engine Land, 2025-10-01](https://searchengineland.com/youtube-ai-search-citations-data-462830)
+- [Profound — AI platform citation patterns, 2025-06-05](https://www.tryprofound.com/blog/ai-platform-citation-patterns) — 680M citations, Aug 2024 – Jun 2025. The dissenting low figures for both LinkedIn and YouTube.
+- [Social Media Today — LinkedIn is a leading source for AI answers, 2026-03-10](https://www.socialmediatoday.com/news/linkedin-is-a-leading-source-for-ai-answers/814388/) — reporting Profound's Nov 2025 → Feb 2026 climb
+- [Ordinal — LinkedIn link penalty study](https://www.tryordinal.com/blog/linkedin-link-penalty-study) — 900k+ posts, Feb 2023 – Feb 2026, Mann-Whitney U, p<0.001; **vendor sells link-moving tooling**. Content read from search indexes; the page returned 404 to my direct fetch.
+- [Richard van der Blom — Algorithm Insights](https://richardvanderblom.com/) — 1.3M posts / 50k creators; **vendor sells LinkedIn tooling**. Homepage verified; the specific report page was not obtained, so the 18.8% figure is secondhand.
+- [LinkedIn's Rishi Jobanputra on links and reach](https://www.linkedin.com/feed/update/urn:li:activity:7370869955623542785/) — the company's own position
+
+**Context, not evidence**
+- [CNBC](https://www.cnbc.com/2025/12/09/google-hit-with-eu-antitrust-probe-over-use-of-online-content-for-ai.html) and [TechCrunch](https://techcrunch.com/2025/12/09/eu-launches-antitrust-probe-into-googles-ai-search-tools/) on the EU antitrust probe into Google's use of YouTube content for AI, opened 2025-12-09
 
 **Internal**
 - `authority-backlink-network/docs/strategy/where-citations-come-from.md`
