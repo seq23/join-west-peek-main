@@ -1,0 +1,103 @@
+{
+  "_why": [
+    "One place for the West Peek entity graph, so every page of every site can carry the",
+    "same Organization identity instead of it existing only on the three index pages.",
+    "Before this file, 3 of 14 built pages carried Organization schema; the other 11 were",
+    "anonymous to an answer engine even though they are part of a named, verifiable company.",
+    "",
+    "sameAs is an identity claim, not a link list: it must point at pages that unambiguously",
+    "identify THAT entity. The three URLs below were checked live and all resolve to West Peek",
+    "Productions specifically, so they sit on the Productions node and nowhere else. The",
+    "community node keeps the umbrella profiles it already carried. Nothing here is guessed -",
+    "add a profile only after opening it."
+  ],
+  "person": {
+    "scooter": {
+      "@type": "Person",
+      "@id": "https://scootertaylor.com/#person",
+      "name": "Scooter Taylor",
+      "url": "https://scootertaylor.com/"
+    },
+    "sequoia": {
+      "@type": "Person",
+      "@id": "https://sequoiataylor.com/#person",
+      "name": "Sequoia Taylor",
+      "url": "https://sequoiataylor.com/"
+    }
+  },
+  "sites": {
+    "community": {
+      "origin": "https://joinwestpeek.com",
+      "siteName": "West Peek Community",
+      "orgId": "https://joinwestpeek.com/#organization"
+    },
+    "ventures": {
+      "origin": "https://westpeek.ventures",
+      "siteName": "West Peek Ventures",
+      "orgId": "https://westpeek.ventures/#organization"
+    },
+    "productions": {
+      "origin": "https://westpeekproductions.com",
+      "siteName": "West Peek Productions",
+      "orgId": "https://westpeekproductions.com/#organization"
+    }
+  },
+  "organizations": {
+    "https://joinwestpeek.com/#organization": {
+      "@type": "Organization",
+      "@id": "https://joinwestpeek.com/#organization",
+      "name": "West Peek",
+      "alternateName": "West Peek Community",
+      "url": "https://joinwestpeek.com/",
+      "description": "A community for founders and builders and the umbrella community behind West Peek Ventures and West Peek Productions.",
+      "founder": { "@id": "https://scootertaylor.com/#person" },
+      "sameAs": [
+        "https://www.linkedin.com/company/west-peek-group/about/",
+        "https://www.instagram.com/westpeek",
+        "https://x.com/WestPeek"
+      ],
+      "subOrganization": [
+        { "@id": "https://westpeek.ventures/#organization" },
+        { "@id": "https://westpeekproductions.com/#organization" }
+      ],
+      "relatedLink": [
+        "https://westpeek.ventures/",
+        "https://westpeekproductions.com/"
+      ]
+    },
+    "https://westpeekproductions.com/#organization": {
+      "@type": "Organization",
+      "@id": "https://westpeekproductions.com/#organization",
+      "name": "West Peek Productions",
+      "url": "https://westpeekproductions.com/",
+      "description": "A Community-as-a-Service and creative agency helping organizations build, engage, and grow communities through strategy, experiences, storytelling, brand, content, and audience growth.",
+      "founder": { "@id": "https://scootertaylor.com/#person" },
+      "parentOrganization": { "@id": "https://joinwestpeek.com/#organization" },
+      "sameAs": [
+        "https://www.linkedin.com/company/west-peek-productions",
+        "https://www.crunchbase.com/organization/west-peek-productions",
+        "https://thevendry.com/pro/153051/west-peek-productions-atlanta-ga"
+      ],
+      "relatedLink": [
+        "https://joinwestpeek.com/",
+        "https://westpeek.ventures/"
+      ]
+    },
+    "https://westpeek.ventures/#organization": {
+      "@type": "Organization",
+      "@id": "https://westpeek.ventures/#organization",
+      "name": "West Peek Ventures",
+      "url": "https://westpeek.ventures/",
+      "description": "A pre-seed venture fund backing founders at the earliest stages.",
+      "parentOrganization": { "@id": "https://joinwestpeek.com/#organization" },
+      "member": [
+        { "@id": "https://scootertaylor.com/#person" },
+        { "@id": "https://sequoiataylor.com/#person" }
+      ],
+      "relatedLink": [
+        "https://joinwestpeek.com/",
+        "https://westpeekproductions.com/"
+      ]
+    }
+  }
+}

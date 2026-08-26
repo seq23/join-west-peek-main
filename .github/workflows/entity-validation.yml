@@ -70,3 +70,43 @@ jobs:
 
           print('West Peek entity graph validation PASS')
           PY
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build all three sites
+        run: npm run build
+
+      # The entity check above reads the three hand-authored index pages. This
+      # asserts the property that actually ships: every built page carries an
+      # Organization node, and every sitemap URL carries a real lastmod. Before
+      # this, 3 of 14 built pages had Organization schema and no sitemap carried
+      # a lastmod at all, and nothing would have caught the regression.
+      - name: Validate built pages carry Organization schema and dated sitemaps
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys, xml.etree.ElementTree as ET
+
+          pages = sorted(pathlib.Path('dist').rglob('*.html'))
+          assert pages, 'no built pages found'
+          missing = [str(p) for p in pages
+                     if not re.search(r'"@type"\s*:\s*"Organization"', p.read_text(encoding='utf-8'))]
+          assert not missing, f'pages without Organization schema: {missing}'
+          print(f'Organization schema: {len(pages)}/{len(pages)} built pages')
+
+          NS = '{http://www.sitemaps.org/schemas/sitemap/0.9}'
+          total = 0
+          for sm in sorted(pathlib.Path('dist').rglob('sitemap.xml')):
+              urls = ET.parse(sm).getroot().findall(f'{NS}url')
+              assert urls, f'{sm} lists no URLs'
+              undated = [u.find(f'{NS}loc').text for u in urls if u.find(f'{NS}lastmod') is None]
+              assert not undated, f'{sm}: URLs with no lastmod: {undated}'
+              robots = sm.with_name('robots.txt')
+              assert robots.exists(), f'{sm.parent} has a sitemap but no robots.txt'
+              assert 'sitemap.xml' in robots.read_text(encoding='utf-8').lower(), \
+                  f'{robots} does not point at the sitemap'
+              total += len(urls)
+          print(f'sitemaps: {total} URLs, every one carrying a lastmod, each referenced from robots.txt')
+          PY

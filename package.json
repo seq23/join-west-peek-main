@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "validate": "npm run build",
+    "lastmod": "node scripts/lastmod_from_git.mjs",
+    "lastmod:check": "node scripts/lastmod_from_git.mjs --check",
     "build:community": "node scripts/build.mjs community",
     "build:ventures": "node scripts/build.mjs ventures",
     "build:productions": "node scripts/build.mjs productions",
