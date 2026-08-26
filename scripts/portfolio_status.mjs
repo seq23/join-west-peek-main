@@ -62,7 +62,10 @@ async function checkDomain(d) {
   const body = await curlBody(`https://${d}/`);
   return {
     domain: d, home, missing, package_json: pkg,
-    clarity: /clarity\.ms/.test(body) ? 'yes' : 'no',
+    // A page can carry Clarity inline or via a same-origin loader file, which is
+    // what a strict CSP requires. Looking only for clarity.ms reports the
+    // correctly-configured case as missing.
+    clarity: (/clarity\.ms/.test(body) || /clarity-loader\.js/.test(body) || /data-clarity-loader/.test(body)) ? 'yes' : 'no',
     real_404: missing === '404' ? 'yes' : (missing === '301' ? 'redirect' : 'NO'),
     source_exposed: pkg === '200' ? 'YES' : 'no',
   };
