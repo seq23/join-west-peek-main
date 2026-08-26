@@ -1,0 +1,27 @@
+# Paths that live in sibling repositories, not this one.
+#
+# docs/portfolio/ and docs/strategy/ describe the whole portfolio, so they
+# cite scripts and runbooks that live in local-guides-citation-velocity,
+# sprylabs-hpc-site, authority-backlink-network and the rest. This validator
+# only knows this repo, so it correctly cannot resolve them. They are recorded
+# here rather than the rules being widened, so a genuinely stale path in this
+# repo still fails.
+.github/workflows/agency-seo-monitor.yml:25
+.github/workflows/ci.yml:32
+/.github/workflows/validate.yml
+/assets/clarity-loader.js
+docs/DISTRIBUTION-RUNBOOK.md
+docs/OPERATOR_QUICKSTART.md
+docs/runbooks/fanout_query_coverage_system.md
+docs/runbooks/guides_rendering.md
+docs/runbooks/social-ingestion-runbook.md
+docs/runbooks/velocity-release-batch-data-trace-2026-05-16.md
+docs/VA_RUNBOOK.md
+scripts/agency/refresh_search_health.js:51
+scripts/build_site.js
+scripts/heal_until_clean.py
+scripts/intelligence/ingest-cloudflare-crawler-logs.mjs
+scripts/llm_citation_probe.mjs
+scripts/portfolio_backlink_engine.py:167
+scripts/post_publish_distribution.py:277
+scripts/retrofit_recommendation_summary.js

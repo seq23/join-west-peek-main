@@ -1,0 +1,104 @@
+/**
+ * Lead intake for the three West Peek sites.
+ *
+ * Every contact form on joinwestpeek.com, and its ventures and productions
+ * siblings, POSTs here. Until now nothing answered: /api/lead responded exactly
+ * as a nonexistent path did - 405 to POST, 404 to GET - so every submission
+ * failed. The form does not fake success, it tells the visitor to email instead,
+ * so nobody was deceived; but a form on the fund's own front door that never
+ * works is a conversion leak, and README_DEPLOY.md described it as "a real
+ * contact form".
+ *
+ * Delivery is by Resend. If the key is absent the handler returns 503 rather
+ * than 200, because the form shows its email fallback on a non-ok response -
+ * answering 200 without delivering would turn a visible failure into a silent
+ * one, which is strictly worse.
+ */
+
+const MAX_FIELD = 5000;
+const REQUIRED = ['email'];
+
+function clean(value) {
+  return String(value ?? '').slice(0, MAX_FIELD).trim();
+}
+
+function looksLikeEmail(value) {
+  return /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(value);
+}
+
+function json(body, status) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  });
+}
+
+export async function onRequestPost({ request, env }) {
+  let fields = {};
+  try {
+    const type = request.headers.get('content-type') || '';
+    if (type.includes('application/json')) {
+      fields = await request.json();
+    } else {
+      const form = await request.formData();
+      for (const [k, v] of form.entries()) fields[k] = typeof v === 'string' ? v : '';
+    }
+  } catch {
+    return json({ ok: false, error: 'unreadable_body' }, 400);
+  }
+
+  // A bot filling a hidden field is the cheapest possible filter. Answer 200 so
+  // it does not learn anything, and drop the message.
+  if (clean(fields.company_website || fields._gotcha)) return json({ ok: true }, 200);
+
+  const email = clean(fields.email);
+  for (const key of REQUIRED) {
+    if (!clean(fields[key])) return json({ ok: false, error: `missing_${key}` }, 400);
+  }
+  if (!looksLikeEmail(email)) return json({ ok: false, error: 'invalid_email' }, 400);
+
+  const to = clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
+  const from = clean(env.EMAIL_FROM);
+  const apiKey = clean(env.RESEND_API_KEY);
+
+  if (!apiKey || !from) {
+    // Deliberately not 200. The form falls back to a visible email prompt.
+    return json({ ok: false, error: 'delivery_not_configured' }, 503);
+  }
+
+  const site = new URL(request.url).hostname;
+  const lines = Object.entries(fields)
+    .filter(([k]) => !['company_website', '_gotcha'].includes(k))
+    .map(([k, v]) => `${k}: ${clean(v)}`)
+    .join('\n');
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        reply_to: email,
+        subject: `New enquiry from ${site}`,
+        text: `${lines}\n\nSubmitted from: ${request.url}`,
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      console.error('lead delivery failed', res.status, detail.slice(0, 300));
+      return json({ ok: false, error: 'delivery_failed' }, 502);
+    }
+  } catch (err) {
+    console.error('lead delivery threw', String(err).slice(0, 300));
+    return json({ ok: false, error: 'delivery_failed' }, 502);
+  }
+
+  return json({ ok: true }, 200);
+}
+
+// A GET should say what this endpoint is rather than 404, so the next person
+// checking whether it exists gets an answer.
+export function onRequestGet() {
+  return json({ ok: false, error: 'method_not_allowed', hint: 'POST a contact form here' }, 405);
+}
