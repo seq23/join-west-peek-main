@@ -303,3 +303,15 @@ table.data td strong{color:#fff}
   .prose h2{font-size:23px;margin:34px 0 12px}
   .related,.cta-band{padding-left:22px;padding-right:22px}
 }
+
+/* Securities disclosure block.
+   Substantive on-page disclosure for the ventures property, not only a footer
+   link to /disclosures. Every sentence is derived from
+   sites/ventures/disclosures/index.html; nothing here asserts a regulator,
+   registration, membership or relationship that page does not already state. */
+.wp-disclosure{border-top:1px solid var(--line);margin-top:44px;padding-top:26px;color:var(--muted);font-size:13px;line-height:1.65}
+.wp-disclosure h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;font-weight:700}
+.wp-disclosure p{margin:0 0 12px;max-width:80ch}
+.wp-disclosure p:last-child{margin-bottom:0}
+.wp-disclosure a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.wp-disclosure a:hover{color:var(--ink)}

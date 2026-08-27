@@ -89,6 +89,15 @@ jobs:
       - name: Validate forms transmit
         run: npm run validate:forms
 
+      # Finding 1 and finding 2 both went undetected because nothing in this
+      # repo ever read page copy or link attributes. Six of the seven ventures
+      # pages carried no on-page securities disclosure - only a footer link to
+      # /disclosures - and five third-party links carried no rel at all, four
+      # of them the regulatory citations on the disclosures page itself. This
+      # asserts both, over sites/ and dist/.
+      - name: Validate securities disclosure and outbound link rel
+        run: npm run validate:disclosure
+
       # The entity check above reads the three hand-authored index pages. This
       # asserts the property that actually ships: every built page carries an
       # Organization node, and every sitemap URL carries a real lastmod. Before
