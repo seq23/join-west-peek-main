@@ -450,6 +450,23 @@
   .form-status a { color: inherit; text-decoration: underline; }
 
   /* FOOTER */
+  /* Securities disclosure. On-page, not only a footer link to /disclosures.
+     Wording derived from sites/ventures/disclosures/index.html. */
+  .wp-disclosure {
+    padding: 3rem 3rem 3.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--gray-dim);
+    font-size: 0.8rem;
+    line-height: 1.7;
+  }
+  .wp-disclosure h2 {
+    font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--gray); font-weight: 600; margin: 0 0 1rem;
+  }
+  .wp-disclosure p { margin: 0 0 0.9rem; max-width: 80ch; }
+  .wp-disclosure p:last-child { margin-bottom: 0; }
+  .wp-disclosure a { color: var(--gray); text-decoration: underline; text-underline-offset: 3px; }
+  .wp-disclosure a:hover { color: var(--white); }
   footer {
     padding: 2rem 3rem;
     border-top: 1px solid var(--border);
@@ -486,6 +503,7 @@
     .stat-row { gap: 2rem; flex-wrap: wrap; }
     .form-row { grid-template-columns: 1fr; }
     .apply-form { padding: 1.5rem; }
+    .wp-disclosure { padding: 2.5rem 1.5rem 3rem; }
     footer { flex-direction: column; gap: 0.5rem; text-align: center; }
   }
 </style>
