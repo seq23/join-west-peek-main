@@ -9,6 +9,17 @@
  * works is a conversion leak, and README_DEPLOY.md described it as "a real
  * contact form".
  *
+ * That is fixed and deployed. Measured 2026-08-27, read-only GET on all three
+ * production hostnames:
+ *   GET https://westpeek.ventures/api/lead         -> 405 {"ok":false,"error":"method_not_allowed",...}
+ *   GET https://joinwestpeek.com/api/lead          -> 405 (same body)
+ *   GET https://westpeekproductions.com/api/lead   -> 405 (same body)
+ *   GET https://<each>/api/zzz-nonexistent-xyz     -> 404 + the site's 404.html
+ * The endpoint now answers differently from a path that does not exist, on
+ * every one of the three Pages projects. Whether RESEND_API_KEY / EMAIL_FROM
+ * are populated per project is NOT MEASURED - proving that needs a POST, and a
+ * POST to production would create a real record.
+ *
  * Delivery is by Resend. If the key is absent the handler returns 503 rather
  * than 200, because the form shows its email fallback on a non-ok response -
  * answering 200 without delivering would turn a visible failure into a silent
@@ -17,6 +28,23 @@
 
 const MAX_FIELD = 5000;
 const REQUIRED = ['email'];
+
+/**
+ * Fields that exist ONLY to catch bots. Every one of these must be genuinely
+ * hidden in every form that carries it - no label, display:none, tabindex="-1".
+ *
+ * This list used to read ['company_website', '_gotcha'], which was exactly
+ * backwards. `company_website` is the VISIBLE "Website (optional)" input on
+ * pitch.html, and the actually-hidden trap in that same form is named
+ * `website` - a name this handler never looked at. So the trap caught nothing,
+ * and every founder who answered the visible website question honestly was
+ * dropped on the floor and told "Received. We'll reply soon."
+ *
+ * scripts/validate_forms.mjs parses this array and asserts that every form in
+ * the repo hides exactly these names and exposes no others, so the two halves
+ * cannot drift apart again.
+ */
+const HONEYPOT_FIELDS = ['website', '_gotcha'];
 
 function clean(value) {
   return String(value ?? '').slice(0, MAX_FIELD).trim();
@@ -47,9 +75,11 @@ export async function onRequestPost({ request, env }) {
     return json({ ok: false, error: 'unreadable_body' }, 400);
   }
 
-  // A bot filling a hidden field is the cheapest possible filter. Answer 200 so
-  // it does not learn anything, and drop the message.
-  if (clean(fields.company_website || fields._gotcha)) return json({ ok: true }, 200);
+  // A bot filling a genuinely hidden field is the cheapest possible filter.
+  // Answer 200 so it does not learn anything, and drop the message. Only names
+  // in HONEYPOT_FIELDS may trigger this: a field a human can see and was asked
+  // to fill in must never be able to discard their submission.
+  if (HONEYPOT_FIELDS.some((key) => clean(fields[key]))) return json({ ok: true }, 200);
 
   const email = clean(fields.email);
   for (const key of REQUIRED) {
@@ -67,8 +97,10 @@ export async function onRequestPost({ request, env }) {
   }
 
   const site = new URL(request.url).hostname;
+  // Only the traps are stripped from the notification. company_website is real
+  // founder-supplied data the fund wants, so it stays in the email body.
   const lines = Object.entries(fields)
-    .filter(([k]) => !['company_website', '_gotcha'].includes(k))
+    .filter(([k]) => !HONEYPOT_FIELDS.includes(k))
     .map(([k, v]) => `${k}: ${clean(v)}`)
     .join('\n');
 

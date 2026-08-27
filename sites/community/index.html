@@ -120,16 +120,17 @@
     <form data-westpeek-form action="/api/lead" method="POST">
       <input type="hidden" name="site" value="community">
       <input type="hidden" name="lead_type" value="newsletter_events">
-      <input type="text" name="website" autocomplete="off" tabindex="-1" style="display:none">
-      
-<label>Name</label><input name="name">
-<label>Email</label><input name="email" type="email" required>
-<label>What are you interested in?</label>
-<select name="interest" required>
+      <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
+      <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+
+<label for="community-name">Name</label><input id="community-name" name="name" autocomplete="name">
+<label for="community-email">Email</label><input id="community-email" name="email" type="email" autocomplete="email" required>
+<label for="community-interest">What are you interested in?</label>
+<select id="community-interest" name="interest" required>
   <option value="">Select…</option>
   <option>Newsletter</option><option>Events</option><option>Podcast updates</option><option>Partnerships</option>
 </select>
-<label>Optional note</label><textarea name="description" placeholder="Anything we should know?"></textarea>
+<label for="community-note">Optional note</label><textarea id="community-note" name="description" placeholder="Anything we should know?"></textarea>
 
       <button type="submit">Join</button>
       <div class="small" data-form-status style="margin-top:10px"></div>
