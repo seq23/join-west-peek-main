@@ -22,22 +22,25 @@
     <form data-westpeek-form action="/api/lead" method="POST">
       <input type="hidden" name="site" value="ventures">
       <input type="hidden" name="lead_type" value="founder_pitch">
-      <input type="text" name="website" autocomplete="off" tabindex="-1" style="display:none">
-      
-<label>Name</label><input name="name" required>
-<label>Email</label><input name="email" type="email" required>
-<label>Company name</label><input name="company" required>
-<label>Website (optional)</label><input name="company_website">
-<label>Stage</label>
-<select name="stage" required>
+      <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable.
+           The visible website question below is a DIFFERENT field
+           (company_website) and is real founder data. -->
+      <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+
+<label for="pitch-name">Name</label><input id="pitch-name" name="name" autocomplete="name" required>
+<label for="pitch-email">Email</label><input id="pitch-email" name="email" type="email" autocomplete="email" required>
+<label for="pitch-company">Company name</label><input id="pitch-company" name="company" autocomplete="organization" required>
+<label for="pitch-company-website">Website (optional)</label><input id="pitch-company-website" name="company_website" type="url" inputmode="url" autocomplete="url" placeholder="https://yourcompany.com">
+<label for="pitch-stage">Stage</label>
+<select id="pitch-stage" name="stage" required>
   <option value="">Select…</option>
   <option>Idea</option><option>MVP</option><option>Early revenue</option><option>Seed</option><option>Series A+</option>
 </select>
-<label>What are you building?</label><textarea name="description" required></textarea>
-<label>Deck link (optional)</label><input name="deck">
+<label for="pitch-description">What are you building?</label><textarea id="pitch-description" name="description" required></textarea>
+<label for="pitch-deck">Deck link (optional)</label><input id="pitch-deck" name="deck" type="url" inputmode="url" placeholder="DocSend, Drive, Notion or Dropbox link">
 
       <button type="submit">Send</button>
-      <div class="small" data-form-status style="margin-top:10px"></div>
+      <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
       <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
     </form>
   </div>
