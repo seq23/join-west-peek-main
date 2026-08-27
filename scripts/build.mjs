@@ -127,7 +127,14 @@ const textOf = (re, html) => { const m = html.match(re); return m ? m[1].trim() 
 function publicUrl(abs) {
   const rel = path.relative(out, abs).split(path.sep).join("/");
   if (rel === "index.html") return `${site.origin}/`;
-  if (rel.endsWith("/index.html")) return `${site.origin}/${rel.slice(0, -"/index.html".length)}`;
+  // A nested index.html is served at the directory address WITH a trailing
+  // slash; Pages 308-redirects the slashless form to it. Emitting the
+  // slashless form put a permanent redirect in the sitemap and in the
+  // canonical, which is exactly what neither is for. Verified live:
+  // /disclosures was a 308 to /disclosures/.
+  if (rel.endsWith("/index.html")) return `${site.origin}/${rel.slice(0, -"index.html".length)}`;
+  // A flat foo.html is the opposite: Pages serves it at /foo and 308-redirects
+  // /foo.html, so the extensionless form is the one that answers 200.
   return `${site.origin}/${rel.replace(/\.html$/, "")}`;
 }
 
