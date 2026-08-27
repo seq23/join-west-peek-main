@@ -498,42 +498,11 @@
     resize: vertical; min-height: 100px;
   }
 
-  /* FILE UPLOAD */
-  .file-upload {
-    width: 100%;
-    border: 2px dashed var(--border);
-    border-radius: 6px;
-    padding: 1.5rem;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.3s, background 0.3s;
-    position: relative;
-  }
-  .file-upload:hover {
-    border-color: var(--accent);
-    background: rgba(196,90,60,0.04);
-  }
-  .file-upload input[type="file"] {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer;
-    width: 100%; height: 100%;
-  }
-  .file-upload-icon {
-    font-size: 1.5rem; margin-bottom: 0.5rem; display: block;
-    color: var(--gray-dim);
-  }
-  .file-upload-text {
-    font-size: 0.85rem; color: var(--gray);
-  }
-  .file-upload-text strong {
-    color: var(--accent); font-weight: 600;
-  }
-  .file-upload-hint {
+  /* The .file-upload / .file-name rules that used to live here were removed
+     with the file input itself. Nothing else on the site used them. */
+  .form-hint {
     font-size: 0.72rem; color: var(--gray-dim);
-    margin-top: 0.3rem;
-  }
-  .file-name {
-    font-size: 0.82rem; color: var(--accent);
-    margin-top: 0.5rem; display: none;
+    margin: 0.45rem 0 0; line-height: 1.5;
   }
 
   .btn-submit {
@@ -548,6 +517,23 @@
   .btn-submit:hover {
     background: var(--accent-light); transform: translateY(-1px);
   }
+  .btn-submit[disabled] {
+    opacity: 0.6; cursor: progress; transform: none;
+  }
+  .btn-submit[disabled]:hover {
+    background: var(--accent); transform: none;
+  }
+
+  /* Submit outcome. shared/assets/js/forms.js is the only thing that sets
+     data-state, and it only sets "ok" once the server confirmed receipt. */
+  .form-status {
+    font-size: 0.82rem; line-height: 1.6;
+    margin: 0.9rem 0 0; min-height: 1.2em;
+    color: var(--gray);
+  }
+  .form-status[data-state="ok"] { color: #7fd8a4; }
+  .form-status[data-state="error"] { color: var(--accent-light); }
+  .form-status a { color: inherit; text-decoration: underline; }
 
   /* FOOTER */
   footer {
@@ -724,42 +710,57 @@
     <h2>Submit your company.</h2>
     <p>Tell us what you're building and how community plays a role. We read every submission.</p>
 
-    <form class="apply-form" id="applyForm" onsubmit="return false;">
+    <!--
+      This form POSTs to /api/lead (functions/api/lead.js), the same handler
+      pitch.html and joinwestpeek.com have been using. It previously carried no
+      action, no method, and not one `name` attribute, and its only handler
+      turned the button green on click. Nothing was ever transmitted.
+
+      There is no file input any more, deliberately. See the "Pitch Deck Link"
+      field below.
+    -->
+    <form class="apply-form" id="applyForm"
+          data-westpeek-form action="/api/lead" method="POST"
+          data-success="Received. We read every submission and reply to the ones we can help.">
+      <input type="hidden" name="site" value="ventures">
+      <input type="hidden" name="lead_type" value="founder_apply">
+      <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
+      <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
       <div class="form-row">
         <div class="form-group">
-          <label>Your Name</label>
-          <input type="text" placeholder="Full name" required>
+          <label for="apply-name">Your Name</label>
+          <input id="apply-name" name="name" type="text" autocomplete="name" placeholder="Full name" required>
         </div>
         <div class="form-group">
-          <label>Email</label>
-          <input type="email" placeholder="you@company.com" required>
+          <label for="apply-email">Email</label>
+          <input id="apply-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>City</label>
-          <input type="text" placeholder="Where are you based?">
+          <label for="apply-city">City</label>
+          <input id="apply-city" name="city" type="text" placeholder="Where are you based?">
         </div>
         <div class="form-group">
-          <label>Company Name</label>
-          <input type="text" placeholder="Your company" required>
+          <label for="apply-company">Company Name</label>
+          <input id="apply-company" name="company" type="text" autocomplete="organization" placeholder="Your company" required>
         </div>
       </div>
       <div class="form-group">
-        <label>Upload Your Pitch Deck</label>
-        <div class="file-upload" id="fileUpload">
-          <span class="file-upload-icon">↑</span>
-          <div class="file-upload-text"><strong>Click to upload</strong> or drag and drop</div>
-          <div class="file-upload-hint">PDF, PPT, or PPTX up to 25MB</div>
-          <div class="file-name" id="fileName"></div>
-          <input type="file" accept=".pdf,.ppt,.pptx" id="fileInput">
-        </div>
+        <label for="apply-company-website">Company Website</label>
+        <input id="apply-company-website" name="company_website" type="text" inputmode="url" autocomplete="url" placeholder="https://yourcompany.com">
       </div>
       <div class="form-group">
-        <label>How are you leveraging community?</label>
-        <textarea rows="4" placeholder="Tell us how community plays a role in what you're building..."></textarea>
+        <label for="apply-deck">Pitch Deck Link</label>
+        <input id="apply-deck" name="deck" type="text" inputmode="url" placeholder="DocSend, Drive, Notion or Dropbox link">
+        <p class="form-hint">A link works better than an attachment — you keep control of it, and you can see when we open it.</p>
+      </div>
+      <div class="form-group">
+        <label for="apply-community">How are you leveraging community?</label>
+        <textarea id="apply-community" name="description" rows="4" placeholder="Tell us how community plays a role in what you're building..."></textarea>
       </div>
       <button type="submit" class="btn-submit" id="formSubmitBtn">Submit →</button>
+      <p class="form-status" data-form-status role="status" aria-live="polite"></p>
     </form>
   </div>
 </section>
@@ -826,25 +827,11 @@
 
   setInterval(cycleWords, 2200);
 
-  // File upload display
-  document.getElementById('fileInput').addEventListener('change', function() {
-    const nameEl = document.getElementById('fileName');
-    if (this.files.length > 0) {
-      nameEl.textContent = '\u{1F4CE} ' + this.files[0].name;
-      nameEl.style.display = 'block';
-    }
-  });
-
-  // Form submit
-  document.getElementById('formSubmitBtn').addEventListener('click', function() {
-    const btn = this;
-    btn.textContent = 'Submitted \u2713';
-    btn.style.background = '#4a9e6e';
-    setTimeout(() => {
-      btn.textContent = 'Submit \u2192';
-      btn.style.background = '';
-    }, 3000);
-  });
+  // The form is submitted by assets/js/forms.js, which is the only thing
+  // allowed to touch the button's label or the status line, and only after
+  // /api/lead has confirmed receipt. What used to sit here was a click
+  // listener that set the button to "Submitted \u2713" and turned it green with no
+  // network call anywhere on the page. Do not reintroduce a local handler.
 
   // Scroll reveals
   const observer = new IntersectionObserver((entries) => {
@@ -863,5 +850,8 @@
     });
   });
 </script>
+<!-- The shared submit handler. Copied into dist/ventures/assets/js/ by
+     scripts/build.mjs, which fails the build if it is missing. -->
+<script src="assets/js/forms.js" defer></script>
 </body>
 </html>
