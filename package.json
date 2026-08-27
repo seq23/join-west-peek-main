@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "npm run build",
+    "validate": "npm run build && npm run validate:forms",
+    "validate:forms": "node scripts/validate_forms.mjs",
     "lastmod": "node scripts/lastmod_from_git.mjs",
     "lastmod:check": "node scripts/lastmod_from_git.mjs --check",
     "build:community": "node scripts/build.mjs community",

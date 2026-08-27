@@ -79,6 +79,16 @@ jobs:
       - name: Build all three sites
         run: npm run build
 
+      # The build only proves files were copied. This proves the forms actually
+      # transmit: every field named, every form wired to an endpoint, no
+      # onsubmit="return false", no file input without a declared transport,
+      # honeypot names hidden and matching functions/api/lead.js, and - driven
+      # against a stubbed fetch - no success message reachable without a
+      # confirmed server response. Runs on dist/ as well as sites/, so a built
+      # page cannot regress independently of its source.
+      - name: Validate forms transmit
+        run: npm run validate:forms
+
       # The entity check above reads the three hand-authored index pages. This
       # asserts the property that actually ships: every built page carries an
       # Organization node, and every sitemap URL carries a real lastmod. Before
