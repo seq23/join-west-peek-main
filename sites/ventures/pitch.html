@@ -30,14 +30,14 @@
 <label for="pitch-name">Name</label><input id="pitch-name" name="name" autocomplete="name" required>
 <label for="pitch-email">Email</label><input id="pitch-email" name="email" type="email" autocomplete="email" required>
 <label for="pitch-company">Company name</label><input id="pitch-company" name="company" autocomplete="organization" required>
-<label for="pitch-company-website">Website (optional)</label><input id="pitch-company-website" name="company_website" type="url" inputmode="url" autocomplete="url" placeholder="https://yourcompany.com">
+<label for="pitch-company-website">Website (optional)</label><input id="pitch-company-website" name="company_website" type="text" inputmode="url" autocomplete="url" placeholder="https://yourcompany.com">
 <label for="pitch-stage">Stage</label>
 <select id="pitch-stage" name="stage" required>
   <option value="">Select…</option>
   <option>Idea</option><option>MVP</option><option>Early revenue</option><option>Seed</option><option>Series A+</option>
 </select>
 <label for="pitch-description">What are you building?</label><textarea id="pitch-description" name="description" required></textarea>
-<label for="pitch-deck">Deck link (optional)</label><input id="pitch-deck" name="deck" type="url" inputmode="url" placeholder="DocSend, Drive, Notion or Dropbox link">
+<label for="pitch-deck">Deck link (optional)</label><input id="pitch-deck" name="deck" type="text" inputmode="url" placeholder="DocSend, Drive, Notion or Dropbox link">
 
       <button type="submit">Send</button>
       <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
