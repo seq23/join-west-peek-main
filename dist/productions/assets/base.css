@@ -232,3 +232,74 @@ footer a{color:var(--link)}
   .agency-section h2,.agency-section-narrow h2{font-size:30px}
   .agency-flow{justify-content:start}
 }
+
+/* ---------------------------------------------------------------------------
+   Content-depth pages (services, cost, checklists, comparisons).
+   The homepage is a single long landing page and its agency-* classes assume
+   that shape. These are the styles for pages that are mostly reading: one
+   measured column, a stated answer at the top, and tables that survive a
+   phone. Same tokens, so nothing here forks the palette.
+   ------------------------------------------------------------------------ */
+.page-head{max-width:var(--max);margin:0 auto;padding:56px 24px 0}
+.page-head h1{font-size:44px;line-height:1.06;letter-spacing:-.02em;margin:8px 0 16px;text-wrap:balance}
+.page-head .page-standfirst{color:#eaeaea;font-size:19px;line-height:1.6;max-width:62ch;margin:0}
+.breadcrumb{font-size:13px;color:var(--muted);margin:0 0 6px}
+.breadcrumb a{color:var(--muted);font-weight:600}
+.breadcrumb span{opacity:.5;padding:0 6px}
+.prose{max-width:72ch;margin:0 auto;padding:12px 24px 8px}
+.prose h2{font-size:28px;line-height:1.2;letter-spacing:-.01em;margin:44px 0 14px;text-wrap:balance}
+.prose h3{font-size:19px;margin:30px 0 10px}
+.prose p{color:#dedede;line-height:1.7;margin:0 0 16px}
+.prose ul,.prose ol{color:#dedede;line-height:1.7;padding-left:22px;margin:0 0 16px}
+.prose li{margin:0 0 9px}
+.prose strong{color:#fff}
+/* The stated answer. An answer engine quoting one block from the page should
+   quote a true one, so this carries the direct answer and nothing decorative. */
+.answer-box{background:var(--panel);border:1px solid #1b1b1c;border-left:3px solid var(--link);border-radius:14px;padding:22px 24px;margin:0 0 28px}
+.answer-box p{margin:0;color:#f2f2f2;font-size:17px;line-height:1.65}
+.answer-box p+p{margin-top:12px}
+.answer-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 10px}
+.table-scroll{overflow-x:auto;margin:0 0 20px;border:1px solid var(--line);border-radius:14px}
+table.data{border-collapse:collapse;width:100%;min-width:520px;font-size:15px}
+table.data th,table.data td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55}
+table.data th{background:var(--panel);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+table.data tr:last-child td{border-bottom:none}
+table.data td strong{color:#fff}
+.checklist{list-style:none;padding:0;margin:0 0 20px}
+.checklist li{position:relative;padding:0 0 0 30px;margin:0 0 14px;color:#dedede;line-height:1.65}
+.checklist li::before{content:"";position:absolute;left:6px;top:.55em;width:8px;height:8px;border-radius:2px;background:var(--link);opacity:.85}
+.checklist li strong{display:block;color:#fff;margin-bottom:3px}
+.callout{background:var(--panel);border:1px solid #1b1b1c;border-radius:14px;padding:20px 22px;margin:0 0 22px}
+.callout p{margin:0;color:#dedede;line-height:1.65;font-size:15px}
+.callout p+p{margin-top:10px}
+.faq-list{margin:0 0 8px}
+.faq-item{border-top:1px solid var(--line);padding:22px 0}
+.faq-item h3{margin:0 0 8px;font-size:17px;color:#fff}
+.faq-item p{margin:0;color:#dedede;line-height:1.7}
+/* Every content page ends pointing somewhere. A page with no outbound link is
+   how the ventures site became an island in the first place. */
+.related{max-width:72ch;margin:0 auto;padding:0 24px 8px}
+.related h2{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:44px 0 14px}
+.related-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.related-grid a{display:block;background:var(--panel);border:1px solid #1b1b1c;border-radius:12px;padding:15px 17px;color:#eaeaea;font-weight:600;font-size:15px;line-height:1.45}
+.related-grid a:hover{border-color:#2f2f31;text-decoration:none}
+.related-grid a span{display:block;font-weight:400;font-size:13px;color:var(--muted);margin-top:5px;line-height:1.5}
+.cta-band{max-width:72ch;margin:44px auto 0;padding:0 24px 72px}
+.cta-band .cta-inner{background:var(--panel);border:1px solid #1b1b1c;border-radius:16px;padding:30px 28px}
+.cta-band h2{margin:0 0 10px;font-size:24px;letter-spacing:-.01em}
+.cta-band p{margin:0 0 20px;color:#dedede;line-height:1.65}
+/* Section-level nav for a site that now has more than one page. */
+.subnav{border-bottom:1px solid var(--line);background:rgba(11,11,12,.6)}
+.subnav-inner{max-width:var(--max);margin:0 auto;padding:11px 24px;display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.subnav-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.subnav a{font-size:14px;font-weight:600;color:#eaeaea;opacity:.85}
+.subnav a:hover,.subnav a[aria-current="page"]{opacity:1}
+.subnav a[aria-current="page"]{color:var(--link)}
+@media (max-width:860px){
+  .page-head{padding:34px 22px 0}
+  .page-head h1{font-size:32px}
+  .page-head .page-standfirst{font-size:17px}
+  .prose{padding:12px 22px 8px}
+  .prose h2{font-size:23px;margin:34px 0 12px}
+  .related,.cta-band{padding-left:22px;padding-right:22px}
+}
