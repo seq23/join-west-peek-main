@@ -79,9 +79,43 @@
     el.appendChild(document.createTextNode(' and we will pick it up from there.'));
   }
 
+  /**
+   * `type="url"` gives us real validation on the deck-link and website fields,
+   * but on its own it refuses "acme.com" and blocks the entire submit over a
+   * missing scheme - on fields that are optional. That would trade real deal
+   * flow for a prefix, which is the wrong side of the low-friction constraint.
+   *
+   * So we put the scheme on for them, before the browser gets to judge: on
+   * blur, and on Enter, because native constraint validation runs before any
+   * submit event and a founder who types the domain and hits Enter never
+   * reaches our handler at all.
+   */
+  function normalizeUrlField(input) {
+    var value = String(input.value || '').trim();
+    if (!value) return;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return; // already has a scheme
+    if (value.indexOf('.') === -1) return; // not domain-shaped; leave it alone
+    input.value = 'https://' + value.replace(/^\/+/, '');
+  }
+
+  function wireUrlFields(form) {
+    var inputs = form.querySelectorAll('input[type="url"]');
+    for (var i = 0; i < inputs.length; i += 1) {
+      (function (input) {
+        input.addEventListener('blur', function () {
+          normalizeUrlField(input);
+        });
+        input.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') normalizeUrlField(input);
+        });
+      })(inputs[i]);
+    }
+  }
+
   function wire(form) {
     if (form.getAttribute('data-westpeek-wired') === 'true') return;
     form.setAttribute('data-westpeek-wired', 'true');
+    if (typeof form.querySelectorAll === 'function') wireUrlFields(form);
 
     var button = form.querySelector('button[type="submit"], input[type="submit"]');
     var busy = false;

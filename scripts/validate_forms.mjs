@@ -28,6 +28,8 @@
  *   FORM-7  The shared handler is driven against a stubbed fetch and must not
  *           show success for any response other than an ok status carrying
  *           {"ok":true}. This one is a behavioural test, not a pattern match.
+ *   FORM-8  type="url" fields get https:// prefixed for the visitor, so native
+ *           validation cannot refuse a whole submission over a bare domain.
  *
  * Registered in package.json (`npm run validate`), in
  * .github/workflows/entity-validation.yml, and in REPO_VALIDATION_MATRIX.md.
@@ -355,18 +357,35 @@ function loadSharedHandler(fetchStub) {
   return api;
 }
 
+function makeUrlInputStub() {
+  const input = makeEl('input');
+  input.type = 'url';
+  input.value = '';
+  input.listeners = {};
+  input.addEventListener = (type, fn) => {
+    (input.listeners[type] = input.listeners[type] || []).push(fn);
+  };
+  input.fire = (type, event) => {
+    for (const fn of input.listeners[type] || []) fn(event || {});
+  };
+  return input;
+}
+
 function makeFormStub(successCopy) {
   const status = makeEl('p');
   const button = makeEl('button');
   button.textContent = 'Submit →';
+  const urlInput = makeUrlInputStub();
   const form = makeEl('form');
   form.attrs = { action: '/api/lead' };
   if (successCopy) form.attrs['data-success'] = successCopy;
   form.listeners = {};
   form.wasReset = false;
+  form.urlInput = urlInput;
   form.addEventListener = (type, fn) => {
     (form.listeners[type] = form.listeners[type] || []).push(fn);
   };
+  form.querySelectorAll = (sel) => (sel.includes('type="url"') ? [urlInput] : []);
   form.querySelector = (sel) => {
     if (sel.includes('data-form-status')) return status;
     if (sel.includes('submit')) return button;
@@ -515,6 +534,55 @@ async function checkSharedHandlerBehaviour() {
   notes.push(`FORM-7: shared handler driven through ${cases.length} stubbed responses`);
 }
 
+/**
+ * FORM-8 - type="url" must not cost a submission.
+ *
+ * The deck-link and website fields are type="url" so the browser validates
+ * them, but native validation runs BEFORE any submit event, so a founder who
+ * types "acme.com" would have the whole form refused over a missing scheme -
+ * on an optional field. The shared handler prefixes https:// for them. If that
+ * ever stops working, type="url" quietly becomes a conversion tax, which is a
+ * subtler version of the bug this file exists for.
+ */
+async function checkUrlNormalisation() {
+  const where = rel(SHARED_HANDLER);
+  const expectations = [
+    { typed: 'acme.com', want: 'https://acme.com' },
+    { typed: '  acme.com/deck  ', want: 'https://acme.com/deck' },
+    { typed: 'https://acme.com', want: 'https://acme.com' },
+    { typed: 'HTTP://acme.com', want: 'HTTP://acme.com' },
+    { typed: 'mailto:a@b.com', want: 'mailto:a@b.com' },
+    { typed: '', want: '' },
+    { typed: 'not a url', want: 'not a url' }
+  ];
+
+  for (const trigger of ['blur', 'enter']) {
+    for (const e of expectations) {
+      const api = loadSharedHandler(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) })
+      );
+      if (!api) return;
+      const form = makeFormStub('ok');
+      api.wire(form);
+      form.urlInput.value = e.typed;
+      if (trigger === 'blur') form.urlInput.fire('blur');
+      else form.urlInput.fire('keydown', { key: 'Enter' });
+      if (form.urlInput.value !== e.want) {
+        fail(
+          'FORM-8',
+          where,
+          `[${trigger}] typed ${JSON.stringify(e.typed)} -> expected ` +
+            `${JSON.stringify(e.want)}, got ${JSON.stringify(form.urlInput.value)}`
+        );
+      }
+    }
+  }
+
+  notes.push(
+    `FORM-8: url normalisation checked over ${expectations.length} inputs x 2 triggers`
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
@@ -546,6 +614,7 @@ async function main() {
   notes.push(`scanned ${formCount} form(s) across ${fileCount} HTML file(s) in ${SCAN_ROOTS.join('/, ')}/`);
 
   await checkSharedHandlerBehaviour();
+  await checkUrlNormalisation();
 
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ ok: failures.length === 0, failures, notes }, null, 2));
