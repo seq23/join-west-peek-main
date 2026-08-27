@@ -38,7 +38,14 @@ input,textarea,select{width:100%;padding:12px 12px;margin:0 0 14px;border-radius
 textarea{min-height:140px;resize:vertical}
 button{background:#fff;color:#000;border:none;padding:13px 18px;border-radius:10px;font-weight:800;cursor:pointer}
 button:hover{opacity:.92}
+button[disabled]{opacity:.6;cursor:progress}
+button[disabled]:hover{opacity:.6}
 .small{font-size:13px;color:var(--muted);line-height:1.55}
+/* Submit outcome. Only shared/assets/js/forms.js sets data-state, and it only
+   sets "ok" after the server confirmed receipt. */
+[data-form-status][data-state="ok"]{color:#7fd8a4}
+[data-form-status][data-state="error"]{color:#ff9d8a}
+[data-form-status] a{color:inherit;text-decoration:underline}
 footer{border-top:1px solid var(--line);padding:34px 24px;text-align:center;color:var(--muted)}
 footer a{color:var(--link)}
 @media (max-width:860px){
