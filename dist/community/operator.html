@@ -114,7 +114,8 @@
   <section class="card operator-card" id="login-card">
     <h2>Enter password</h2>
     <p class="muted">This page is for West Peek operators only.</p>
-    <form id="operator-form" class="operator-form">
+    <form id="operator-form" class="operator-form"
+          data-no-transmit="Client-side gate. Reveals a list of internal tool links already present in this page; nothing is sent anywhere, so there is no name attribute to carry and no server response to wait for.">
       <label for="operator-password">Password</label>
       <input id="operator-password" type="password" autocomplete="current-password" placeholder="Enter password"/>
       <button class="nav-primary" type="submit">Unlock tools</button>
