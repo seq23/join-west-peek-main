@@ -14,4 +14,4 @@ Read repo-local authority first. Global Repo Work OS and active tools: `~/repo-t
 Unattended lifecycle: `~/repo-tools/agent/repo-supervisor`; parallel bake-off: `~/repo-tools/agent/repo-bakeoff`.
 
 ## Operating law
-Lock exact repo/worktree/branch/SHA/remote; unattended work only on isolated `work/*` worktrees; never substitute another repo; validation and exact-SHA GitHub checks precede merge eligibility; RED/UNPROVEN stays blocked; main/default merge is human-authorized; use Claude Design routing for material UI/UX work when useful and existing Hallmark rather than duplicating it.
+Lock exact repo/worktree/branch/SHA/remote; unattended work only on isolated `work/*` worktrees; never substitute another repo; validation and exact-SHA GitHub checks precede merge eligibility; RED/UNPROVEN stays blocked; main/default merge is allowed only when every required check is green, never with `--admin` and never force-pushed; use Claude Design routing for material UI/UX work when useful and existing Hallmark rather than duplicating it.
