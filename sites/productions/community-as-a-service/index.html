@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Community Viability Assessment | West Peek Productions</title>
+  <meta name="description" content="Find out whether your business has the foundation for a viable community, what is missing, and what to prioritize over the next 90 days.">
+  <link rel="canonical" href="https://westpeekproductions.com/community-as-a-service/">
+  <link rel="stylesheet" href="/assets/base.css">
+  <link rel="stylesheet" href="/assets/community-assessment.css">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"Community Viability Assessment","url":"https://westpeekproductions.com/community-as-a-service/","description":"A free assessment from West Peek Productions that determines whether a business has the foundation for a viable community and identifies its primary constraint."}</script>
+</head>
+<body class="agency-page momentum-page">
+<a class="skip-link" href="#assessment">Skip to the assessment</a>
+<header>
+  <div class="nav global-nav">
+    <a class="brand" href="https://joinwestpeek.com/" aria-label="West Peek home"><img src="/assets/img/community-logo.jpg" alt=""><span>West Peek</span></a>
+    <nav class="navlinks global-navlinks" aria-label="West Peek network navigation">
+      <span class="nav-group nav-group-primary"><a href="https://joinwestpeek.com/">Community</a><a href="https://westpeek.ventures/">Ventures</a><a class="active" href="/">Agency</a></span>
+      <span class="nav-divider" aria-hidden="true"></span>
+      <span class="nav-group nav-group-secondary"><a href="/services/">Services</a><a href="/#start-inquiry">Start an inquiry</a></span>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="momentum-hero" aria-labelledby="page-title">
+    <div class="momentum-hero-copy">
+      <p class="agency-eyebrow">Community-as-a-Service</p>
+      <h1 id="page-title">Turn your audience into a community that compounds.</h1>
+      <p class="momentum-lead">Find out whether your business has the foundation for a viable community—and what is missing if it does not. Receive a clear viability score, diagnosis, and three priorities for the next 90 days.</p>
+      <div class="momentum-actions">
+        <a class="agency-button agency-button-primary" href="#assessment">Test your community's viability <span aria-hidden="true">→</span></a>
+        <span>About 7 minutes · Free · No obligation</span>
+      </div>
+    </div>
+    <aside class="scooter-card" aria-label="AI Scooter introduction">
+      <div class="scooter-portrait-wrap">
+        <img src="/assets/avatar/scooter-avatar-source.png" alt="Scooter Taylor" class="scooter-portrait" width="560" height="560">
+        <span class="ai-badge">AI presenter</span>
+      </div>
+      <div class="scooter-card-copy">
+        <strong>A quick note from Scooter</strong>
+        <p>Most organizations do not have a lack-of-content problem. Their events, audience, and community activity simply operate separately. This assessment shows where that value is getting lost.</p>
+        <button class="text-button" type="button" data-scooter-intro>Hear the AI introduction</button>
+        <p class="media-status" data-intro-status aria-live="polite">This feature uses an AI-generated presentation of Scooter with his approved likeness.</p>
+        <div data-intro-media></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="problem-strip" aria-labelledby="recognize-title">
+    <div><p class="agency-eyebrow">Recognize the problem</p><h2 id="recognize-title">You may already have the ingredients. They just are not compounding.</h2></div>
+    <ul>
+      <li>Events end without a next step.</li>
+      <li>Content earns attention but not participation.</li>
+      <li>Members rarely connect with one another.</li>
+      <li>Community work depends on disconnected vendors and tools.</li>
+    </ul>
+  </section>
+
+  <section class="assessment-shell" id="assessment" aria-labelledby="assessment-title">
+    <div class="assessment-intro">
+      <p class="agency-eyebrow">Community Viability Assessment</p>
+      <h2 id="assessment-title">Does your business have a viable community?</h2>
+      <p>Answer 14 focused questions. Your responses are scored across clarity, engagement, experiences, content, audience growth, and operations.</p>
+      <div class="assessment-benefits" aria-label="What you receive"><span>Your score</span><span>Your diagnosis</span><span>Three 90-day priorities</span><span>AI Scooter briefing</span></div>
+    </div>
+
+    <div class="assessment-app" data-assessment-app>
+      <div class="assessment-start" data-start-screen>
+        <p class="assessment-kicker">Free diagnostic</p>
+        <h3>Ready to find the constraint?</h3>
+        <p>This is a decision tool, not a test. Choose the answer that best describes how your organization operates today.</p>
+        <button type="button" class="assessment-primary" data-start>Start the assessment</button>
+      </div>
+
+      <form class="assessment-form" data-assessment-form data-no-transmit="Client-side assessment state only; the separate lead form transmits results." hidden novalidate>
+        <div class="assessment-progress" aria-label="Assessment progress"><div class="progress-meta"><span data-progress-label>Question 1 of 14</span><span data-progress-percent>7%</span></div><div class="progress-track"><span data-progress-bar></span></div></div>
+        <fieldset class="question-panel" data-question-panel></fieldset>
+        <div class="assessment-nav"><button type="button" class="assessment-back" data-back>Back</button><button type="button" class="assessment-primary" data-next>Continue</button></div>
+        <p class="assessment-error" data-question-error role="alert"></p>
+      </form>
+
+      <section class="lead-gate" data-lead-gate hidden aria-labelledby="lead-title">
+        <p class="assessment-kicker">Your preliminary diagnosis is ready</p>
+        <h3 id="lead-title">Unlock your complete scorecard.</h3>
+        <p>Tell us where the assessment came from. Your results will appear here immediately after confirmed submission.</p>
+        <form action="/api/lead" method="post" data-lead-form>
+          <div class="form-grid">
+            <label>First name<input name="name" autocomplete="given-name" required maxlength="100"></label>
+            <label>Work email<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+            <label>Organization<input name="organization" autocomplete="organization" required maxlength="200"></label>
+            <label>Role<input name="role" autocomplete="organization-title" required maxlength="150"></label>
+            <label class="form-wide">Website <span>(optional)</span><input name="company_website" type="url" inputmode="url" autocomplete="url" placeholder="example.org" maxlength="500"></label>
+            <label>Timeline<select name="timeline" required><option value="">Choose one</option><option>Immediately</option><option>Within 90 days</option><option>Within 6 months</option><option>Exploring for later</option></select></label>
+            <label>Potential investment<select name="investment_range" required><option value="">Choose one</option><option>Exploring; no budget established</option><option>Under $10,000</option><option>$10,000–$25,000</option><option>$25,000–$50,000</option><option>$50,000+</option><option>Prefer to discuss</option></select></label>
+            <label class="form-wide">If this worked exactly as intended, what would become possible?<textarea name="desired_outcome" required maxlength="1500"></textarea></label>
+          </div>
+          <input type="hidden" name="lead_source" value="community_viability_assessment">
+          <input type="hidden" name="assessment_score" data-score-field>
+          <input type="hidden" name="assessment_diagnosis" data-diagnosis-field>
+          <input type="hidden" name="assessment_dimensions" data-dimensions-field>
+          <input type="text" name="website" tabindex="-1" autocomplete="off" class="honeypot" aria-hidden="true" style="display:none">
+          <label class="consent"><input type="checkbox" name="contact_consent" value="yes" required> West Peek Productions may contact me about the priorities identified in my assessment.</label>
+          <button type="submit" class="assessment-primary">Generate my community plan</button>
+          <p class="form-status" data-lead-status aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="results" data-results hidden aria-labelledby="results-title">
+        <p class="assessment-kicker">Your Community Viability result</p>
+        <div class="result-heading"><div><span class="score-label">Overall score</span><strong class="score-number" data-score>0</strong><span class="score-max">/100</span></div><div><h3 id="results-title" data-diagnosis></h3><p data-summary></p></div></div>
+        <div class="dimension-grid" data-dimension-grid></div>
+        <div class="priority-panel"><h4>Your next three priorities</h4><ol data-priorities></ol></div>
+        <div class="scooter-result">
+          <img src="/assets/avatar/scooter-avatar-source.png" alt="Scooter Taylor" width="180" height="180">
+          <div><p class="assessment-kicker">AI Scooter briefing</p><p data-briefing-copy></p><button type="button" class="assessment-secondary" data-generate-briefing>Generate the talking briefing</button><p class="media-status" data-briefing-status aria-live="polite">Your written result is ready now. Video is generated separately and never blocks it.</p><div data-briefing-media></div></div>
+        </div>
+        <div class="blueprint-cta"><div><p class="agency-eyebrow">Recommended next step</p><h4>Turn the diagnosis into a 90-day Community Blueprint.</h4><p>Review the result with West Peek and determine whether strategy, activation, content, experiences, audience growth, or an integrated engagement is the right path.</p></div><a class="agency-button agency-button-primary" href="https://forms.gle/qUrkAwHruFsh8WLC8" target="_blank" rel="noopener">Request a Blueprint Call <span aria-hidden="true">→</span></a></div>
+      </section>
+    </div>
+  </section>
+
+  <section class="dimension-section" aria-labelledby="dimensions-title"><p class="agency-eyebrow">What we evaluate</p><h2 id="dimensions-title">Six dimensions of a community that compounds.</h2><div class="dimension-explainer"><article><b>01</b><h3>Clarity</h3><p>Who the community serves and why people participate.</p></article><article><b>02</b><h3>Engagement</h3><p>Whether people contribute, connect, and return.</p></article><article><b>03</b><h3>Experiences</h3><p>Whether moments produce lasting relationships and action.</p></article><article><b>04</b><h3>Content</h3><p>Whether activity becomes reusable stories and assets.</p></article><article><b>05</b><h3>Audience growth</h3><p>Whether the right people consistently discover and join.</p></article><article><b>06</b><h3>Operations</h3><p>Whether ownership and systems support execution.</p></article></div></section>
+
+  <section class="proof-band"><div><strong>400+</strong><span>virtual and hybrid experiences produced</span></div><div><strong>5,000+</strong><span>people in the broader West Peek community</span></div><div><strong>One partner</strong><span>connecting strategy, experiences, content, and growth</span></div></section>
+</main>
+
+<footer class="agency-footer"><div class="agency-footer-brand"><img src="/assets/img/productions-logo.jpg" alt=""><span>West Peek Productions</span></div><div class="network-footer"><a href="/services/">Services</a><a href="/event-production-cost">What it costs</a><a href="/#start-inquiry">Start an inquiry</a></div><div class="small">© <span id="y"></span> West Peek Productions · New York · Atlanta · Memphis</div></footer>
+<script src="/assets/js/community-assessment.js" defer></script>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>

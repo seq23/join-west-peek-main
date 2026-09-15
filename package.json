@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "npm run build && npm run validate:forms && npm run validate:disclosure",
+    "validate": "npm run build && npm run validate:forms && npm run validate:disclosure && npm run validate:community-viability",
     "validate:forms": "node scripts/validate_forms.mjs",
     "validate:disclosure": "node scripts/validate_disclosure.mjs",
     "lastmod": "node scripts/lastmod_from_git.mjs",
@@ -14,6 +14,7 @@
     "build:productions": "node scripts/build.mjs productions",
     "build": "node scripts/build.mjs community && node scripts/build.mjs ventures && node scripts/build.mjs productions",
     "validate:operator-doc-currency": "node scripts/validate_operator_doc_currency.mjs docs",
-    "portfolio:status": "node scripts/portfolio_status.mjs --write"
+    "portfolio:status": "node scripts/portfolio_status.mjs --write",
+    "validate:community-viability": "node scripts/validate_community_viability.mjs"
   }
 }
