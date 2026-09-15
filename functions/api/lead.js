@@ -87,7 +87,11 @@ export async function onRequestPost({ request, env }) {
   }
   if (!looksLikeEmail(email)) return json({ ok: false, error: 'invalid_email' }, 400);
 
-  const leadSource = clean(fields.lead_source);\n  const isCommunityViabilityAssessment = leadSource === 'community_viability_assessment';\n  const to = isCommunityViabilityAssessment\n    ? clean(env.COMMUNITY_ASSESSMENT_TO) || 'scooter@westpeek.ventures'\n    : clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
+  const leadSource = clean(fields.lead_source);
+  const isCommunityViabilityAssessment = leadSource === 'community_viability_assessment';
+  const to = isCommunityViabilityAssessment
+    ? clean(env.COMMUNITY_ASSESSMENT_TO) || 'scooter@westpeek.ventures'
+    : clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
   const from = clean(env.EMAIL_FROM);
   const apiKey = clean(env.RESEND_API_KEY);
 
@@ -102,6 +106,7 @@ export async function onRequestPost({ request, env }) {
   const lines = Object.entries(fields)
     .filter(([k]) => !HONEYPOT_FIELDS.includes(k))
     .map(([k, v]) => `${k}: ${clean(v)}`)
+    .concat([`submitted_at: ${new Date().toISOString()}`])
     .join('\n');
 
   try {
@@ -112,7 +117,9 @@ export async function onRequestPost({ request, env }) {
         from,
         to: [to],
         reply_to: email,
-        subject: isCommunityViabilityAssessment\n          ? `New Community Viability Assessment — ${clean(fields.organization) || email}`\n          : `New enquiry from ${site}`,
+        subject: isCommunityViabilityAssessment
+          ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
+          : `New enquiry from ${site}`,
         text: `${lines}\n\nSubmitted from: ${request.url}`,
       }),
     });
