@@ -14,7 +14,7 @@ for(const [file,label] of required)if(!file||!fs.existsSync(file))errors.push(`M
 if(!errors.length){
   const html=fs.readFileSync(htmlPath,'utf8');
   const js=fs.readFileSync(jsPath,'utf8');
-  if(!/Community Readiness Quiz/.test(html))errors.push('Clear Community Readiness Quiz naming is absent.');
+  if(!/Can Your Business Build a Community\?/.test(html))errors.push('The plain-language community-building quiz promise is absent.');
   if(!/action="\/api\/lead"/.test(html))errors.push('Lead form is not wired to /api/lead.');
   if(!/data-lead-status/.test(html))errors.push('Lead form has no server outcome region.');
   const questionCount=(js.match(/\{d:'(?:clarity|engagement|experiences|content|growth|operations|proof)',q:/g)||[]).length;
