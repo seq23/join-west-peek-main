@@ -76,8 +76,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Validate Cloudflare Function syntax
+        run: node --check functions/api/lead.js
+
       - name: Build all three sites
         run: npm run build
+
+      - name: Validate Community Viability Assessment
+        run: npm run validate:community-viability
 
       # The build only proves files were copied. This proves the forms actually
       # transmit: every field named, every form wired to an endpoint, no
