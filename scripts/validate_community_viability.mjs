@@ -23,6 +23,7 @@ if(!errors.length){
   if(!/response\.ok&&x\.b&&x\.b\.ok===true|x\.ok&&x\.b&&x\.b\.ok===true/.test(js))errors.push('Results are not guarded by confirmed server receipt.');
   if(/AI Scooter|D-ID|HeyGen|avatar\/render|avatar\/status/i.test(html+js))errors.push('Removed AI media system is still referenced by the assessment.');
   for(const field of ['organization_type','audience_size','community_status','primary_objective','internal_owner','annual_program_volume','timeline','support_readiness','investment_range'])if(!html.includes(`name="${field}"`))errors.push(`Missing qualification field ${field}.`);
+  if(!html.includes('name="assessment_answers"')||!js.includes("[data-answers-field]"))errors.push('Complete question-level answers are not included in the lead record.');
 }
 if(errors.length){console.error('validate:community-viability FAILED');for(const e of errors)console.error(' - '+e);process.exit(1)}
 console.log('validate:community-viability PASS — route, 18 questions, six diagnoses, lead guard, qualification, and no AI media present');
