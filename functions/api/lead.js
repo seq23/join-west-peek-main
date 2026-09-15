@@ -106,6 +106,7 @@ export async function onRequestPost({ request, env }) {
   const lines = Object.entries(fields)
     .filter(([k]) => !HONEYPOT_FIELDS.includes(k))
     .map(([k, v]) => `${k}: ${clean(v)}`)
+    .concat([`submitted_at: ${new Date().toISOString()}`])
     .join('\n');
 
   try {
