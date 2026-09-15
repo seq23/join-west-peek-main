@@ -28,24 +28,17 @@
     <div class="momentum-hero-copy">
       <p class="agency-eyebrow">Community-as-a-Service</p>
       <h1 id="page-title">Turn your audience into a community that compounds.</h1>
-      <p class="momentum-lead">Find out whether your business has the foundation for a viable community—and what is missing if it does not. Receive a clear viability score, diagnosis, and three priorities for the next 90 days.</p>
+      <p class="momentum-lead">Find out whether your business has the audience, participation, experiences, content, growth, and operating foundation required for a viable community. Receive a clear viability classification and three priorities for the next 90 days.</p>
       <div class="momentum-actions">
         <a class="agency-button agency-button-primary" href="#assessment">Test your community's viability <span aria-hidden="true">→</span></a>
         <span>About 7 minutes · Free · No obligation</span>
       </div>
     </div>
-    <aside class="scooter-card" aria-label="AI Scooter introduction">
-      <div class="scooter-portrait-wrap">
-        <img src="/assets/avatar/scooter-avatar-source.png" alt="Scooter Taylor" class="scooter-portrait" width="560" height="560">
-        <span class="ai-badge">AI presenter</span>
-      </div>
-      <div class="scooter-card-copy">
-        <strong>A quick note from Scooter</strong>
-        <p>Most organizations do not have a lack-of-content problem. Their events, audience, and community activity simply operate separately. This assessment shows where that value is getting lost.</p>
-        <button class="text-button" type="button" data-scooter-intro>Hear the AI introduction</button>
-        <p class="media-status" data-intro-status aria-live="polite">This feature uses an AI-generated presentation of Scooter with his approved likeness.</p>
-        <div data-intro-media></div>
-      </div>
+    <aside class="viability-preview" aria-label="What the assessment determines">
+      <p class="assessment-kicker">What this determines</p>
+      <h2>Do you have a community—or only an audience?</h2>
+      <p>A viable community gives the right people a durable reason to participate, contribute, connect, and return. This assessment examines evidence across six operating dimensions.</p>
+      <ul><li>Whether the community has a clear purpose</li><li>Whether people participate and return</li><li>Whether activity creates measurable value</li><li>What is most likely to prevent viability</li></ul>
     </aside>
   </section>
 
@@ -63,8 +56,8 @@
     <div class="assessment-intro">
       <p class="agency-eyebrow">Community Viability Assessment</p>
       <h2 id="assessment-title">Does your business have a viable community?</h2>
-      <p>Answer 14 focused questions. Your responses are scored across clarity, engagement, experiences, content, audience growth, and operations.</p>
-      <div class="assessment-benefits" aria-label="What you receive"><span>Your score</span><span>Your diagnosis</span><span>Three 90-day priorities</span><span>AI Scooter briefing</span></div>
+      <p>Answer 18 focused questions about how the organization operates today. Your responses are scored across clarity, engagement, experiences, content, audience growth, and operations.</p>
+      <div class="assessment-benefits" aria-label="What you receive"><span>Your score</span><span>Your diagnosis</span><span>Your strongest asset</span><span>Three 90-day priorities</span></div>
     </div>
 
     <div class="assessment-app" data-assessment-app>
@@ -76,7 +69,7 @@
       </div>
 
       <form class="assessment-form" data-assessment-form data-no-transmit="Client-side assessment state only; the separate lead form transmits results." hidden novalidate>
-        <div class="assessment-progress" aria-label="Assessment progress"><div class="progress-meta"><span data-progress-label>Question 1 of 14</span><span data-progress-percent>7%</span></div><div class="progress-track"><span data-progress-bar></span></div></div>
+        <div class="assessment-progress" aria-label="Assessment progress"><div class="progress-meta"><span data-progress-label>Question 1 of 18</span><span data-progress-percent>6%</span></div><div class="progress-track"><span data-progress-bar></span></div></div>
         <fieldset class="question-panel" data-question-panel></fieldset>
         <div class="assessment-nav"><button type="button" class="assessment-back" data-back>Back</button><button type="button" class="assessment-primary" data-next>Continue</button></div>
         <p class="assessment-error" data-question-error role="alert"></p>
@@ -93,13 +86,24 @@
             <label>Organization<input name="organization" autocomplete="organization" required maxlength="200"></label>
             <label>Role<input name="role" autocomplete="organization-title" required maxlength="150"></label>
             <label class="form-wide">Website <span>(optional)</span><input name="company_website" type="url" inputmode="url" autocomplete="url" placeholder="example.org" maxlength="500"></label>
+            <label>Organization type<select name="organization_type" required><option value="">Choose one</option><option>Enterprise organization</option><option>Nonprofit or association</option><option>High-growth company</option><option>Membership organization</option><option>Conference or event program</option><option>Professional or industry network</option><option>Other</option></select></label>
+            <label>Audience or member size<select name="audience_size" required><option value="">Choose one</option><option>Fewer than 500</option><option>500–2,499</option><option>2,500–9,999</option><option>10,000–49,999</option><option>50,000+</option><option>Not yet established</option></select></label>
+            <label>Current community status<select name="community_status" required><option value="">Choose one</option><option>We are still exploring the idea</option><option>We have an audience but no defined community</option><option>We recently launched a community</option><option>We have an established but inconsistent community</option><option>We have an active, established community</option></select></label>
+            <label>Primary objective<select name="primary_objective" required><option value="">Choose one</option><option>Member or customer retention</option><option>Engagement and participation</option><option>Audience growth</option><option>Events and programming</option><option>Content and storytelling</option><option>Partnerships and opportunity creation</option><option>Revenue or commercial growth</option></select></label>
+            <label>Internal ownership<select name="internal_owner" required><option value="">Choose one</option><option>Dedicated community leader or team</option><option>Shared across multiple teams</option><option>Part-time responsibility</option><option>Founder or executive led</option><option>No clear owner</option></select></label>
+            <label>Annual events or programs<select name="annual_program_volume" required><option value="">Choose one</option><option>None yet</option><option>1–4</option><option>5–12</option><option>13–30</option><option>More than 30</option></select></label>
             <label>Timeline<select name="timeline" required><option value="">Choose one</option><option>Immediately</option><option>Within 90 days</option><option>Within 6 months</option><option>Exploring for later</option></select></label>
+            <label>Outside support readiness<select name="support_readiness" required><option value="">Choose one</option><option>Actively evaluating a partner</option><option>Open to the right partner</option><option>Building the internal case</option><option>Looking for guidance only</option></select></label>
             <label>Potential investment<select name="investment_range" required><option value="">Choose one</option><option>Exploring; no budget established</option><option>Under $10,000</option><option>$10,000–$25,000</option><option>$25,000–$50,000</option><option>$50,000+</option><option>Prefer to discuss</option></select></label>
             <label class="form-wide">If this worked exactly as intended, what would become possible?<textarea name="desired_outcome" required maxlength="1500"></textarea></label>
           </div>
           <input type="hidden" name="lead_source" value="community_viability_assessment">
           <input type="hidden" name="assessment_score" data-score-field>
           <input type="hidden" name="assessment_diagnosis" data-diagnosis-field>
+          <input type="hidden" name="assessment_classification" data-classification-field>
+          <input type="hidden" name="assessment_strongest_dimension" data-strongest-field>
+          <input type="hidden" name="assessment_critical_constraint" data-constraint-field>
+          <input type="hidden" name="assessment_priorities" data-priorities-field>
           <input type="hidden" name="assessment_dimensions" data-dimensions-field>
           <input type="text" name="website" tabindex="-1" autocomplete="off" class="honeypot" aria-hidden="true" style="display:none">
           <label class="consent"><input type="checkbox" name="contact_consent" value="yes" required> West Peek Productions may contact me about the priorities identified in my assessment.</label>
@@ -110,14 +114,11 @@
 
       <section class="results" data-results hidden aria-labelledby="results-title">
         <p class="assessment-kicker">Your Community Viability result</p>
-        <div class="result-heading"><div><span class="score-label">Overall score</span><strong class="score-number" data-score>0</strong><span class="score-max">/100</span></div><div><h3 id="results-title" data-diagnosis></h3><p data-summary></p></div></div>
+        <div class="result-heading"><div><span class="score-label">Viability score</span><strong class="score-number" data-score>0</strong><span class="score-max">/100</span></div><div><p class="result-classification" data-classification></p><h3 id="results-title" data-diagnosis></h3><p data-summary></p></div></div>
         <div class="dimension-grid" data-dimension-grid></div>
+        <div class="result-insights"><div><span>Strongest existing asset</span><strong data-strongest></strong></div><div><span>Critical constraint</span><strong data-constraint></strong></div></div>
         <div class="priority-panel"><h4>Your next three priorities</h4><ol data-priorities></ol></div>
-        <div class="scooter-result">
-          <img src="/assets/avatar/scooter-avatar-source.png" alt="Scooter Taylor" width="180" height="180">
-          <div><p class="assessment-kicker">AI Scooter briefing</p><p data-briefing-copy></p><button type="button" class="assessment-secondary" data-generate-briefing>Generate the talking briefing</button><p class="media-status" data-briefing-status aria-live="polite">Your written result is ready now. Video is generated separately and never blocks it.</p><div data-briefing-media></div></div>
-        </div>
-        <div class="blueprint-cta"><div><p class="agency-eyebrow">Recommended next step</p><h4>Turn the diagnosis into a 90-day Community Blueprint.</h4><p>Review the result with West Peek and determine whether strategy, activation, content, experiences, audience growth, or an integrated engagement is the right path.</p></div><a class="agency-button agency-button-primary" href="https://forms.gle/qUrkAwHruFsh8WLC8" target="_blank" rel="noopener">Request a Blueprint Call <span aria-hidden="true">→</span></a></div>
+        <div class="blueprint-cta"><div><p class="agency-eyebrow">What happens next</p><h4>West Peek has received the same diagnosis.</h4><p>If your responses indicate that outside support may be useful, Scooter can follow up using the work email you provided. There is nothing else to schedule or submit.</p></div></div>
       </section>
     </div>
   </section>
