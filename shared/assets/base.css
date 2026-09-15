@@ -352,3 +352,10 @@ table.data td strong{color:#fff}
   .agency-footer .footer-nav-groups{grid-template-columns:1fr}
   .agency-footer .footer-nav-group:last-child{grid-column:auto}
 }
+
+
+/* Explicit quiz label treatment. */
+.agency-page .subnav-quiz-meta{margin-left:4px;padding-left:8px;border-left:1px solid rgba(255,255,255,.38);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.86}
+@media (max-width:1080px){
+  .agency-page .subnav-quiz-meta{display:none}
+}
