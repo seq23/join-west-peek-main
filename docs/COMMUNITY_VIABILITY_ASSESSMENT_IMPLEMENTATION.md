@@ -14,14 +14,14 @@ The complete system is a focused Community-as-a-Service lead magnet with a publi
 ## Implemented in this artifact
 
 - Dedicated Community Viability Assessment landing page.
-- Eighteen behavior-based questions: three per dimension.
+- Seven evidence-based questions: one per operating dimension plus a proven-value calibration question.
 - Five viability classifications and six constraint diagnoses.
 - Critical-dimension floor so a strong average cannot conceal a blocking weakness.
 - Personalized result, strongest asset, critical constraint, and three 90-day priorities.
 - Server-confirmed email delivery through `/api/lead` to `scooter@westpeek.ventures`.
-- Contact consent, commercial qualification, honeypot, URL normalization, and failure fallback.
+- Lean contact and commercial qualification capture: six required fields, two optional fields, consent, honeypot, URL normalization, and failure fallback.
 - Page-specific responsive and reduced-motion styles.
-- Structural validator for route, questions, dimensions, submission guard, disclosure, and fallback.
+- Structural validator for route, seven-question topology, dimensions, proven-value calibration, lean submission guard, disclosure, and fallback.
 
 ## Not implemented in this artifact
 
