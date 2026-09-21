@@ -305,7 +305,7 @@
     margin-bottom: 2.5rem;
   }
   .portfolio-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
   }
   .portfolio-card {
     background: var(--bg-card);
@@ -322,6 +322,8 @@
     height: 76px; padding: 1.1rem 1.6rem;
   }
   .portfolio-logo img { max-height: 100%; max-width: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+  .portfolio-logo--mark { gap: .7rem; color: #0a2c36; font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em; text-decoration: none; }
+  .portfolio-logo--mark img { height: 34px; width: auto; }
   .portfolio-photo {
     width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: center top;
     border-radius: 4px; display: block;
@@ -566,6 +568,8 @@
     opacity: 1; transform: translateY(0);
   }
 
+  @media (max-width: 1024px) and (min-width: 769px) { .portfolio-grid { grid-template-columns: 1fr 1fr; } }
+
   /* MOBILE */
   @media (max-width: 768px) {
     .hero { padding: 7rem 1.5rem 4rem; }
@@ -704,6 +708,19 @@
         <div class="portfolio-links">
           <a href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer">Website</a>
           <a href="https://www.instagram.com/cxffeeblack/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </article>
+      <article class="portfolio-card" data-company="anyplace">
+        <a class="portfolio-logo portfolio-logo--mark" href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer" aria-label="Anyplace website"><img src="assets/img/portfolio/anyplace-icon.svg" alt=""><span>Anyplace</span></a>
+        <!-- No founder photo supplied yet (added 20 Sep 2026 after the package); drop one in at
+             assets/img/portfolio/anyplace-founders.jpg and add the <img> the other cards carry. -->
+        <div>
+          <div class="portfolio-name"><a href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer">Anyplace</a></div>
+          <div class="portfolio-founders">Satoru Steve Naito</div>
+        </div>
+        <div class="portfolio-links">
+          <a href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer">Website</a>
+          <a href="https://www.instagram.com/live.anyplace/" target="_blank" rel="noopener noreferrer">Instagram</a>
         </div>
       </article>
     </div>
