@@ -240,6 +240,7 @@ const required = {
     path.join(outAssets, "img", "portfolio", "cxffeeblack-logo.png"),
     path.join(outAssets, "img", "portfolio", "cxffeeblack-founders.jpg"),
     path.join(outAssets, "img", "portfolio", "anyplace-icon.svg"),
+    path.join(outAssets, "img", "portfolio", "anyplace-founders.jpg"),
   ],
   productions: [
     path.join(outAssets, "base.css"),
