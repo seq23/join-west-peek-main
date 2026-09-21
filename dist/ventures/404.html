@@ -34,42 +34,6 @@
   }
   ::selection { background: var(--accent); color: white; }
 
-  /* NAV */
-  nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-    padding: 1.2rem 3rem;
-    display: flex; justify-content: space-between; align-items: center;
-    background: rgba(10,10,10,0.85); backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-  }
-  .nav-logo {
-    display: flex; align-items: center; gap: 10px;
-    text-decoration: none;
-  }
-  .nav-logo-img {
-    width: 32px; height: 32px; object-fit: contain;
-  }
-  .nav-logo-text {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 1rem; font-weight: 700; color: var(--white);
-    letter-spacing: -0.01em;
-  }
-  .nav-logo-text span { color: var(--accent); }
-  .nav-links { display: flex; gap: 1.35rem; flex-wrap: wrap; align-items: center; }
-  .nav-links a {
-    color: var(--gray); text-decoration: none; font-size: 0.82rem;
-    font-weight: 500; letter-spacing: 0.01em; transition: color 0.3s;
-  }
-  .nav-links a:hover { color: var(--white); }
-  .nav-live span { color: #ff7a00; font-style: italic; font-weight: 800; }
-  .nav-home { color: var(--gray-light) !important; }
-  .nav-cta {
-    background: var(--accent) !important; color: white !important;
-    padding: 0.55rem 1.4rem; border-radius: 4px;
-    font-weight: 600 !important; transition: background 0.3s !important;
-  }
-  .nav-cta:hover { background: var(--accent-light) !important; }
-
   /* HERO */
   .hero {
     min-height: 100vh;
@@ -89,8 +53,10 @@
     pointer-events: none;
   }
 
+  /* The WP monogram replaces the white wordmark (Scooter, 20 Sep 2026). The
+     supplied file is black ink on transparent; rendered white, approved. */
   .hero-logo {
-    width: 64px; height: 64px; object-fit: contain;
+    width: 96px; height: 72px; object-fit: contain; filter: invert(1);
     margin-bottom: 2rem;
     opacity: 0; animation: fadeUp 0.8s ease forwards 0.15s;
   }
@@ -225,6 +191,72 @@
     font-size: 0.85rem; color: var(--gray); line-height: 1.6;
   }
 
+  .sectors-lead {
+    font-size: 1.05rem; color: var(--gray); line-height: 1.8; max-width: 680px;
+    margin-bottom: 2.5rem;
+  }
+  .sectors-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; color: var(--gray-dim);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    margin: 3rem 0 -1.5rem;
+  }
+
+  /* PORTFOLIO */
+  .portfolio {
+    padding: 6rem 3rem;
+    border-top: 1px solid var(--border);
+  }
+  .portfolio-inner { max-width: 1000px; margin: 0 auto; }
+  .portfolio h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.1; letter-spacing: -0.02em;
+    margin-bottom: 2.5rem;
+  }
+  .portfolio-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+  }
+  .portfolio-card {
+    background: var(--bg-card);
+    padding: 2rem;
+    display: flex; flex-direction: column; gap: 1.25rem;
+    transition: background 0.3s;
+  }
+  .portfolio-card:hover { background: var(--bg-elevated); }
+  /* Both supplied logos are black ink on transparent. A cream tile keeps each
+     brand's own mark legible on the dark ground without recolouring it. */
+  .portfolio-logo {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--white); border-radius: 4px;
+    height: 76px; padding: 1.1rem 1.6rem;
+  }
+  .portfolio-logo img { max-height: 100%; max-width: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+  .portfolio-logo--mark { gap: .7rem; color: #0a2c36; font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em; text-decoration: none; }
+  .portfolio-logo--mark img { height: 34px; width: auto; }
+  .portfolio-photo {
+    width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: center top;
+    border-radius: 4px; display: block;
+  }
+  .portfolio-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.6rem; line-height: 1.1;
+  }
+  .portfolio-name a { color: inherit; text-decoration: none; }
+  .portfolio-name a:hover { color: var(--accent-light); }
+  .portfolio-founders {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem; color: var(--accent);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    margin-top: 0.35rem;
+  }
+  .portfolio-links { display: flex; gap: 1.5rem; margin-top: auto; }
+  .portfolio-links a {
+    color: var(--gray); font-size: 0.85rem; font-weight: 500; text-decoration: none;
+    border-bottom: 1px solid var(--border); padding-bottom: 2px; transition: color 0.3s, border-color 0.3s;
+  }
+  .portfolio-links a:hover { color: var(--white); border-color: var(--white); }
+
   /* TEAM */
   .team {
     padding: 6rem 3rem;
@@ -330,23 +362,7 @@
     line-height: 1.8; max-width: 620px;
     margin: 0 auto 2rem;
   }
-  .stat-row {
-    display: flex; justify-content: center; gap: 4rem;
-    margin-top: 2.5rem;
-  }
-  .stat { text-align: center; }
-  .stat-num {
-    font-family: 'Instrument Serif', serif;
-    font-size: 2.5rem;
-    color: var(--white);
-    line-height: 1;
-    margin-bottom: 0.3rem;
-  }
-  .stat-label {
-    font-size: 0.78rem;
-    color: var(--gray-dim);
-    letter-spacing: 0.05em;
-  }
+  .community .btn-primary { margin-top: 0.5rem; }
 
   /* APPLICATION FORM */
   .apply {
@@ -449,31 +465,6 @@
   .form-status[data-state="error"] { color: var(--accent-light); }
   .form-status a { color: inherit; text-decoration: underline; }
 
-  /* FOOTER */
-  /* Securities disclosure. On-page, not only a footer link to /disclosures.
-     Wording derived from sites/ventures/disclosures/index.html. */
-  .wp-disclosure {
-    padding: 3rem 3rem 3.5rem;
-    border-top: 1px solid var(--border);
-    color: var(--gray-dim);
-    font-size: 0.8rem;
-    line-height: 1.7;
-  }
-  .wp-disclosure h2 {
-    font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--gray); font-weight: 600; margin: 0 0 1rem;
-  }
-  .wp-disclosure p { margin: 0 0 0.9rem; max-width: 80ch; }
-  .wp-disclosure p:last-child { margin-bottom: 0; }
-  .wp-disclosure a { color: var(--gray); text-decoration: underline; text-underline-offset: 3px; }
-  .wp-disclosure a:hover { color: var(--white); }
-  footer {
-    padding: 2rem 3rem;
-    border-top: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 0.75rem; color: var(--gray-dim);
-  }
-
   /* ANIMATIONS */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(25px); }
@@ -487,27 +478,22 @@
     opacity: 1; transform: translateY(0);
   }
 
+  @media (max-width: 1024px) and (min-width: 769px) { .portfolio-grid { grid-template-columns: 1fr 1fr; } }
+
   /* MOBILE */
   @media (max-width: 768px) {
-    nav { padding: 1rem 1.5rem; }
-    nav { align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
-    .nav-links { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
-    .nav-links a { min-height: 42px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 999px; padding: 0.65rem 0.75rem; text-align: center; background: rgba(255,255,255,0.03); }
-    .nav-links .nav-cta { border-color: var(--accent); }
-    .nav-logo { width: 100%; }
-    @media (max-width: 420px) { .nav-links { grid-template-columns: 1fr; } }
     .hero { padding: 7rem 1.5rem 4rem; }
-    .believe, .sectors, .team, .community, .apply { padding: 4rem 1.5rem; }
+    .believe, .sectors, .portfolio, .team, .community, .apply { padding: 4rem 1.5rem; }
     .sector-grid { grid-template-columns: 1fr 1fr; }
+    .portfolio-grid { grid-template-columns: 1fr; }
+    .portfolio-card { padding: 1.5rem; }
     .team-grid { grid-template-columns: 1fr; }
-    .stat-row { gap: 2rem; flex-wrap: wrap; }
     .form-row { grid-template-columns: 1fr; }
     .apply-form { padding: 1.5rem; }
-    .wp-disclosure { padding: 2.5rem 1.5rem 3rem; }
-    footer { flex-direction: column; gap: 0.5rem; text-align: center; }
   }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/ventures.css">
   <style>
     .nf-wrap { max-width: 40rem; margin: 0 auto; padding: 4rem 1.25rem; }
     .nf-code { font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; margin: 0 0 .75rem; }
@@ -607,11 +593,9 @@
     <p>The address may be mistyped, or the page may have been moved or retired since it was linked.</p>
     <p><a href="/">Return to West Peek Ventures</a></p>
   </main>
-<footer>
+<footer class="wp-footer">
   <span>© 2026 West Peek Ventures. All rights reserved.</span>
-  <span class="network-footer" aria-label="West Peek network"><a href="https://joinwestpeek.com/">West Peek Home</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="nav-live" href="https://westpeek.live/">West Peek <span>Live!</span></a></span>
-  <span class="network-footer" aria-label="West Peek Ventures pages"><a href="thesis.html">Thesis</a><a href="what-we-look-for.html">What we look for</a><a href="companies.html">Companies</a><a href="team.html">Team</a><a href="pitch.html">Pitch</a><a href="disclosures/">Disclosures</a></span>
-  <span>New York City</span>
+  <span><a href="disclosures/">Disclosures</a> · <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener noreferrer">Instagram</a></span>
 </footer>
 </body>
 </html>

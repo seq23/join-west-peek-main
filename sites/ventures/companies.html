@@ -3,37 +3,97 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Companies — West Peek Ventures</title>
-  <meta name="description" content="Representative companies we’ve supported.">
+  <title>Portfolio — West Peek Ventures</title>
+  <meta name="description" content="A few of the companies West Peek Ventures has backed.">
   <link rel="canonical" href="https://westpeek.ventures/companies"/>
   <link rel="stylesheet" href="assets/base.css">
+  <link rel="stylesheet" href="assets/ventures.css">
+  <style>
+    /* Mirrors the homepage Portfolio section (sites/ventures/index.html#portfolio). */
+    .portfolio-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px;margin-top:22px}
+    .portfolio-card{background:var(--panel);border:1px solid #1b1b1c;border-radius:14px;padding:26px;display:flex;flex-direction:column;gap:18px}
+    .portfolio-logo{display:flex;align-items:center;justify-content:center;background:#f5f0eb;border-radius:8px;height:76px;padding:16px 24px}
+    .portfolio-logo img{max-height:100%;max-width:100%;width:auto;height:auto;object-fit:contain;display:block}
+    .portfolio-logo--mark{gap:12px;color:#0a2c36;font-weight:800;font-size:22px;text-decoration:none}
+    .portfolio-logo--mark img{height:34px;width:auto}
+    .portfolio-photo{width:100%;aspect-ratio:4/3;object-fit:cover;object-position:center top;border-radius:8px;display:block}
+    .portfolio-name{font-size:22px;font-weight:800}
+    .portfolio-name a{color:#fff}
+    .portfolio-founders{color:var(--muted);font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+    .portfolio-links{display:flex;gap:18px;margin-top:auto}
+  </style>
 </head>
 <body>
-<header>
-  <div class="nav">
-    <div class="brand"><img src="assets/img/ventures-logo.png" alt="West Peek Ventures logo"><span>West Peek Ventures</span></div>
-    <nav class="navlinks"><a href="https://joinwestpeek.com/">West Peek Home</a><a href="index.html">Ventures Home</a><a href="thesis.html">Thesis</a><a href="what-we-look-for.html">What we look for</a><a href="team.html">Team</a><a href="companies.html">Companies</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a><a class="nav-primary" href="pitch.html">Pitch</a></nav>
+<nav class="wp-nav" aria-label="Primary">
+  <div class="wp-nav__inner">
+    <a href="/" class="wp-nav__logo">
+      <img src="assets/img/wp-monogram.png" alt="">
+      <span class="wp-nav__logo-text">West Peek <span>Ventures</span></span>
+    </a>
+    <button class="wp-nav__toggle" type="button" aria-expanded="false" aria-controls="wp-nav-links" aria-label="Menu"><i></i><i></i><i></i></button>
+    <ul class="wp-nav__links" id="wp-nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#thesis">Thesis</a></li>
+      <li><a href="/#look-for">What We Look For</a></li>
+      <li><a href="/#portfolio">Portfolio</a></li>
+      <li><a href="/#team">Team</a></li>
+      <li><a href="/#community">Community</a></li>
+      <li class="wp-nav__menu"><button type="button" aria-expanded="false" aria-controls="wp-nav-resources">Resources</button>
+        <ul class="wp-nav__submenu" id="wp-nav-resources">
+          <li><a href="https://dilution.joinwestpeek.com/" target="_blank" rel="noopener noreferrer">Founder Dilution Dashboard</a></li>
+        </ul>
+      </li>
+      <li><a href="/#apply" class="wp-nav__cta">Submit Your Company</a></li>
+    </ul>
   </div>
-</header><div class="container"><h1>Companies we’ve supported</h1>
-    <p>We tend to work with founders early, when the work is still messy and the signal is still forming. These are a few examples.</p>
-    <div class="card-grid">
-      <div class="card"><h3>SOLO</h3><p>Supported pre-incorporation through early narrative clarity, hiring signal, and founder positioning.</p></div>
-      <div class="card"><h3>Synthient.ai</h3><p>Worked on early strategy and signal as the product and market narrative sharpened.</p></div>
-      <div class="card"><h3>DoctorFlow</h3><p>Helped founder thinking and execution as the company moved from concept to traction.</p></div>
+</nav>
+<div class="container"><h1>Portfolio</h1>
+    <p>A few of the companies we’ve backed.</p>
+    <div class="portfolio-grid">
+      <article class="portfolio-card" data-company="sensori">
+        <a class="portfolio-logo" href="https://drinksensori.com" target="_blank" rel="noopener noreferrer" aria-label="Sensori website"><img src="assets/img/portfolio/sensori-logo.svg" alt="Sensori"></a>
+        <a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"><img class="portfolio-photo" src="assets/img/portfolio/sensori-founders.jpg" alt="Sensori founders Shanna Pearre, Darean Rhodes and Ashlyn Knox" loading="lazy"></a>
+        <div>
+          <div class="portfolio-name"><a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer">Sensori</a></div>
+          <div class="portfolio-founders">Shanna Pearre, Darean Rhodes, Ashlyn Knox</div>
+        </div>
+        <div class="portfolio-links">
+          <a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer">Website</a>
+          <a href="https://www.instagram.com/drinksensori/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </article>
+      <article class="portfolio-card" data-company="cxffeeblack">
+        <a class="portfolio-logo" href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer" aria-label="Cxffeeblack website"><img src="assets/img/portfolio/cxffeeblack-logo.png" alt="Cxffeeblack"></a>
+        <a href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"><img class="portfolio-photo" src="assets/img/portfolio/cxffeeblack-founders.jpg" alt="Cxffeeblack founders Bartholomew Jones and Renata Henderson" loading="lazy" style="object-position:center"></a>
+        <div>
+          <div class="portfolio-name"><a href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer">Cxffeeblack</a></div>
+          <div class="portfolio-founders">Bartholomew Jones, Renata Henderson</div>
+        </div>
+        <div class="portfolio-links">
+          <a href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer">Website</a>
+          <a href="https://www.instagram.com/cxffeeblack/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </article>
+      <article class="portfolio-card" data-company="anyplace">
+        <a class="portfolio-logo portfolio-logo--mark" href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer" aria-label="Anyplace website"><img src="assets/img/portfolio/anyplace-icon.svg" alt=""><span>Anyplace</span></a>
+        <!-- No founder photo supplied yet (added 20 Sep 2026 after the package); drop one in at
+             assets/img/portfolio/anyplace-founders.jpg and add the <img> the other cards carry. -->
+        <div>
+          <div class="portfolio-name"><a href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer">Anyplace</a></div>
+          <div class="portfolio-founders">Satoru Steve Naito</div>
+        </div>
+        <div class="portfolio-links">
+          <a href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer">Website</a>
+          <a href="https://www.instagram.com/live.anyplace/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </article>
     </div>
-    <div class="section"><p class="small">This page is being expanded as new case studies are cleared for publication.</p></div>
-    <section class="wp-disclosure" aria-labelledby="wp-disclosure-h">
-      <h2 id="wp-disclosure-h">Securities disclosure</h2>
-      <p>The companies named on this page are described to illustrate work West Peek Ventures has done. Naming them does not represent an offer or solicitation to buy or sell securities of any company described, and is not a recommendation to buy or sell any security.</p>
-      <p>Investments in private securities are speculative and involve a high degree of risk. An investor in such securities should have little to no need for liquidity in the foreseeable future and have sufficient finances to withstand the loss of the entire investment. Read the full <a href="disclosures/">disclosures</a>.</p>
-    </section>
-</div><footer>
-  <div><a href="https://www.linkedin.com/in/scootertaylor/" target="_blank" rel="noopener">LinkedIn</a> · <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a> · <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a></div>
-  <div style="margin-top:10px">Contact: <a href="mailto:scooter@westpeek.ventures">scooter@westpeek.ventures</a></div>
-  <div class="one-liner" style="margin-top:10px">Good people should meet good people.</div>
-  <div class="small" style="margin-top:10px">© West Peek Ventures</div>
-<div class="network-footer" aria-label="West Peek network"><a href="https://joinwestpeek.com/">West Peek Home</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a></div><div class="network-footer" aria-label="West Peek Ventures pages"><a href="index.html">Ventures Home</a><a href="thesis.html">Thesis</a><a href="what-we-look-for.html">What we look for</a><a href="companies.html">Companies</a><a href="team.html">Team</a><a href="pitch.html">Pitch</a><a href="disclosures/">Disclosures</a></div>
+</div>
+<footer class="wp-footer">
+  <span>© 2026 West Peek Ventures. All rights reserved.</span>
+  <span><a href="disclosures/">Disclosures</a> · <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener noreferrer">Instagram</a></span>
 </footer>
+<script src="assets/ventures.js" defer></script>
 <script src="assets/js/forms.js"></script>
 </body>
 </html>

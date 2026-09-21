@@ -30,6 +30,9 @@
       "name": "West Peek Ventures",
       "url": "https://westpeek.ventures/",
       "description": "A pre-seed venture fund backing founders at the earliest stages.",
+      "sameAs": [
+        "https://www.instagram.com/westpeek"
+      ],
       "parentOrganization": {
         "@id": "https://joinwestpeek.com/#organization"
       },
@@ -92,6 +95,7 @@
 }
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/ventures.css">
 <style>
   :root {
     --bg: #0a0a0a;
@@ -120,42 +124,6 @@
   }
   ::selection { background: var(--accent); color: white; }
 
-  /* NAV */
-  nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-    padding: 1.2rem 3rem;
-    display: flex; justify-content: space-between; align-items: center;
-    background: rgba(10,10,10,0.85); backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-  }
-  .nav-logo {
-    display: flex; align-items: center; gap: 10px;
-    text-decoration: none;
-  }
-  .nav-logo-img {
-    width: 32px; height: 32px; object-fit: contain;
-  }
-  .nav-logo-text {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 1rem; font-weight: 700; color: var(--white);
-    letter-spacing: -0.01em;
-  }
-  .nav-logo-text span { color: var(--accent); }
-  .nav-links { display: flex; gap: 1.35rem; flex-wrap: wrap; align-items: center; }
-  .nav-links a {
-    color: var(--gray); text-decoration: none; font-size: 0.82rem;
-    font-weight: 500; letter-spacing: 0.01em; transition: color 0.3s;
-  }
-  .nav-links a:hover { color: var(--white); }
-  .nav-live span { color: #ff7a00; font-style: italic; font-weight: 800; }
-  .nav-home { color: var(--gray-light) !important; }
-  .nav-cta {
-    background: var(--accent) !important; color: white !important;
-    padding: 0.55rem 1.4rem; border-radius: 4px;
-    font-weight: 600 !important; transition: background 0.3s !important;
-  }
-  .nav-cta:hover { background: var(--accent-light) !important; }
-
   /* HERO */
   .hero {
     min-height: 100vh;
@@ -175,8 +143,10 @@
     pointer-events: none;
   }
 
+  /* The WP monogram replaces the white wordmark (Scooter, 20 Sep 2026). The
+     supplied file is black ink on transparent; rendered white, approved. */
   .hero-logo {
-    width: 64px; height: 64px; object-fit: contain;
+    width: 96px; height: 72px; object-fit: contain; filter: invert(1);
     margin-bottom: 2rem;
     opacity: 0; animation: fadeUp 0.8s ease forwards 0.15s;
   }
@@ -311,6 +281,72 @@
     font-size: 0.85rem; color: var(--gray); line-height: 1.6;
   }
 
+  .sectors-lead {
+    font-size: 1.05rem; color: var(--gray); line-height: 1.8; max-width: 680px;
+    margin-bottom: 2.5rem;
+  }
+  .sectors-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; color: var(--gray-dim);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    margin: 3rem 0 -1.5rem;
+  }
+
+  /* PORTFOLIO */
+  .portfolio {
+    padding: 6rem 3rem;
+    border-top: 1px solid var(--border);
+  }
+  .portfolio-inner { max-width: 1000px; margin: 0 auto; }
+  .portfolio h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.1; letter-spacing: -0.02em;
+    margin-bottom: 2.5rem;
+  }
+  .portfolio-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+  }
+  .portfolio-card {
+    background: var(--bg-card);
+    padding: 2rem;
+    display: flex; flex-direction: column; gap: 1.25rem;
+    transition: background 0.3s;
+  }
+  .portfolio-card:hover { background: var(--bg-elevated); }
+  /* Both supplied logos are black ink on transparent. A cream tile keeps each
+     brand's own mark legible on the dark ground without recolouring it. */
+  .portfolio-logo {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--white); border-radius: 4px;
+    height: 76px; padding: 1.1rem 1.6rem;
+  }
+  .portfolio-logo img { max-height: 100%; max-width: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+  .portfolio-logo--mark { gap: .7rem; color: #0a2c36; font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em; text-decoration: none; }
+  .portfolio-logo--mark img { height: 34px; width: auto; }
+  .portfolio-photo {
+    width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: center top;
+    border-radius: 4px; display: block;
+  }
+  .portfolio-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.6rem; line-height: 1.1;
+  }
+  .portfolio-name a { color: inherit; text-decoration: none; }
+  .portfolio-name a:hover { color: var(--accent-light); }
+  .portfolio-founders {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem; color: var(--accent);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    margin-top: 0.35rem;
+  }
+  .portfolio-links { display: flex; gap: 1.5rem; margin-top: auto; }
+  .portfolio-links a {
+    color: var(--gray); font-size: 0.85rem; font-weight: 500; text-decoration: none;
+    border-bottom: 1px solid var(--border); padding-bottom: 2px; transition: color 0.3s, border-color 0.3s;
+  }
+  .portfolio-links a:hover { color: var(--white); border-color: var(--white); }
+
   /* TEAM */
   .team {
     padding: 6rem 3rem;
@@ -416,23 +452,7 @@
     line-height: 1.8; max-width: 620px;
     margin: 0 auto 2rem;
   }
-  .stat-row {
-    display: flex; justify-content: center; gap: 4rem;
-    margin-top: 2.5rem;
-  }
-  .stat { text-align: center; }
-  .stat-num {
-    font-family: 'Instrument Serif', serif;
-    font-size: 2.5rem;
-    color: var(--white);
-    line-height: 1;
-    margin-bottom: 0.3rem;
-  }
-  .stat-label {
-    font-size: 0.78rem;
-    color: var(--gray-dim);
-    letter-spacing: 0.05em;
-  }
+  .community .btn-primary { margin-top: 0.5rem; }
 
   /* APPLICATION FORM */
   .apply {
@@ -535,31 +555,6 @@
   .form-status[data-state="error"] { color: var(--accent-light); }
   .form-status a { color: inherit; text-decoration: underline; }
 
-  /* FOOTER */
-  /* Securities disclosure. On-page, not only a footer link to /disclosures.
-     Wording derived from sites/ventures/disclosures/index.html. */
-  .wp-disclosure {
-    padding: 3rem 3rem 3.5rem;
-    border-top: 1px solid var(--border);
-    color: var(--gray-dim);
-    font-size: 0.8rem;
-    line-height: 1.7;
-  }
-  .wp-disclosure h2 {
-    font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--gray); font-weight: 600; margin: 0 0 1rem;
-  }
-  .wp-disclosure p { margin: 0 0 0.9rem; max-width: 80ch; }
-  .wp-disclosure p:last-child { margin-bottom: 0; }
-  .wp-disclosure a { color: var(--gray); text-decoration: underline; text-underline-offset: 3px; }
-  .wp-disclosure a:hover { color: var(--white); }
-  footer {
-    padding: 2rem 3rem;
-    border-top: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 0.75rem; color: var(--gray-dim);
-  }
-
   /* ANIMATIONS */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(25px); }
@@ -573,53 +568,54 @@
     opacity: 1; transform: translateY(0);
   }
 
+  @media (max-width: 1024px) and (min-width: 769px) { .portfolio-grid { grid-template-columns: 1fr 1fr; } }
+
   /* MOBILE */
   @media (max-width: 768px) {
-    nav { padding: 1rem 1.5rem; }
-    nav { align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
-    .nav-links { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
-    .nav-links a { min-height: 42px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 999px; padding: 0.65rem 0.75rem; text-align: center; background: rgba(255,255,255,0.03); }
-    .nav-links .nav-cta { border-color: var(--accent); }
-    .nav-logo { width: 100%; }
-    @media (max-width: 420px) { .nav-links { grid-template-columns: 1fr; } }
     .hero { padding: 7rem 1.5rem 4rem; }
-    .believe, .sectors, .team, .community, .apply { padding: 4rem 1.5rem; }
+    .believe, .sectors, .portfolio, .team, .community, .apply { padding: 4rem 1.5rem; }
     .sector-grid { grid-template-columns: 1fr 1fr; }
+    .portfolio-grid { grid-template-columns: 1fr; }
+    .portfolio-card { padding: 1.5rem; }
     .team-grid { grid-template-columns: 1fr; }
-    .stat-row { gap: 2rem; flex-wrap: wrap; }
     .form-row { grid-template-columns: 1fr; }
     .apply-form { padding: 1.5rem; }
-    .wp-disclosure { padding: 2.5rem 1.5rem 3rem; }
-    footer { flex-direction: column; gap: 0.5rem; text-align: center; }
   }
 </style>
 </head>
 <body>
 <div id="top"></div>
 
-<!-- NAV -->
-<nav>
-  <a href="#top" class="nav-logo">
-    <img src="assets/img/WP_Logo_1080x1080.png" alt="West Peek" class="nav-logo-img">
-    <span class="nav-logo-text">West Peek <span>Ventures</span></span>
-  </a>
-  <div class="nav-links">
-    <a href="https://joinwestpeek.com/" class="nav-home">West Peek Home</a>
-    <a href="#believe">What We Believe</a>
-    <a href="thesis.html">Thesis</a>
-    <a href="what-we-look-for.html">What we look for</a>
-    <a href="companies.html">Companies</a>
-    <a href="team.html">Team</a>
-    <a href="#community">Network</a>
-    <a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a>
-    <a href="https://westpeek.live/" class="nav-live">West Peek <span>Live!</span></a>
-    <a href="#apply" class="nav-cta">Submit Your Company</a>
+<!-- NAV. Shared markup: the same seven items on every ventures page (see
+     assets/ventures.css and scripts/validate_ventures_isolation.mjs). Every
+     item is an anchor into this page except Resources. -->
+<nav class="wp-nav wp-nav--fixed" aria-label="Primary">
+  <div class="wp-nav__inner">
+    <a href="#top" class="wp-nav__logo">
+      <img src="assets/img/wp-monogram.png" alt="">
+      <span class="wp-nav__logo-text">West Peek <span>Ventures</span></span>
+    </a>
+    <button class="wp-nav__toggle" type="button" aria-expanded="false" aria-controls="wp-nav-links" aria-label="Menu"><i></i><i></i><i></i></button>
+    <ul class="wp-nav__links" id="wp-nav-links">
+      <li><a href="#top">Home</a></li>
+      <li><a href="#thesis">Thesis</a></li>
+      <li><a href="#look-for">What We Look For</a></li>
+      <li><a href="#portfolio">Portfolio</a></li>
+      <li><a href="#team">Team</a></li>
+      <li><a href="#community">Community</a></li>
+      <li class="wp-nav__menu"><button type="button" aria-expanded="false" aria-controls="wp-nav-resources">Resources</button>
+        <ul class="wp-nav__submenu" id="wp-nav-resources">
+          <li><a href="https://dilution.joinwestpeek.com/" target="_blank" rel="noopener noreferrer">Founder Dilution Dashboard</a></li>
+        </ul>
+      </li>
+      <li><a href="#apply" class="wp-nav__cta">Submit Your Company</a></li>
+    </ul>
   </div>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
-  <img src="assets/img/ventures-logo.png" alt="West Peek Ventures" class="hero-logo">
+  <img src="assets/img/wp-monogram.png" alt="West Peek" class="hero-logo">
   <h1>We back founders where<br><span class="cycle-container" id="cycleContainer"></span><br>can't be faked.</h1>
   <p class="hero-sub">A pre-seed fund backing founders at the earliest stages.</p>
   <div class="hero-ctas">
@@ -629,18 +625,21 @@
 
 <hr class="divider">
 
-<!-- WHAT WE BELIEVE -->
-<section class="believe reveal" id="believe">
-  <div class="section-tag">What We Believe</div>
+<!-- THESIS (was "What We Believe"; same content, Scooter 20 Sep 2026) -->
+<section class="believe reveal" id="thesis">
+  <div class="section-tag">Thesis</div>
   <h2>Community creates competitive advantage in early-stage companies.</h2>
   <p>In the early stages of building a company, no matter the sector, the path to scale runs through people — your first believers, your earliest customers, the voices that carry your name before your brand can carry itself. <strong>Community is a unique point of leverage</strong> that compounds over time and stays with a company for years to come.</p>
   <p>We're looking for founders who are uniquely building community within their industry — specifically in industries where trust matters most: <strong>healthcare, education, consumer, and the future of work.</strong></p>
 </section>
 
-<!-- FOCUS SECTORS -->
-<section class="sectors reveal" id="sectors">
+<!-- WHAT WE LOOK FOR: the focus sectors, then the four founder criteria that
+     used to live on /what-we-look-for (retired; /what-we-look-for 301s here). -->
+<section class="sectors reveal" id="look-for">
   <div class="sectors-inner">
-    <div class="section-tag">Focus Sectors</div>
+    <div class="section-tag">What We Look For</div>
+    <p class="sectors-lead">We’re drawn to teams with real founder signal: insight, speed, and a relationship-first mindset. We care about clarity, not theatrics.</p>
+    <div class="sectors-sub">Focus Sectors</div>
     <div class="sector-grid">
       <div class="sector-card">
         <h3>Healthcare</h3>
@@ -658,6 +657,72 @@
         <h3>Future of Work</h3>
         <p>As humans and AI work side by side, trust between people becomes the layer that holds teams, tools, and organizations together.</p>
       </div>
+    </div>
+    <div class="sectors-sub">In Founders</div>
+    <div class="sector-grid">
+      <div class="sector-card">
+        <h3>Founder signal</h3>
+        <p>Operators with real insight into the problem they’re solving — not just pitch polish.</p>
+      </div>
+      <div class="sector-card">
+        <h3>Early conviction</h3>
+        <p>Teams building with urgency and clarity before external validation arrives.</p>
+      </div>
+      <div class="sector-card">
+        <h3>Relationship-first mindset</h3>
+        <p>Founders who want partners, not just capital.</p>
+      </div>
+      <div class="sector-card">
+        <h3>Customer proximity</h3>
+        <p>Teams that can learn directly from users and iterate quickly.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PORTFOLIO. Records live in this markup; /companies mirrors it. -->
+<section class="portfolio reveal" id="portfolio">
+  <div class="portfolio-inner">
+    <div class="section-tag">Portfolio</div>
+    <h2>A few of the companies we’ve backed.</h2>
+    <div class="portfolio-grid">
+      <article class="portfolio-card" data-company="sensori">
+        <a class="portfolio-logo" href="https://drinksensori.com" target="_blank" rel="noopener noreferrer" aria-label="Sensori website"><img src="assets/img/portfolio/sensori-logo.svg" alt="Sensori"></a>
+        <a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"><img class="portfolio-photo" src="assets/img/portfolio/sensori-founders.jpg" alt="Sensori founders Shanna Pearre, Darean Rhodes and Ashlyn Knox" loading="lazy"></a>
+        <div>
+          <div class="portfolio-name"><a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer">Sensori</a></div>
+          <div class="portfolio-founders">Shanna Pearre, Darean Rhodes, Ashlyn Knox</div>
+        </div>
+        <div class="portfolio-links">
+          <a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer">Website</a>
+          <a href="https://www.instagram.com/drinksensori/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </article>
+      <article class="portfolio-card" data-company="cxffeeblack">
+        <a class="portfolio-logo" href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer" aria-label="Cxffeeblack website"><img src="assets/img/portfolio/cxffeeblack-logo.png" alt="Cxffeeblack"></a>
+        <a href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"><img class="portfolio-photo" src="assets/img/portfolio/cxffeeblack-founders.jpg" alt="Cxffeeblack founders Bartholomew Jones and Renata Henderson" loading="lazy" style="object-position:center"></a>
+        <div>
+          <div class="portfolio-name"><a href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer">Cxffeeblack</a></div>
+          <div class="portfolio-founders">Bartholomew Jones, Renata Henderson</div>
+        </div>
+        <div class="portfolio-links">
+          <a href="https://cxffeeblack.com" target="_blank" rel="noopener noreferrer">Website</a>
+          <a href="https://www.instagram.com/cxffeeblack/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </article>
+      <article class="portfolio-card" data-company="anyplace">
+        <a class="portfolio-logo portfolio-logo--mark" href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer" aria-label="Anyplace website"><img src="assets/img/portfolio/anyplace-icon.svg" alt=""><span>Anyplace</span></a>
+        <!-- No founder photo supplied yet (added 20 Sep 2026 after the package); drop one in at
+             assets/img/portfolio/anyplace-founders.jpg and add the <img> the other cards carry. -->
+        <div>
+          <div class="portfolio-name"><a href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer">Anyplace</a></div>
+          <div class="portfolio-founders">Satoru Steve Naito</div>
+        </div>
+        <div class="portfolio-links">
+          <a href="https://www.anyplace.com" target="_blank" rel="noopener noreferrer">Website</a>
+          <a href="https://www.instagram.com/live.anyplace/" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </article>
     </div>
   </div>
 </section>
@@ -706,21 +771,8 @@
   <div class="community-inner">
     <div class="section-tag" style="justify-content:center;">Join Our Community</div>
     <h2>Your next co-founder, first customer, or biggest believer might already be here.</h2>
-    <p>Our 5,000+ member community of founders, creatives, and operators is where early-stage founders find their next co-founders, land their first customers, and validate their ideas with people who actually get it.</p>
-    <div class="stat-row">
-      <div class="stat">
-        <div class="stat-num">5,000+</div>
-        <div class="stat-label">Community members</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">500+</div>
-        <div class="stat-label">Events produced</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">3+</div>
-        <div class="stat-label">Years building</div>
-      </div>
-    </div>
+    <p>Our community of founders, creatives, and professionals is where early-stage founders find their next co-founders, find their first customers, and validate their ideas with people who actually get it.</p>
+    <a href="https://www.instagram.com/westpeek" class="btn-primary" target="_blank" rel="noopener noreferrer">Join Our Community</a>
   </div>
 </section>
 
@@ -785,18 +837,9 @@
   </div>
 </section>
 
-<section class="wp-disclosure" aria-labelledby="wp-disclosure-h">
-  <h2 id="wp-disclosure-h">Securities disclosure</h2>
-  <p>This page does not represent an offer or solicitation to buy or sell securities. Such an offer must be made via definitive legal documentation by the seller of securities.</p>
-  <p>Investments in private securities are speculative and involve a high degree of risk. An investor in such securities should have little to no need for liquidity in the foreseeable future and have sufficient finances to withstand the loss of the entire investment.</p>
-  <p>Sequoia Taylor is a registered representative of Rainmaker Securities, LLC, member FINRA/SIPC. Read the full <a href="disclosures/">disclosures</a>.</p>
-</section>
-
-<footer>
+<footer class="wp-footer">
   <span>© 2026 West Peek Ventures. All rights reserved.</span>
-  <span class="network-footer" aria-label="West Peek network"><a href="https://joinwestpeek.com/">West Peek Home</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="nav-live" href="https://westpeek.live/">West Peek <span>Live!</span></a></span>
-  <span class="network-footer" aria-label="West Peek Ventures pages"><a href="thesis.html">Thesis</a><a href="what-we-look-for.html">What we look for</a><a href="companies.html">Companies</a><a href="team.html">Team</a><a href="pitch.html">Pitch</a><a href="disclosures/">Disclosures</a></span>
-  <span>New York City</span>
+  <span><a href="disclosures/">Disclosures</a> · <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener noreferrer">Instagram</a></span>
 </footer>
 
 <script>
@@ -870,14 +913,9 @@
 
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-  // Smooth scroll
-  document.querySelectorAll('a[href^="#"]').forEach(a => {
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      document.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
-    });
-  });
+  // In-page scrolling and the nav drawer live in assets/ventures.js.
 </script>
+<script src="assets/ventures.js" defer></script>
 <!-- The shared submit handler. Copied into dist/ventures/assets/js/ by
      scripts/build.mjs, which fails the build if it is missing. -->
 <script src="assets/js/forms.js" defer></script>

@@ -1,0 +1,105 @@
+/* West Peek Ventures — shared navigation and footer.
+ *
+ * One nav for every page of westpeek.ventures, built to Scooter's 20 Sep 2026
+ * voice note: seven items, every one an anchor into the homepage except
+ * Resources, and NO path to the sister properties (joinwestpeek.com,
+ * westpeekproductions.com, westpeek.live). scripts/validate_ventures_isolation.mjs
+ * fails the build if such a link ever comes back, and asserts every page carries
+ * this nav with its toggle.
+ *
+ * The site's visual system is untouched by design ("I like the colors, I like the
+ * style, like the font, everything's great"); the values below are the tokens the
+ * homepage already uses.
+ */
+.wp-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,10,10,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-family: inherit;
+}
+.wp-nav--fixed { position: fixed; left: 0; right: 0; }
+.wp-nav__inner {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; padding: 1.1rem 3rem;
+}
+.wp-nav__logo {
+  display: flex; align-items: center; gap: 10px;
+  text-decoration: none; color: #f5f0eb;
+  font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; white-space: nowrap;
+}
+.wp-nav__logo:hover { text-decoration: none; }
+/* The supplied monogram is black ink on transparent and the site is near-black.
+   Rendered white here; Scooter approved the flip on 20 Sep 2026. Drop the filter
+   and put the image on a light tile if that ever changes. */
+.wp-nav__logo img { width: 30px; height: 30px; object-fit: contain; filter: invert(1); display: block; }
+.wp-nav__logo-text > span { color: #c45a3c; }
+
+.wp-nav__toggle {
+  display: none; flex-direction: column; gap: 4px; background: none; border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px; padding: .55rem .6rem; cursor: pointer; color: #f5f0eb;
+}
+.wp-nav__toggle:focus-visible { outline: 2px solid #c45a3c; outline-offset: 2px; }
+.wp-nav__toggle i { display: block; width: 18px; height: 2px; background: currentColor; border-radius: 2px; transition: transform .25s, opacity .25s; }
+.wp-nav[data-open] .wp-nav__toggle i:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.wp-nav[data-open] .wp-nav__toggle i:nth-child(2) { opacity: 0; }
+.wp-nav[data-open] .wp-nav__toggle i:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+.wp-nav__links { display: flex; align-items: center; gap: 1.35rem; list-style: none; margin: 0; padding: 0; }
+.wp-nav__links a, .wp-nav__menu > button {
+  color: #888; text-decoration: none; font: inherit; font-size: .82rem; font-weight: 500;
+  letter-spacing: .01em; background: none; border: 0; padding: 0; cursor: pointer;
+  transition: color .3s; display: inline-flex; align-items: center; gap: .3rem;
+}
+.wp-nav__links a:hover, .wp-nav__links a:focus-visible,
+.wp-nav__menu > button:hover, .wp-nav__menu > button:focus-visible { color: #f5f0eb; text-decoration: none; }
+.wp-nav__links a:focus-visible, .wp-nav__menu > button:focus-visible { outline: 2px solid #c45a3c; outline-offset: 3px; border-radius: 2px; }
+.wp-nav__cta {
+  background: #c45a3c; color: #fff !important; padding: .55rem 1.4rem; border-radius: 4px;
+  font-weight: 600 !important; transition: background .3s !important;
+}
+.wp-nav__cta:hover { background: #d4715a; }
+
+/* Resources ▾ — holds the Founder Dilution Dashboard. */
+.wp-nav__menu { position: relative; }
+.wp-nav__menu > button::after { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
+.wp-nav__menu[data-open] > button::after { transform: translateY(1px) rotate(225deg); }
+.wp-nav__submenu {
+  display: none; position: absolute; top: calc(100% + .7rem); right: 0; min-width: 230px;
+  background: #111; border: 1px solid rgba(255,255,255,0.09); border-radius: 6px;
+  padding: .4rem; list-style: none; margin: 0;
+}
+.wp-nav__menu[data-open] .wp-nav__submenu { display: block; }
+.wp-nav__submenu a { display: block; padding: .6rem .8rem; border-radius: 4px; font-size: .82rem; }
+.wp-nav__submenu a:hover, .wp-nav__submenu a:focus-visible { background: #1a1a1a; }
+
+/* Mobile: logo + hamburger only, the drawer opens below. "On mobile … all these
+   tabs take up like half the screen real estate" — closed by default. */
+@media (max-width: 900px) {
+  .wp-nav__inner { padding: .9rem 1.25rem; flex-wrap: wrap; }
+  .wp-nav__toggle { display: flex; }
+  .wp-nav__links { display: none; width: 100%; flex-direction: column; align-items: stretch; gap: .5rem; padding: .6rem 0 .4rem; }
+  .wp-nav[data-open] .wp-nav__links { display: flex; }
+  .wp-nav__links a, .wp-nav__menu > button {
+    width: 100%; min-height: 44px; padding: .6rem .9rem; font-size: .92rem;
+    border: 1px solid rgba(255,255,255,0.09); border-radius: 6px; background: rgba(255,255,255,0.03);
+    justify-content: space-between;
+  }
+  .wp-nav__links .wp-nav__cta { justify-content: center; background: #c45a3c; border-color: #c45a3c; }
+  .wp-nav__submenu { position: static; display: none; border: 0; background: none; padding: .3rem 0 0 1rem; min-width: 0; }
+  .wp-nav__submenu a { justify-content: flex-start; }
+}
+
+/* Footer: the © line, Disclosures and Instagram. Nothing else, by instruction. */
+.wp-footer {
+  padding: 2rem 3rem; border-top: 1px solid rgba(255,255,255,0.07);
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  font-size: .75rem; color: #555; text-align: left;
+}
+.wp-footer a { color: #888; text-decoration: none; }
+.wp-footer a:hover, .wp-footer a:focus-visible { color: #f5f0eb; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 768px) {
+  .wp-footer { flex-direction: column; text-align: center; padding: 2rem 1.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wp-nav *, .wp-nav *::after { transition: none !important; }
+}
