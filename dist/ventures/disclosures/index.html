@@ -3,34 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>E-mail Disclosures | West Peek Ventures</title>
-  <meta name="description" content="E-mail disclosures for Sequoia Taylor and Rainmaker Securities, LLC.">
+  <title>Disclosures | West Peek Ventures</title>
+  <meta name="description" content="Securities disclosures for West Peek Ventures, Sequoia Taylor and Rainmaker Securities, LLC.">
   <link rel="canonical" href="https://westpeek.ventures/disclosures">
   <link rel="stylesheet" href="/assets/base.css">
+  <link rel="stylesheet" href="/assets/ventures.css">
   <style>
-    .disclosure-header {
-      position: static;
-    }
-
-    .disclosure-header .nav {
-      min-height: 72px;
-    }
-
-    .disclosure-header .brand {
-      color: var(--ink);
-      text-decoration: none;
-    }
-
-    .disclosure-header .brand:hover {
-      text-decoration: none;
-    }
-
-    .disclosure-home {
-      color: #eaeaea;
-      font-size: 14px;
-      font-weight: 600;
-    }
-
     .disclosure-main {
       max-width: 920px;
       padding-top: 88px;
@@ -75,25 +53,7 @@
       text-decoration-color: var(--ink);
     }
 
-    .disclosure-footer {
-      text-align: left;
-    }
-
-    .disclosure-footer-inner {
-      max-width: 1120px;
-      margin: 0 auto;
-    }
-
     @media (max-width: 640px) {
-      .disclosure-header .nav {
-        align-items: center;
-        flex-direction: row;
-      }
-
-      .disclosure-header .brand span {
-        font-size: 13px;
-      }
-
       .disclosure-main {
         padding-top: 58px;
         padding-bottom: 72px;
@@ -126,8 +86,8 @@
       "@type": "WebPage",
       "@id": "https://westpeek.ventures/disclosures#webpage",
       "url": "https://westpeek.ventures/disclosures",
-      "name": "E-mail Disclosures | West Peek Ventures",
-      "description": "E-mail disclosures for Sequoia Taylor and Rainmaker Securities, LLC.",
+      "name": "Disclosures | West Peek Ventures",
+      "description": "Securities disclosures for West Peek Ventures, Sequoia Taylor and Rainmaker Securities, LLC.",
       "isPartOf": {
         "@id": "https://westpeek.ventures/#website"
       },
@@ -196,18 +156,32 @@
 </script>
 </head>
 <body>
-  <header class="disclosure-header">
-    <div class="nav">
-      <a class="brand" href="/" aria-label="West Peek Ventures home">
-        <img src="/assets/img/ventures-logo.png" alt="">
-        <span>West Peek Ventures</span>
-      </a>
-      <a class="disclosure-home" href="/">Home</a>
-    </div>
-  </header>
+<nav class="wp-nav" aria-label="Primary">
+  <div class="wp-nav__inner">
+    <a href="/" class="wp-nav__logo">
+      <img src="/assets/img/wp-monogram.png" alt="">
+      <span class="wp-nav__logo-text">West Peek <span>Ventures</span></span>
+    </a>
+    <button class="wp-nav__toggle" type="button" aria-expanded="false" aria-controls="wp-nav-links" aria-label="Menu"><i></i><i></i><i></i></button>
+    <ul class="wp-nav__links" id="wp-nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#thesis">Thesis</a></li>
+      <li><a href="/#look-for">What We Look For</a></li>
+      <li><a href="/#portfolio">Portfolio</a></li>
+      <li><a href="/#team">Team</a></li>
+      <li><a href="/#community">Community</a></li>
+      <li class="wp-nav__menu"><button type="button" aria-expanded="false" aria-controls="wp-nav-resources">Resources</button>
+        <ul class="wp-nav__submenu" id="wp-nav-resources">
+          <li><a href="https://dilution.joinwestpeek.com/" target="_blank" rel="noopener noreferrer">Founder Dilution Dashboard</a></li>
+        </ul>
+      </li>
+      <li><a href="/#apply" class="wp-nav__cta">Submit Your Company</a></li>
+    </ul>
+  </div>
+</nav>
 
   <main class="container disclosure-main">
-    <h1>E-mail Disclosures</h1>
+    <h1>Disclosures</h1>
 
     <div class="disclosure-copy">
       <p>Sequoia Taylor is a registered representative of Rainmaker Securities, LLC, member FINRA/SIPC, which may monitor this and any related communications.</p>
@@ -216,18 +190,22 @@
 
       <p>RMS is engaged by its clients to make referrals to buyers or sellers of private securities (“Securities”). If such client closes a Securities transaction with a buyer or seller so referred, RMS is entitled to a success fee from the client. Such success fee may be in the form of cash or in warrants to purchase securities of the client or client’s affiliate. RMS or RMS representatives may hold equity in its issuer clients or in the issuers of securities purchased or sold by the parties to a transaction.</p>
 
-      <p>This communication is confidential and is addressed only to its intended recipient. This communication does not represent an offer or solicitation to buy or sell Securities. Such an offer must be made via definitive legal documentation by the seller of securities.</p>
+      <p>Nothing on this website represents an offer or solicitation to buy or sell Securities. Such an offer must be made via definitive legal documentation by the seller of securities.</p>
 
       <p>Investments in the Securities are speculative and involve a high degree of risk. An investor in the Securities should have little to no need for liquidity in the foreseeable future and have sufficient finances to withstand the loss of the entire investment.</p>
 
       <p>RMS does not recommend the purchase or sale of Securities. Potential buyers or sellers of the Securities should seek professional counsel prior to entering into any transaction.</p>
 
-      <p><em>You can unsubscribe from and manage your email preference at any time by replying to the sender with the subject line "unsubscribe". Unsubscribing will not prevent us from sending you any notices required by law, rule, regulation or applicable terms of service.</em></p>
+      <p>The companies named on this website are described to illustrate work West Peek Ventures has done. Naming them is not a recommendation to buy or sell any security.</p>
+
+      <p><em>E-mail communications:</em> You can unsubscribe from and manage your email preference at any time by replying to the sender with the subject line "unsubscribe". Unsubscribing will not prevent us from sending you any notices required by law, rule, regulation or applicable terms of service.</p>
     </div>
   </main>
 
-  <footer class="disclosure-footer">
-    <div class="disclosure-footer-inner">© West Peek Ventures</div>
-  </footer>
+<footer class="wp-footer">
+  <span>© 2026 West Peek Ventures. All rights reserved.</span>
+  <span><a href="/disclosures/">Disclosures</a> · <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener noreferrer">Instagram</a></span>
+</footer>
+<script src="/assets/ventures.js" defer></script>
 </body>
 </html>
