@@ -555,6 +555,48 @@
   .form-status[data-state="error"] { color: var(--accent-light); }
   .form-status a { color: inherit; text-decoration: underline; }
 
+  /* NEWSLETTER */
+  .newsletter {
+    padding: 5rem 3rem 6rem;
+    border-top: 1px solid var(--border);
+  }
+  .newsletter-inner {
+    max-width: 560px; margin: 0 auto;
+    text-align: center;
+  }
+  .newsletter-inner h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(1.8rem, 3vw, 2.3rem);
+    margin-bottom: 0.8rem;
+  }
+  .newsletter-inner > p {
+    font-size: 1rem; color: var(--gray);
+    line-height: 1.7; margin-bottom: 1.8rem;
+  }
+  .newsletter-row {
+    display: flex; gap: 0.75rem;
+  }
+  .newsletter-row input {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.85rem 1rem;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+  .newsletter-row input:focus { border-color: var(--accent); }
+  .newsletter-row input::placeholder { color: var(--gray-dim); }
+  .newsletter-row .btn-submit { width: auto; margin-top: 0; white-space: nowrap; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
   /* ANIMATIONS */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(25px); }
@@ -573,9 +615,11 @@
   /* MOBILE */
   @media (max-width: 768px) {
     .hero { padding: 7rem 1.5rem 4rem; }
-    .believe, .sectors, .portfolio, .team, .community, .apply { padding: 4rem 1.5rem; }
+    .believe, .sectors, .portfolio, .team, .community, .apply, .newsletter { padding: 4rem 1.5rem; }
     .sector-grid { grid-template-columns: 1fr 1fr; }
     .portfolio-grid { grid-template-columns: 1fr; }
+    .newsletter-row { flex-direction: column; }
+    .newsletter-row .btn-submit { width: 100%; }
     .portfolio-card { padding: 1.5rem; }
     .team-grid { grid-template-columns: 1fr; }
     .form-row { grid-template-columns: 1fr; }
@@ -831,6 +875,37 @@
         <textarea id="apply-community" name="description" rows="4" placeholder="Tell us how community plays a role in what you're building..."></textarea>
       </div>
       <button type="submit" class="btn-submit" id="formSubmitBtn">Submit →</button>
+      <p class="form-status" data-form-status role="status" aria-live="polite"></p>
+    </form>
+  </div>
+</section>
+
+<!-- NEWSLETTER -->
+<section class="newsletter reveal" id="newsletter">
+  <div class="newsletter-inner">
+    <div class="section-tag" style="justify-content:center;">Newsletter</div>
+    <h2>Our thinking, monthly.</h2>
+    <p>Community, founders to keep an eye on, and industry shifts — straight from West Peek, once a month.</p>
+
+    <!--
+      Same shared handler and /api/lead endpoint as the apply form above.
+      lead_type distinguishes this submission in the notification email;
+      functions/api/lead.js and scripts/validate_forms.mjs both already
+      generalise over any form carrying data-westpeek-form, so neither needed
+      a change for this form to transmit and be proven.
+    -->
+    <form class="newsletter-form" id="newsletterForm"
+          data-westpeek-form action="/api/lead" method="POST"
+          data-success="Subscribed. Watch your inbox for our next issue.">
+      <input type="hidden" name="site" value="ventures">
+      <input type="hidden" name="lead_type" value="newsletter_signup">
+      <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
+      <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+      <div class="newsletter-row">
+        <label for="newsletter-email" class="sr-only">Email</label>
+        <input id="newsletter-email" name="email" type="email" autocomplete="email" placeholder="you@email.com" required>
+        <button type="submit" class="btn-submit" id="newsletterSubmitBtn">Subscribe →</button>
+      </div>
       <p class="form-status" data-form-status role="status" aria-live="polite"></p>
     </form>
   </div>
