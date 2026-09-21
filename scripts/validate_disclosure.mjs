@@ -3,13 +3,22 @@
 // Two defects went undetected because the repo had no content or link-rel
 // validator at all:
 //
-//   DISC-1  Six of the seven sites/ventures/ pages carried no on-page
-//           securities disclosure. Only sites/ventures/disclosures/index.html
-//           did; the rest carried a footer LINK to /disclosures and nothing
-//           else. A footer link is not a disclosure. The ventures property is
-//           securities-adjacent - it names a registered representative, it
-//           solicits founder submissions, and it names companies - so the
-//           statement has to be readable on the page a visitor is actually on.
+//   DISC-1  The ventures property is securities-adjacent - it names a
+//           registered representative, it solicits founder submissions, and it
+//           names companies - so the disclosure must be reachable from every
+//           page and complete where it lives.
+//
+//           Owner's decision, 20 Sep 2026 (Sequoia, the registered rep): the
+//           disclosure lives on ONE landing page, /disclosures, and every other
+//           ventures page LINKS to it. The earlier form of this check demanded
+//           the offer statement inline on every page; that pin is replaced by
+//           two stricter ones rather than dropped:
+//             (a) /disclosures carries the full approved language - the offer
+//                 statement, the Rainmaker/FINRA/SIPC line, the success-fee
+//                 paragraph, the risk paragraph and the named-companies line;
+//             (b) every other ventures page carries a link to /disclosures,
+//                 and carries NO inline disclosure block (the owner asked for
+//                 the paragraphs off the pages, so a reappearance is a defect).
 //
 //   LINK-1  Five third-party links carried no rel attribute at all, four of
 //           them the regulatory citations on the disclosures page itself
@@ -47,12 +56,23 @@ const DISCLOSURE_SCOPE = /(^|\/)ventures\//;
  *  is not a page a visitor reads a disclosure on. */
 const DISCLOSURE_EXEMPT = /(^|\/)404\.html$/;
 
-/** Every sentence below must already appear, in substance, on
- *  sites/ventures/disclosures/index.html. A page satisfies DISC-1 by carrying
- *  the core no-offer statement; the disclosures page itself satisfies it with
- *  its own "This communication does not represent an offer..." wording. */
+/** The one page that carries the language. */
+const DISCLOSURE_PAGE = /(^|\/)ventures\/disclosures\/index\.html$/;
+
+/** Approved language, 20 Sep 2026. Every one of these must appear on
+ *  /disclosures, in substance. */
 const OFFER_STATEMENT =
-  /does not represent an offer or solicitation to buy or sell (securities|Securities)/;
+  /(does not|Nothing on this website) represents? an offer or solicitation to buy or sell (securities|Securities)/;
+const REQUIRED_ON_DISCLOSURES = [
+  ["offer statement", OFFER_STATEMENT],
+  ["Rainmaker registered-representative line", /Sequoia Taylor is a registered representative of Rainmaker Securities, LLC, member FINRA\/SIPC/],
+  ["success-fee paragraph", /RMS is entitled to a success fee/],
+  ["risk paragraph", /speculative and involve a high degree of risk/],
+  ["named-companies line", /Naming them is not a recommendation to buy or sell any security/],
+];
+
+/** A link to the disclosures page, in any of the forms the site writes it. */
+const DISCLOSURES_LINK = /<a\b[^>]*href\s*=\s*["'](?:\/disclosures\/?|disclosures\/|\.\/disclosures\/|https:\/\/westpeek\.ventures\/disclosures\/?)["']/i;
 
 const errors = [];
 const notes = [];
@@ -96,15 +116,18 @@ function checkTree(label, dir) {
     // ---- DISC-1 --------------------------------------------------------
     if (DISCLOSURE_SCOPE.test(rel) && !DISCLOSURE_EXEMPT.test(rel)) {
       disclosurePages += 1;
-      const body = withoutFooter(html);
-      if (OFFER_STATEMENT.test(body)) disclosureOk += 1;
-      else
-        errors.push(
-          `DISC-1 ${rel}: no on-page securities disclosure. The page body ` +
-            `(footer excluded) does not state that it "does not represent an ` +
-            `offer or solicitation to buy or sell securities". A footer link ` +
-            `to /disclosures does not satisfy this.`
-        );
+      if (DISCLOSURE_PAGE.test(rel)) {
+        const missing = REQUIRED_ON_DISCLOSURES.filter(([, re]) => !re.test(html)).map(([n]) => n);
+        if (!missing.length) disclosureOk += 1;
+        else errors.push(`DISC-1 ${rel}: the disclosures page is missing: ${missing.join(", ")}.`);
+      } else {
+        const problems = [];
+        if (!DISCLOSURES_LINK.test(html)) problems.push("no link to /disclosures/");
+        if (OFFER_STATEMENT.test(withoutFooter(html)))
+          problems.push("carries an inline disclosure block; the owner moved the language to /disclosures (20 Sep 2026)");
+        if (!problems.length) disclosureOk += 1;
+        else errors.push(`DISC-1 ${rel}: ${problems.join("; ")}.`);
+      }
     }
 
     // ---- LINK-1 --------------------------------------------------------
@@ -153,7 +176,7 @@ function checkTree(label, dir) {
   }
 
   notes.push(
-    `${label}: securities disclosure on ${disclosureOk}/${disclosurePages} ventures page(s); ` +
+    `${label}: disclosure page complete or linked on ${disclosureOk}/${disclosurePages} ventures page(s); ` +
       `${linksOk}/${links} outbound link(s) carry rel="noopener"`
   );
   return { disclosurePages, disclosureOk, links, linksOk };

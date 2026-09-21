@@ -230,9 +230,15 @@ copyRecursive(sharedAssets, outAssets);
 const required = {
   ventures: [
     path.join(outAssets, "base.css"),
-    path.join(outAssets, "img", "ventures-hero.jpg"),
-    path.join(outAssets, "img", "ventures-logo.png"),
     path.join(outAssets, "js", "forms.js"),
+    // 20 Sep 2026 update: shared nav, the WP monogram, the two portfolio companies.
+    path.join(outAssets, "ventures.css"),
+    path.join(outAssets, "ventures.js"),
+    path.join(outAssets, "img", "wp-monogram.png"),
+    path.join(outAssets, "img", "portfolio", "sensori-logo.svg"),
+    path.join(outAssets, "img", "portfolio", "sensori-founders.jpg"),
+    path.join(outAssets, "img", "portfolio", "cxffeeblack-logo.png"),
+    path.join(outAssets, "img", "portfolio", "cxffeeblack-founders.jpg"),
   ],
   productions: [
     path.join(outAssets, "base.css"),
