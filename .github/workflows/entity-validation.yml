@@ -110,6 +110,9 @@ jobs:
       - name: Validate ventures isolation and navigation
         run: npm run validate:ventures-isolation
 
+      - name: Validate RUNBOOK.md names real paths and scripts
+        run: npm run validate:runbook
+
       # The entity check above reads the three hand-authored index pages. This
       # asserts the property that actually ships: every built page carries an
       # Organization node, and every sitemap URL carries a real lastmod. Before
