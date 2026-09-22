@@ -29,9 +29,10 @@
 
   var DEFAULT_ACTION = '/api/lead';
   var DEFAULT_SUCCESS = 'Received. We’ll reply soon.';
-  // The address already published as the fallback on the community and pitch
-  // pages. Where founder deal flow should actually land is an owner decision,
-  // not this file's to invent.
+  // Ventures forms override this with data-fallback-email="info@westpeek.ventures"
+  // (Scooter, 22 Sep 2026: no personal address as the public backup line). This
+  // default still covers community and productions, which were not part of
+  // that request.
   var DEFAULT_FALLBACK_EMAIL = 'scooter@westpeek.ventures';
 
   function status(form) {
@@ -71,7 +72,9 @@
     var address = form.getAttribute('data-fallback-email') || DEFAULT_FALLBACK_EMAIL;
     clear(el);
     el.setAttribute('data-state', 'error');
-    el.appendChild(document.createTextNode(lead + ' Nothing was sent. Please email '));
+    el.appendChild(
+      document.createTextNode(lead + ' Please try again — if you’re still having trouble, email ')
+    );
     var link = document.createElement('a');
     link.setAttribute('href', 'mailto:' + address);
     link.appendChild(document.createTextNode(address));

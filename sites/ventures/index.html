@@ -836,7 +836,8 @@
     -->
     <form class="apply-form" id="applyForm"
           data-westpeek-form action="/api/lead" method="POST"
-          data-success="Received. We read every submission and reply to the ones we can help.">
+          data-success="Received. We read every submission and reply to the ones we can help."
+          data-fallback-email="info@westpeek.ventures">
       <input type="hidden" name="site" value="ventures">
       <input type="hidden" name="lead_type" value="founder_apply">
       <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
@@ -896,7 +897,8 @@
     -->
     <form class="newsletter-form" id="newsletterForm"
           data-westpeek-form action="/api/lead" method="POST"
-          data-success="Subscribed. Watch your inbox for our next issue.">
+          data-success="Subscribed. Watch your inbox for our next issue."
+          data-fallback-email="info@westpeek.ventures">
       <input type="hidden" name="site" value="ventures">
       <input type="hidden" name="lead_type" value="newsletter_signup">
       <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
