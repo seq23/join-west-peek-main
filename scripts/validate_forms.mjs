@@ -53,6 +53,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const root = process.cwd();
 const SCAN_ROOTS = ['sites', 'dist'];
@@ -649,8 +650,16 @@ async function checkUrlNormalisation() {
 // FORM-10 - the register, and the wiring it claims.
 // ---------------------------------------------------------------------------
 
-function checkFormsRegister() {
+async function checkFormsRegister() {
   const where = rel(FORMS_REGISTER);
+  let leadGate = null;
+  try {
+    const imported = await import(pathToFileURL(LEAD_HANDLER).href);
+    if (typeof imported.writesToSheet === 'function' && typeof imported.siteForHost === 'function') leadGate = imported;
+    else fail('FORM-10', rel(LEAD_HANDLER), 'lead.js does not export siteForHost and writesToSheet, so which properties reach the sheet cannot be proven by execution.');
+  } catch (err) {
+    fail('FORM-10', rel(LEAD_HANDLER), `lead.js could not be imported to prove its sheet gate: ${err.message}`);
+  }
   if (!fs.existsSync(FORMS_REGISTER)) {
     fail('FORM-10', where, 'shared/forms-register.json is missing. Every transmitting form must declare where its people go.');
     return;
@@ -790,6 +799,47 @@ function checkFormsRegister() {
     pass();
   }
 
+  // (d2) THE GATE, EXECUTED, IN BOTH DIRECTIONS.
+  //
+  // Reading lead.js for a hostname list would prove only that the letters are
+  // present. This imports the real decision and runs it against every row's
+  // host: a row registered as reaching the sheet must be a host that writes,
+  // and - the direction that actually protects client data - a row registered
+  // as excluded must be a host that does NOT.
+  if (leadGate) {
+    for (const row of local) {
+      if (!row.host) continue;
+      const writes = leadGate.writesToSheet(row.host);
+      const shouldWrite = row.destination === 'sheet';
+      if (writes !== shouldWrite) {
+        fail(
+          'FORM-10',
+          where,
+          shouldWrite
+            ? `"${row.form}" is registered as reaching the master network sheet, but lead.js does not ` +
+              `write for host ${row.host}. The register would be promising something the code refuses.`
+            : `"${row.form}" on ${row.host} is registered as ${row.destination}, but lead.js WOULD write ` +
+              'it to the sheet. These are a client-service property\'s people; sending them to West ' +
+              "Peek's network sheet is the exact harm this category exists to prevent."
+        );
+      } else {
+        pass();
+      }
+      if (leadGate.siteForHost(row.host) !== row.site) {
+        fail('FORM-10', where, `register row "${row.form}" says site "${row.site}" but lead.js resolves host ${row.host} to "${leadGate.siteForHost(row.host)}".`);
+      } else {
+        pass();
+      }
+    }
+
+    // An unrecognised host must never write. Fail closed.
+    if (leadGate.writesToSheet('some-host-nobody-registered.example')) {
+      fail('FORM-10', rel(LEAD_HANDLER), 'an unrecognised host writes to the sheet. The default must be no write: wrongly storing a client is worse than a missing row a log will show.');
+    } else {
+      pass();
+    }
+  }
+
   // (e) THE WIRING, not the prose. lead.js must genuinely reach the door.
   if (!fs.existsSync(LEAD_HANDLER)) {
     fail('FORM-10', rel(LEAD_HANDLER), 'lead handler is missing; the sheet default cannot be wired.');
@@ -858,7 +908,7 @@ async function main() {
 
   await checkSharedHandlerBehaviour();
   await checkUrlNormalisation();
-  checkFormsRegister();
+  await checkFormsRegister();
 
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ ok: failures.length === 0, failures, notes, checks_passed: passes }, null, 2));
