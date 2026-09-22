@@ -12,6 +12,14 @@
     "named_stop": "Should reach the sheet but cannot be wired from here. Requires the exact reason."
   },
   "enforced_by": "scripts/validate_forms.mjs rule FORM-10. Rows whose repo is join-west-peek-main and whose destination is 'sheet' are checked against the actual markup in sites/ and dist/ and against the wiring in functions/api/lead.js. Rows for other repos are inventory: FORM-10 asserts they are complete and reasoned, not that this repo can see them.",
+  "destination_sheet": {
+    "name": "West Peek Master Network Sheet",
+    "tab": "contacts",
+    "url": null,
+    "url_status": "PLACEHOLDER_PENDING_CONFIRMATION",
+    "who_can_open": "West Peek partners - confirm the access list once the URL below is supplied",
+    "note": "STRUCTURED PLACEHOLDER, not invented content (Porter, 22 Sep 2026). The live sheet id lives in the GOOGLE_SHEET_ID setting on west-peek-network-os; the only in-repo candidate is west-peek-network-os/docs/archive/superseded/docs__google-sheets-setup.md, which is superseded and is not a source of truth, so it was not used. Fill in url and drop url_status once Sequoia/Scooter share the live link."
+  },
   "forms": [
     {
       "repo": "join-west-peek-main",

@@ -61,6 +61,19 @@
  * shared/forms-register.json and enforced by rule FORM-10 in
  * scripts/validate_forms.mjs. A form that goes somewhere else is a named
  * exception in that file, not an accident.
+ *
+ * ---------------------------------------------------------------------------
+ * GET READINESS, ADDED 22 SEP 2026
+ *
+ * Whether a Pages project can actually reach the sheet used to be unanswerable
+ * without making a real submission - the env vars could be absent and nothing
+ * would say so until a signup silently failed to write a row. GET still
+ * answers 405, but the body now carries a `config` block:
+ *   { email: bool, sheet: bool, door_host: "<hostname>" }
+ * booleans for whether Resend (RESEND_API_KEY + EMAIL_FROM) and the Network OS
+ * door (WP_NETWORK_OS_INTAKE_URL + WP_NETWORK_OS_INTAKE_SECRET) are configured,
+ * plus the door's hostname - already public via its own /api/health. Never a
+ * key, never a secret, never a full URL. Enforced by rule FORM-11.
  */
 
 const MAX_FIELD = 5000;
@@ -238,7 +251,27 @@ export async function onRequestPost({ request, env }) {
 }
 
 // A GET should say what this endpoint is rather than 404, so the next person
-// checking whether it exists gets an answer.
-export function onRequestGet() {
-  return json({ ok: false, error: 'method_not_allowed', hint: 'POST a contact form here' }, 405);
+// checking whether it exists gets an answer - and now, whether it is actually
+// wired to deliver, without anyone having to submit anything to find out.
+export function onRequestGet({ env }) {
+  const email = Boolean(clean(env.RESEND_API_KEY) && clean(env.EMAIL_FROM));
+  const intakeUrl = clean(env.WP_NETWORK_OS_INTAKE_URL);
+  const sheet = Boolean(intakeUrl && clean(env.WP_NETWORK_OS_INTAKE_SECRET));
+  let doorHost = '';
+  if (intakeUrl) {
+    try {
+      doorHost = new URL(intakeUrl).hostname;
+    } catch {
+      doorHost = '';
+    }
+  }
+  return json(
+    {
+      ok: false,
+      error: 'method_not_allowed',
+      hint: 'POST a contact form here',
+      config: { email, sheet, door_host: doorHost }
+    },
+    405
+  );
 }

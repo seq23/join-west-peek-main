@@ -43,6 +43,13 @@
  *           later sweep reads a decision as a gap and wires it.
  *           The previous validator could not have caught that: it proved a form
  *           transmitted, never where to.
+ *   FORM-11 "Rows appear in the sheet" needs a way to check that is not making
+ *           a real submission, and the sheet itself needs a name. lead.js's
+ *           GET must report a `config` block ({ email, sheet, door_host }, no
+ *           key or secret ever in it) so readiness is one curl away; and any
+ *           register row bound for "sheet" requires a destination_sheet block
+ *           naming the sheet and its tab, with either a real url or an honest
+ *           PLACEHOLDER_PENDING_CONFIRMATION flag - never silence.
  *
  * Registered in package.json (`npm run validate`), in
  * .github/workflows/entity-validation.yml, and in REPO_VALIDATION_MATRIX.md.
@@ -646,6 +653,86 @@ async function checkUrlNormalisation() {
 }
 
 // ---------------------------------------------------------------------------
+// FORM-11 - the sheet is checkable without a submission, and named.
+// ---------------------------------------------------------------------------
+
+function checkSheetReadinessReporting(handler, register, rows) {
+  const handlerWhere = rel(LEAD_HANDLER);
+  const getFn = (handler.match(/export\s+function\s+onRequestGet[\s\S]*?\n}/) || [])[0] || '';
+  if (!getFn) {
+    fail('FORM-11', handlerWhere, 'no `export function onRequestGet` found; GET cannot report readiness.');
+  } else {
+    pass();
+    // Object shorthand ({ email, sheet, door_host: doorHost }) is expected, so
+    // this pulls the literal assigned to `config` and checks its keys as bare
+    // identifiers rather than requiring `key:` for every one of them.
+    const configMatch = getFn.match(/config\s*:\s*\{([^}]*)\}/);
+    if (!configMatch) {
+      fail(
+        'FORM-11',
+        handlerWhere,
+        'onRequestGet does not return a `config` field, so whether a signup can reach the ' +
+          'sheet still requires a real submission to find out.'
+      );
+    } else {
+      pass();
+      const configBody = configMatch[1];
+      for (const key of ['email', 'sheet', 'door_host']) {
+        if (!new RegExp(`\\b${key}\\b`).test(configBody)) {
+          fail('FORM-11', handlerWhere, `onRequestGet's config block does not report "${key}".`);
+        } else {
+          pass();
+        }
+      }
+      // Booleans and a hostname only in the object actually sent - never a
+      // key name, never a secret, never a raw URL.
+      if (/RESEND_API_KEY|WP_NETWORK_OS_INTAKE_SECRET|WP_NETWORK_OS_INTAKE_URL|apiKey|secret/i.test(configBody)) {
+        fail(
+          'FORM-11',
+          handlerWhere,
+          'the `config` object sent to the visitor references a secret or raw env var by name; ' +
+            'it must carry booleans and a hostname only.'
+        );
+      } else {
+        pass();
+      }
+    }
+  }
+
+  const sheetRows = rows.filter((row) => row.destination === 'sheet');
+  if (!sheetRows.length) return;
+
+  const registerWhere = rel(FORMS_REGISTER);
+  const ds = register.destination_sheet;
+  if (!ds || typeof ds !== 'object') {
+    fail(
+      'FORM-11',
+      registerWhere,
+      'the register has row(s) bound for "sheet" but no destination_sheet block naming it. ' +
+        '"Check the sheet" should not require asking an engineer.'
+    );
+    return;
+  }
+  if (!String(ds.name || '').trim() || !String(ds.tab || '').trim()) {
+    fail('FORM-11', registerWhere, 'destination_sheet is missing a name or a tab.');
+  } else {
+    pass();
+  }
+  const hasUrl = Boolean(String(ds.url || '').trim());
+  const flaggedPending = ds.url_status === 'PLACEHOLDER_PENDING_CONFIRMATION';
+  if (!hasUrl && !flaggedPending) {
+    fail(
+      'FORM-11',
+      registerWhere,
+      'destination_sheet has no url and does not carry url_status: ' +
+        '"PLACEHOLDER_PENDING_CONFIRMATION" - an unnamed sheet must say so honestly, not go quiet.'
+    );
+  } else {
+    pass();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // FORM-10 - the register, and the wiring it claims.
 // ---------------------------------------------------------------------------
 
@@ -814,6 +901,8 @@ function checkFormsRegister() {
   } else {
     pass();
   }
+
+  checkSheetReadinessReporting(handler, register, rows);
 
   const sheetRows = rows.filter((row) => row.destination === 'sheet').length;
   const excluded = rows.filter((row) => row.destination === 'excluded_not_ours').length;

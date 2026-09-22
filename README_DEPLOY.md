@@ -52,6 +52,22 @@ If the intake door is unreachable or unconfigured, the visitor still gets a succ
 the email was delivered — a sheet outage must never cost somebody their submission. The outcome is
 reported as `sheet` in the JSON response and logged with the form and host.
 
+### Checking readiness without a submission
+
+`GET /api/lead` still answers `405`, but the body's `config` block says whether each half is wired,
+with no key or secret in it — one curl per site, no test submission needed:
+
+```
+curl -s https://westpeek.ventures/api/lead | jq .config
+curl -s https://joinwestpeek.com/api/lead | jq .config
+curl -s https://westpeekproductions.com/api/lead | jq .config
+# => { "email": true, "sheet": true, "door_host": "<network-os hostname>" }
+```
+
+`email` reflects `RESEND_API_KEY` + `EMAIL_FROM`; `sheet` reflects `WP_NETWORK_OS_INTAKE_URL` +
+`WP_NETWORK_OS_INTAKE_SECRET`. `false` on either means that half is not configured on that Pages
+project — set it, then redeploy (env changes need a fresh deployment to take effect).
+
 
 ## Community hero image
 - `shared/assets/img/community-hero.jpg` is used on the community homepage hero.
