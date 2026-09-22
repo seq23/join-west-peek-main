@@ -86,6 +86,56 @@ const HONEYPOT_FIELDS = ['website', '_gotcha'];
 /** How long the sheet write may take before the visitor stops waiting for it. */
 const INTAKE_TIMEOUT_MS = 5000;
 
+/**
+ * Which property a request arrived on. Productions is tested FIRST so a
+ * productions preview deployment can never fall through into a sheet write.
+ */
+const PRODUCTIONS_HOSTS = [
+  'westpeekproductions.com',
+  'www.westpeekproductions.com',
+  'productions.joinwestpeek.com',
+  'productions.westpeek.co',
+  'westpeek-productions.com',
+  'west-peek-productions.pages.dev'
+];
+const VENTURES_HOSTS = [
+  'westpeek.ventures',
+  'www.westpeek.ventures',
+  'ventures.joinwestpeek.com',
+  'westpeekventures.com',
+  'west-peek-ventures.pages.dev'
+];
+const COMMUNITY_HOSTS = [
+  'joinwestpeek.com',
+  'www.joinwestpeek.com',
+  'westpeek.co',
+  'join-west-peek-main.pages.dev'
+];
+
+/** Only these properties' visitors are West Peek's own network contacts. */
+const SHEET_SITES = ['community', 'ventures'];
+
+function hostMatches(hostname, domains) {
+  return domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+}
+
+/**
+ * Exported so scripts/validate_forms.mjs can EXECUTE this decision against
+ * every row in the forms register, in both directions, rather than pattern
+ * matching the source and hoping.
+ */
+export function siteForHost(hostname) {
+  const host = String(hostname || '').trim().toLowerCase();
+  if (hostMatches(host, PRODUCTIONS_HOSTS)) return 'productions';
+  if (hostMatches(host, VENTURES_HOSTS)) return 'ventures';
+  if (hostMatches(host, COMMUNITY_HOSTS)) return 'community';
+  return 'unknown';
+}
+
+export function writesToSheet(hostname) {
+  return SHEET_SITES.includes(siteForHost(hostname));
+}
+
 function clean(value) {
   return String(value ?? '').slice(0, MAX_FIELD).trim();
 }
@@ -104,6 +154,16 @@ async function addToNetworkSheet(fields, env, request, site) {
   const url = clean(env.WP_NETWORK_OS_INTAKE_URL);
   const secret = clean(env.WP_NETWORK_OS_INTAKE_SECRET);
   const form = clean(fields.lead_type) || clean(fields.lead_source) || 'unknown';
+
+  // The owner's rule, before anything else happens. A productions submission is
+  // a client's, and it goes to Scooter's inbox only.
+  if (!writesToSheet(site)) {
+    const property = siteForHost(site);
+    if (property === 'unknown') {
+      console.error('lead sheet write skipped: unrecognised host', JSON.stringify({ site, form }));
+    }
+    return 'not_applicable';
+  }
 
   if (!url || !secret) {
     console.error('lead sheet write not configured', JSON.stringify({ site, form, has_url: Boolean(url), has_secret: Boolean(secret) }));

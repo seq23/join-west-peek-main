@@ -17,8 +17,12 @@ Three static sites, one repo, three Cloudflare Pages projects that each build fr
 before committing so it never drifts from `sites/`. Forms POST to `/api/lead`
 (`functions/api/lead.js`).
 
-**Every form adds the person to the master network sheet.** `functions/api/lead.js` emails Scooter
-AND posts the submission to the West Peek Network OS intake door, which appends or updates a row on
+**Community and ventures forms add the person to the master network sheet. Productions forms do
+not** — Sequoia, 22 Sep 2026: *"the productions website forms should not go to the network tab -
+those are clients who should go to scooter."* The three sites share one handler, so the decision is
+made from the REQUEST HOSTNAME (`siteForHost` / `writesToSheet` in `functions/api/lead.js`), never
+from an attribute a new page could forget; an unrecognised host does not write. `functions/api/lead.js` emails Scooter always, and for community and ventures
+also posts the submission to the West Peek Network OS intake door, which appends or updates a row on
 the `contacts` tab. The email is still what the visitor's success means: if the sheet write fails the
 visitor is not punished for it, but the failure is never silent — the response carries a `sheet`
 field (`ok` / `failed` / `not_configured` / `skipped`), the failure is logged with the form and host,
@@ -50,9 +54,12 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   in chat. **A form belongs in the sheet only when the people filling it in are West Peek's own
   contacts.** A client-service property's submissions belong to the client, so routing them into
   West Peek's sheet would take client data into a West Peek asset; those are `excluded_not_ours`,
-  which is SETTLED and must never be read as an unwired gap (westpeek-live is the standing example,
-  Sequoia, 22 Sep 2026). Only `pending_decision` means "not done yet". Guard:
-  `npm run validate:forms` (FORM-10).
+  which is SETTLED and must never be read as an unwired gap. Two standing examples, both Sequoia,
+  22 Sep 2026: **westpeekproductions.com** (agency enquiries are its clients, who go to Scooter) and
+  **westpeek.live**. Only `pending_decision` means "not done yet". FORM-10 executes
+  `writesToSheet()` from `lead.js` against every registered host in BOTH directions, so a
+  productions form that reached the sheet door would fail the build. Guard:
+  `npm run validate:forms`.
 - **Decisions an employee must ask, not make**: brand or colourway, copy meaning, legal or
   regulatory wording, removing a public claim, image rights, anything about money. Structure, CSS,
   validators, redirects, asset handling: decide, record on the card, keep going.

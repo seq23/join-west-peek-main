@@ -27,8 +27,15 @@ All sites consume shared assets in `shared/assets/`. During build, assets are co
 ## Forms
 Each site includes a real contact form that POSTs to `/api/lead` (`functions/api/lead.js`).
 
-Every submission does two things: it emails `LEAD_TO`, and it adds the person to the `contacts` tab
-of the master network sheet through the West Peek Network OS intake door.
+Every submission emails `LEAD_TO`. Submissions on **joinwestpeek.com** and **westpeek.ventures**
+also add the person to the `contacts` tab of the master network sheet, through the West Peek Network
+OS intake door.
+
+**westpeekproductions.com forms email only.** Owner's rule, 22 Sep 2026: *"the productions website
+forms should not go to the network tab - those are clients who should go to scooter."* Productions
+is a client-service business, so the people filling its forms are its clients, not West Peek's
+network contacts. The gate is the request hostname, so the productions Pages project needs no
+special configuration and cannot be made to write by editing a page.
 
 ### Environment variables, per Pages project
 

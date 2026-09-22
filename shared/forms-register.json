@@ -70,8 +70,12 @@
       "form": "community_viability_assessment",
       "host": "westpeekproductions.com",
       "description": "Community viability assessment lead form",
-      "destination": "sheet",
-      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+      "destination": "excluded_not_ours",
+      "via": "functions/api/lead.js -> Resend email to Scooter only",
+      "reason": "EXCLUDED - West Peek Productions is a client-service business. The people filling in its forms are its clients and prospective clients, not West Peek's network contacts, so they go to Scooter's inbox and nowhere else. Owner's words, 22 Sep 2026: 'the productions website forms should not go to the network tab - those are clients who should go to scooter.' Same principle as westpeek-live. This is settled on principle and is NOT an open item - do not wire it.",
+      "named_by": "Sequoia",
+      "date": "2026-09-22",
+      "settled": true
     },
     {
       "repo": "west-peek-pitch-lab",
@@ -161,5 +165,5 @@
       "reason": "tools/production-scoping-calculator.html carries a <form id=\"calc\"> but it is a pure client-side calculator with zero fetch/XHR/sendBeacon calls. It does not transmit."
     }
   ],
-  "scope_rule": "A form belongs in the master network sheet only when the people filling it in are WEST PEEK'S OWN contacts. A client-service property's submissions belong to the client, not to West Peek; routing them into West Peek's network sheet would take client data into a West Peek asset. Such a property is 'excluded_not_ours' - a permanent, principled exclusion, never an open item. Owner's rule, 22 Sep 2026."
+  "scope_rule": "A form belongs in the master network sheet only when the people filling it in are WEST PEEK'S OWN contacts. A client-service property's submissions belong to the client, not to West Peek; routing them into West Peek's network sheet would take client data into a West Peek asset. Two properties are excluded on this principle: westpeekproductions.com (the agency's enquiries are its clients, who go to Scooter) and westpeek.live (a service run for other people's events). Both are 'excluded_not_ours' - permanent and settled, never open items. Owner's rule, 22 Sep 2026."
 }
