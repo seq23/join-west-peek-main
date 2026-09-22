@@ -17,6 +17,14 @@ Three static sites, one repo, three Cloudflare Pages projects that each build fr
 before committing so it never drifts from `sites/`. Forms POST to `/api/lead`
 (`functions/api/lead.js`).
 
+**Every form adds the person to the master network sheet.** `functions/api/lead.js` emails Scooter
+AND posts the submission to the West Peek Network OS intake door, which appends or updates a row on
+the `contacts` tab. The email is still what the visitor's success means: if the sheet write fails the
+visitor is not punished for it, but the failure is never silent — the response carries a `sheet`
+field (`ok` / `failed` / `not_configured` / `skipped`), the failure is logged with the form and host,
+and Network OS's `/api/health` reports the door's readiness under `siteFormIntake`. Which forms go
+where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
+
 ## Standing rules (owners' decisions, dated)
 - **No navigation between the three properties** (Scooter, 20 Sep 2026). Ventures pages may not link
   to joinwestpeek.com, westpeekproductions.com or westpeek.live; `dilution.joinwestpeek.com` is the
@@ -35,6 +43,16 @@ before committing so it never drifts from `sites/`. Forms POST to `/api/lead`
   founders, Website + Instagram links (`target="_blank" rel="noopener noreferrer"`). Assets in
   `sites/ventures/assets/img/portfolio/`, registered in the build contract in `scripts/build.mjs`.
 - **Retired pages redirect, never 404**: `sites/ventures/_redirects`.
+- **Every form defaults to the master network sheet** (Sequoia, 22 Sep 2026): *"make all forms
+  automatically default to adding names to our master network sheet."* A new transmitting form needs
+  a hidden `lead_type` (or `lead_source`) and a row in `shared/forms-register.json`. A form that
+  should go somewhere else is recorded in that file with a reason, a namer and a date — never a note
+  in chat. **A form belongs in the sheet only when the people filling it in are West Peek's own
+  contacts.** A client-service property's submissions belong to the client, so routing them into
+  West Peek's sheet would take client data into a West Peek asset; those are `excluded_not_ours`,
+  which is SETTLED and must never be read as an unwired gap (westpeek-live is the standing example,
+  Sequoia, 22 Sep 2026). Only `pending_decision` means "not done yet". Guard:
+  `npm run validate:forms` (FORM-10).
 - **Decisions an employee must ask, not make**: brand or colourway, copy meaning, legal or
   regulatory wording, removing a public claim, image rights, anything about money. Structure, CSS,
   validators, redirects, asset handling: decide, record on the card, keep going.
@@ -55,7 +73,7 @@ before committing so it never drifts from `sites/`. Forms POST to `/api/lead`
 ## Guards, and what each pins
 | Script | Pins |
 |---|---|
-| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response |
+| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10) |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_viability.mjs` | the Community assessment route and gates |

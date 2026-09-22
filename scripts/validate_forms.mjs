@@ -30,6 +30,19 @@
  *           {"ok":true}. This one is a behavioural test, not a pattern match.
  *   FORM-8  type="url" fields get https:// prefixed for the visitor, so native
  *           validation cannot refuse a whole submission over a bare domain.
+ *   FORM-10 Every transmitting form is in shared/forms-register.json with a
+ *           destination, and every registered form whose destination is the
+ *           master network sheet is ACTUALLY WIRED to it - the markup posts to
+ *           /api/lead, and lead.js genuinely fetches the Network OS door with
+ *           the shared secret. The owner's rule (22 Sep 2026) is that adding
+ *           people to the sheet is the DEFAULT; an exception is a decision
+ *           somebody named on a date, not a form that quietly went nowhere.
+ *           A settled exclusion ("excluded_not_ours" - the people filling the
+ *           form in are a client's contacts, not West Peek's) is distinguished
+ *           in the data from a genuine open item ("pending_decision"), so no
+ *           later sweep reads a decision as a gap and wires it.
+ *           The previous validator could not have caught that: it proved a form
+ *           transmitted, never where to.
  *
  * Registered in package.json (`npm run validate`), in
  * .github/workflows/entity-validation.yml, and in REPO_VALIDATION_MATRIX.md.
@@ -45,9 +58,27 @@ const root = process.cwd();
 const SCAN_ROOTS = ['sites', 'dist'];
 const LEAD_HANDLER = path.join(root, 'functions', 'api', 'lead.js');
 const SHARED_HANDLER = path.join(root, 'shared', 'assets', 'js', 'forms.js');
+const FORMS_REGISTER = path.join(root, 'shared', 'forms-register.json');
+
+/** The env var names the sites use to reach the Network OS intake door. */
+const INTAKE_URL_VAR = 'WP_NETWORK_OS_INTAKE_URL';
+const INTAKE_SECRET_VAR = 'WP_NETWORK_OS_INTAKE_SECRET';
 
 const failures = [];
 const notes = [];
+
+/**
+ * How many individual assertions actually ran and held.
+ *
+ * A validator that prints "PASS" tells you it did not fail; it does not tell
+ * you it did anything. Rule 0 in this house is that no stage may exit 0 having
+ * done nothing, so this counts the checks and prints the number, and a change
+ * that adds a rule has to move it up.
+ */
+let passes = 0;
+function pass(n = 1) {
+  passes += n;
+}
 
 function fail(rule, where, message) {
   failures.push({ rule, where, message });
@@ -106,6 +137,7 @@ function honeypotNames() {
   }
   const names = [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map((x) => x[1]);
   if (!names.length) fail('FORM-5', rel(LEAD_HANDLER), 'HONEYPOT_FIELDS is empty');
+  else pass();
   return names;
 }
 
@@ -123,6 +155,24 @@ function isHidden(attrs) {
   const style = (attrs.style || '').replace(/\s+/g, '').toLowerCase();
   return style.includes('display:none') || style.includes('visibility:hidden');
 }
+
+/**
+ * A form's identity for register purposes: the site it lives on plus the value
+ * of its hidden lead_type / lead_source field. Keyed this way so a form and its
+ * built copy in dist/ resolve to the same register row - the alternative,
+ * keying on the file path, would need every row listed twice and would drift.
+ */
+function formIdentity(file, formHtml) {
+  const rp = rel(file);
+  const site = (rp.match(/^(?:sites|dist)\/([^/]+)\//) || [])[1] || '';
+  const named =
+    (formHtml.match(/name\s*=\s*["'](?:lead_type|lead_source)["'][^>]*value\s*=\s*["']([^"']+)["']/i) || [])[1] ||
+    (formHtml.match(/value\s*=\s*["']([^"']+)["'][^>]*name\s*=\s*["'](?:lead_type|lead_source)["']/i) || [])[1] ||
+    '';
+  return { site, form: named };
+}
+
+const observedForms = [];
 
 function checkForm(file, html, formHtml, formIndex, hp) {
   const where = `${rel(file)}:${lineOf(html, formIndex)}`;
@@ -198,6 +248,7 @@ function checkForm(file, html, formHtml, formIndex, hp) {
       }
     }
 
+    pass(); // FORM-4 held for this control
     if (tag === 'input' && NON_DATA_INPUT_TYPES.has(type)) continue;
 
     // FORM-1 - no name, no value in the request body.
@@ -213,6 +264,7 @@ function checkForm(file, html, formHtml, formIndex, hp) {
       continue;
     }
 
+    pass(); // FORM-1 held for this control
     // FORM-5 - honeypots hidden, real fields not named like honeypots.
     if (hp.includes(a.name)) {
       if (!isHidden(a)) {
@@ -232,6 +284,7 @@ function checkForm(file, html, formHtml, formIndex, hp) {
             'for humans and assistive technology, not for bots.'
         );
       }
+      pass(); // FORM-5 held for this honeypot
       if (String(a.tabindex) !== '-1') {
         fail(
           'FORM-5',
@@ -243,6 +296,12 @@ function checkForm(file, html, formHtml, formIndex, hp) {
     }
   }
 
+  if (!optedOut) {
+    const identity = formIdentity(file, formHtml);
+    observedForms.push({ ...identity, where, action, sharedHandler });
+  }
+
+  pass(); // FORM-2/FORM-3 held for this form
   return { optedOut, sharedHandler, hasAction };
 }
 
@@ -257,6 +316,7 @@ function checkInlineScripts(file, html, anyTransmittingForm) {
     if (attrs.src) continue;
     const body = b[2];
     const transmits = /\b(fetch\s*\(|XMLHttpRequest|sendBeacon|\.submit\s*\(\s*\))/.test(body);
+    pass(); // FORM-6 examined this inline script
     if (transmits) continue;
 
     // Only literals that are actually written into the page count, so a comment
@@ -531,6 +591,7 @@ async function checkSharedHandlerBehaviour() {
     }
   }
 
+  pass(cases.length);
   notes.push(`FORM-7: shared handler driven through ${cases.length} stubbed responses`);
 }
 
@@ -578,8 +639,190 @@ async function checkUrlNormalisation() {
     }
   }
 
+  pass(expectations.length * 2);
   notes.push(
     `FORM-8: url normalisation checked over ${expectations.length} inputs x 2 triggers`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FORM-10 - the register, and the wiring it claims.
+// ---------------------------------------------------------------------------
+
+function checkFormsRegister() {
+  const where = rel(FORMS_REGISTER);
+  if (!fs.existsSync(FORMS_REGISTER)) {
+    fail('FORM-10', where, 'shared/forms-register.json is missing. Every transmitting form must declare where its people go.');
+    return;
+  }
+
+  let register;
+  try {
+    register = JSON.parse(fs.readFileSync(FORMS_REGISTER, 'utf8'));
+  } catch (err) {
+    fail('FORM-10', where, `forms register is not valid JSON: ${err.message}`);
+    return;
+  }
+
+  const rows = Array.isArray(register.forms) ? register.forms : [];
+
+  // HARD FAIL ON ZERO. A register that lists nothing would pass every other
+  // assertion below by vacuous truth, which is exactly the "runs but inert"
+  // defect this rule exists to make impossible.
+  if (!rows.length) {
+    fail('FORM-10', where, 'the forms register lists zero forms. A register with nothing in it proves nothing.');
+    return;
+  }
+  pass();
+
+  if (!observedForms.length) {
+    fail('FORM-10', where, 'no transmitting form was found in sites/ or dist/. Either the sites lost their forms or the scan is broken; both are emergencies.');
+    return;
+  }
+  pass();
+
+  const local = rows.filter((row) => row.repo === 'join-west-peek-main');
+  const registered = new Map(local.map((row) => [`${row.site}\u0000${row.form}`, row]));
+
+  // (a) Every transmitting form in this repo is in the register.
+  const seen = new Set();
+  for (const observed of observedForms) {
+    if (!observed.form) {
+      fail(
+        'FORM-10',
+        observed.where,
+        'transmitting form carries no hidden lead_type or lead_source field, so it cannot be ' +
+          'identified in the register. Give it one - an unnameable form is an untrackable ' +
+          'destination.'
+      );
+      continue;
+    }
+    const key = `${observed.site}\u0000${observed.form}`;
+    seen.add(key);
+    const row = registered.get(key);
+    if (!row) {
+      fail(
+        'FORM-10',
+        observed.where,
+        `form "${observed.form}" on the ${observed.site} site is not in ${rel(FORMS_REGISTER)}. ` +
+          'Every transmitting form declares its destination: "sheet" (the default) or an ' +
+          'exception with a reason, a namer and a date.'
+      );
+      continue;
+    }
+    pass();
+
+    // (b) A row that claims the sheet must actually post through lead.js.
+    if (row.destination === 'sheet') {
+      if (observed.action !== '/api/lead') {
+        fail(
+          'FORM-10',
+          observed.where,
+          `form "${observed.form}" is registered as reaching the master network sheet, but its ` +
+            `action is "${observed.action}" rather than /api/lead, which is the only handler ` +
+            'wired to the intake door. The register would be describing something untrue.'
+        );
+      } else {
+        pass();
+      }
+    }
+  }
+
+  // (c) Every registered local row corresponds to a form that exists.
+  for (const row of local) {
+    if (!seen.has(`${row.site}\u0000${row.form}`)) {
+      fail(
+        'FORM-10',
+        where,
+        `register lists "${row.form}" on the ${row.site} site, but no transmitting form with that ` +
+          'lead_type/lead_source was found in sites/ or dist/. A register that names forms which ' +
+          'no longer exist rots into fiction.'
+      );
+    } else {
+      pass();
+    }
+  }
+
+  // (d) Every non-sheet row carries a real reason, not a shrug.
+  for (const row of rows) {
+    if (row.destination === 'sheet' || row.destination === 'intake_queue') continue;
+    if (!['excluded_not_ours', 'pending_decision', 'named_stop', 'own_store', 'no_form'].includes(row.destination)) {
+      fail('FORM-10', where, `row "${row.repo}/${row.form}" has unknown destination "${row.destination}".`);
+      continue;
+    }
+    if (!String(row.reason || '').trim()) {
+      fail('FORM-10', where, `row "${row.repo}/${row.form}" is a ${row.destination} with no reason. An exception nobody justified is a gap nobody noticed.`);
+      continue;
+    }
+    if (['excluded_not_ours', 'pending_decision', 'named_stop'].includes(row.destination) && (!String(row.named_by || '').trim() || !String(row.date || '').trim())) {
+      fail(
+        'FORM-10',
+        where,
+        `row "${row.repo}/${row.form}" is a ${row.destination} without named_by and date. The owner's rule is that ` +
+          'an exception is recorded at the time of the ask, by a named person, on a date.'
+      );
+      continue;
+    }
+
+    // An `excluded_not_ours` row is SETTLED. It is marked so explicitly, so no
+    // future sweep can read it as work left undone. The owner's rule: a form
+    // belongs in the master network sheet only when the people filling it in
+    // are West Peek's own contacts; a client-service property's submissions
+    // belong to the client. That is a decision, not a gap.
+    if (row.destination === 'excluded_not_ours' && row.settled !== true) {
+      fail(
+        'FORM-10',
+        where,
+        `row "${row.repo}/${row.form}" is excluded_not_ours but is not marked "settled": true. A ` +
+          'principled exclusion must say so in the data, or the next sweep will read it as an ' +
+          'unwired form and try to close it.'
+      );
+      continue;
+    }
+    pass();
+  }
+
+  // The register must carry the rule that decides scope, or the reasoning
+  // leaves with whoever wrote the rows.
+  if (!/client-service/i.test(String(register.scope_rule || ''))) {
+    fail('FORM-10', where, 'the register has no scope_rule explaining WHEN a form belongs in the sheet. Without it, the next person has only a list of verdicts and no way to judge a new property.');
+  } else {
+    pass();
+  }
+
+  // (e) THE WIRING, not the prose. lead.js must genuinely reach the door.
+  if (!fs.existsSync(LEAD_HANDLER)) {
+    fail('FORM-10', rel(LEAD_HANDLER), 'lead handler is missing; the sheet default cannot be wired.');
+    return;
+  }
+  const handler = fs.readFileSync(LEAD_HANDLER, 'utf8');
+  const wiring = [
+    [new RegExp(`env\\.${INTAKE_URL_VAR}`), `lead.js never reads env.${INTAKE_URL_VAR}, so it cannot know where the intake door is.`],
+    [new RegExp(`env\\.${INTAKE_SECRET_VAR}`), `lead.js never reads env.${INTAKE_SECRET_VAR}, so the door would refuse every call.`],
+    [/x-wp-network-os-intake-secret/i, 'lead.js does not send the shared secret header the door requires.'],
+    [/submission_id/, 'lead.js sends no submission_id, so a retry could write the person twice.'],
+    [/fetch\s*\(/, 'lead.js makes no fetch call at all.']
+  ];
+  for (const [pattern, message] of wiring) {
+    if (!pattern.test(handler)) fail('FORM-10', rel(LEAD_HANDLER), message);
+    else pass();
+  }
+
+  // The sheet result has to be legible to a test and to a human reading logs.
+  if (!/sheet/.test(handler)) {
+    fail('FORM-10', rel(LEAD_HANDLER), 'lead.js reports no `sheet` outcome. A sheet write that fails silently is the bug this whole change exists to prevent.');
+  } else {
+    pass();
+  }
+
+  const sheetRows = rows.filter((row) => row.destination === 'sheet').length;
+  const excluded = rows.filter((row) => row.destination === 'excluded_not_ours').length;
+  const pending = rows.filter((row) => row.destination === 'pending_decision').length;
+  const namedStops = rows.filter((row) => row.destination === 'named_stop').length;
+  notes.push(
+    `FORM-10: ${rows.length} register row(s) - ${sheetRows} to the sheet, ${excluded} settled exclusion(s), ` +
+      `${pending} pending decision(s), ${namedStops} named stop(s); ${observedForms.length} ` +
+      'transmitting form occurrence(s) in sites//dist/'
   );
 }
 
@@ -615,17 +858,19 @@ async function main() {
 
   await checkSharedHandlerBehaviour();
   await checkUrlNormalisation();
+  checkFormsRegister();
 
   if (process.argv.includes('--json')) {
-    console.log(JSON.stringify({ ok: failures.length === 0, failures, notes }, null, 2));
+    console.log(JSON.stringify({ ok: failures.length === 0, failures, notes, checks_passed: passes }, null, 2));
   } else {
     for (const n of notes) console.log(`  ${n}`);
     if (failures.length) {
       console.error(`\nFORM VALIDATION FAILED - ${failures.length} problem(s):\n`);
       for (const f of failures) console.error(`  [${f.rule}] ${f.where}\n      ${f.message}\n`);
     } else {
-      console.log('\nForm validation PASS - every form transmits, every field is named, ' +
-        'no success message can appear without a confirmed server response.');
+      console.log(`\nForm validation PASS - ${passes} checks passed. Every form transmits, ` +
+        'every field is named, no success message can appear without a confirmed ' +
+        'server response.');
     }
   }
 

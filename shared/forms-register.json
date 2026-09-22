@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "title": "West Peek forms register",
+  "rule": "Sequoia, 22 Sep 2026: 'make all forms automatically default to adding names to our master network sheet.' Every transmitting form on a West Peek property adds the person to the contacts tab of the master network sheet by default. A form that goes anywhere else is recorded here, at the time of the ask, with a reason, a namer and a date - never a note in a chat log.",
+  "destination_values": {
+    "sheet": "Reaches the contacts tab of the master network sheet.",
+    "intake_queue": "Reaches the master network sheet, but the intake_queue tab for human review rather than contacts.",
+    "own_store": "Writes this property's own datastore by design; an explicit human-gated bridge to the network exists.",
+    "excluded_not_ours": "PERMANENT, PRINCIPLED EXCLUSION. The people filling this form in are not West Peek's contacts - they belong to a client. This is SETTLED, not pending. No sweep, agent or future pass may treat it as an unwired gap to close. Requires reason, named_by, date.",
+    "pending_decision": "Genuinely undecided and still open. Requires reason, named_by, date. This is the ONLY category that means 'not done yet'.",
+    "no_form": "Repo checked, ships no transmitting form.",
+    "named_stop": "Should reach the sheet but cannot be wired from here. Requires the exact reason."
+  },
+  "enforced_by": "scripts/validate_forms.mjs rule FORM-10. Rows whose repo is join-west-peek-main and whose destination is 'sheet' are checked against the actual markup in sites/ and dist/ and against the wiring in functions/api/lead.js. Rows for other repos are inventory: FORM-10 asserts they are complete and reasoned, not that this repo can see them.",
+  "forms": [
+    {
+      "repo": "join-west-peek-main",
+      "site": "ventures",
+      "file": "sites/ventures/index.html",
+      "form": "founder_apply",
+      "host": "westpeek.ventures",
+      "description": "Founder application on the ventures homepage",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+    },
+    {
+      "repo": "join-west-peek-main",
+      "site": "ventures",
+      "file": "sites/ventures/index.html",
+      "form": "newsletter_signup",
+      "host": "westpeek.ventures",
+      "description": "Newsletter signup on the ventures homepage",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+    },
+    {
+      "repo": "join-west-peek-main",
+      "site": "ventures",
+      "file": "sites/ventures/pitch.html",
+      "form": "founder_pitch",
+      "host": "westpeek.ventures",
+      "description": "Founder pitch submission",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+    },
+    {
+      "repo": "join-west-peek-main",
+      "site": "community",
+      "file": "sites/community/index.html",
+      "form": "newsletter_events",
+      "host": "joinwestpeek.com",
+      "description": "Newsletter and events signup on the community homepage",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+    },
+    {
+      "repo": "join-west-peek-main",
+      "site": "community",
+      "file": "sites/community/join.html",
+      "form": "community_join",
+      "host": "joinwestpeek.com",
+      "description": "Community join form",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+    },
+    {
+      "repo": "join-west-peek-main",
+      "site": "productions",
+      "file": "sites/productions/community-as-a-service/index.html",
+      "form": "community_viability_assessment",
+      "host": "westpeekproductions.com",
+      "description": "Community viability assessment lead form",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+    },
+    {
+      "repo": "west-peek-pitch-lab",
+      "file": "src/runtime/practiceFlow.mjs",
+      "form": "pitch_lab_profile",
+      "host": "pitch lab",
+      "description": "Founder profile capture at the start of the practice flow",
+      "destination": "sheet",
+      "via": "functions/api/pitch/profile-capture.js -> west-peek-network-os /api/intake/site-form (contacts), alongside the existing signed /api/intake/pitch-lab-profile handoff (intake_queue)",
+      "note": "Owner, 22 Sep 2026: 'pitch lab is meant to be a lead gen engine. so add pitchlab for sure.' This reverses the earlier deliberate divergence that kept a founder practising a pitch out of contacts. The intake_queue handoff is kept as well - a working path is not removed to add a new one."
+    },
+    {
+      "repo": "west-peek-pitch-lab",
+      "file": "src/runtime/shareFlow.mjs",
+      "form": "pitch_lab_share",
+      "host": "pitch lab",
+      "description": "Founder story packet share",
+      "destination": "sheet",
+      "via": "functions/api/pitch/share.js -> west-peek-network-os /api/intake/site-form (contacts), alongside the existing signed /api/intake/pitch-lab handoff (intake_queue)",
+      "note": "Same owner decision as pitch_lab_profile."
+    },
+    {
+      "repo": "west-peek-network-os",
+      "file": "functions/e/[slug].ts",
+      "form": "public_event_registration",
+      "host": "west-peek-network-os",
+      "description": "Public per-event registration form",
+      "destination": "sheet",
+      "via": "appendRecord(event_attendees) + appendRecord(intake_queue), direct",
+      "note": "Already reached the sheet before this change. Listed so the register is the whole picture, not only what was repaired."
+    },
+    {
+      "repo": "west-peek-network-os",
+      "file": "src/ui/*.tsx",
+      "form": "internal_ops_forms",
+      "host": "west-peek-network-os",
+      "description": "Authenticated internal ops forms: manual capture, add person, create event, media capture, thank-you draft",
+      "destination": "sheet",
+      "via": "/api/intake/create, /api/contacts/create, /api/events/create, /api/intake/media/create, /api/touches/thank-you/create, all through _shared/sheets.ts",
+      "note": "Already reached the sheet before this change."
+    },
+    {
+      "repo": "west-peek-os",
+      "file": "src/client/App.tsx, src/client/pages/CommunityPage.tsx",
+      "form": "firm_ops_forms",
+      "host": "west-peek-os",
+      "description": "Eleven Cloudflare-Access-gated internal firm-ops forms (capture, resolve, route, governance, claim, company create, document upload and others)",
+      "destination": "own_store",
+      "reason": "These write the firm's own operational D1 database (west-peek-os-db). They are internal working state, not network contacts, and the deliberate bridge to the network already exists: an operator clicks 'propose to network', which posts the person to Network OS /api/intake/create for review. Making every keystroke of internal firm ops a network contact would be the wrong default, not a missing one.",
+      "named_by": "Claude, on the owner's 'lead gen engine' framing - a private ops board is not lead gen",
+      "date": "2026-09-22"
+    },
+    {
+      "repo": "westpeek-live",
+      "file": "components/venue/PublicEventPage.tsx, components/venue/SponsorLeadCaptureForm.tsx, components/guests/GuestIdentityForm.tsx and ~40 others",
+      "form": "westpeek_live_forms",
+      "host": "westpeek.live",
+      "description": "Public event registration, sponsor lead capture, guest identity and in-app event-ops forms",
+      "destination": "excluded_not_ours",
+      "reason": "EXCLUDED - westpeek-live is a client-service app. Its form submissions are the clients' event attendees, not West Peek's contacts. Routing them into West Peek's own network sheet would take client data into a West Peek asset. Owner's words, 22 Sep 2026: 'west peek live is an app where we provide a service for other clients and all events are not our proprietary events.' This is settled on principle and is NOT an open item - do not wire it.",
+      "named_by": "Sequoia",
+      "date": "2026-09-22",
+      "settled": true
+    },
+    {
+      "repo": "secondaries",
+      "form": "none",
+      "destination": "no_form",
+      "reason": "Static deal-math calculators. No <form>, no fetch/XHR/sendBeacon anywhere in source."
+    },
+    {
+      "repo": "founder-dilution-dashboard",
+      "form": "none",
+      "destination": "no_form",
+      "reason": "Static calculator. No form and no network call."
+    },
+    {
+      "repo": "spry-vc",
+      "form": "none",
+      "destination": "no_form",
+      "reason": "Static marketing site. No form and no network call."
+    },
+    {
+      "repo": "WPP-llm",
+      "form": "none",
+      "destination": "no_form",
+      "reason": "tools/production-scoping-calculator.html carries a <form id=\"calc\"> but it is a pure client-side calculator with zero fetch/XHR/sendBeacon calls. It does not transmit."
+    }
+  ],
+  "scope_rule": "A form belongs in the master network sheet only when the people filling it in are WEST PEEK'S OWN contacts. A client-service property's submissions belong to the client, not to West Peek; routing them into West Peek's network sheet would take client data into a West Peek asset. Such a property is 'excluded_not_ours' - a permanent, principled exclusion, never an open item. Owner's rule, 22 Sep 2026."
+}
