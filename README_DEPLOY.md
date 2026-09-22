@@ -25,7 +25,32 @@ This repo deploys three static sites from one GitHub repo using **three separate
 All sites consume shared assets in `shared/assets/`. During build, assets are copied into `dist/<site>/assets/`.
 
 ## Forms
-Each site includes a real contact form that POSTs to `/api/lead` (expected to be powered by a Cloudflare Worker).
+Each site includes a real contact form that POSTs to `/api/lead` (`functions/api/lead.js`).
+
+Every submission does two things: it emails `LEAD_TO`, and it adds the person to the `contacts` tab
+of the master network sheet through the West Peek Network OS intake door.
+
+### Environment variables, per Pages project
+
+| Name | Kind | Purpose |
+|---|---|---|
+| `RESEND_API_KEY` | secret | Resend delivery |
+| `EMAIL_FROM` | plain var | notification sender |
+| `LEAD_TO` | plain var | notification recipient (defaults to scooter@westpeek.ventures) |
+| `COMMUNITY_ASSESSMENT_TO` | plain var | recipient for the community viability assessment |
+| `WP_NETWORK_OS_INTAKE_URL` | plain var | the Network OS intake door, `https://<network-os>/api/intake/site-form` |
+| `WP_NETWORK_OS_INTAKE_SECRET` | **secret** | shared secret the door requires, sent as `x-wp-network-os-intake-secret` |
+
+`WP_NETWORK_OS_*` are vendor-prefixed so they can never collide with a reserved runtime name. The
+same secret value is set on all three site projects, on `west-peek-network-os` and on
+`west-peek-pitch-lab`, and is held in the West Peek OS vault under the same name.
+
+**Pages environment changes take effect on the NEXT deployment**, so set them before merging a change
+that depends on them.
+
+If the intake door is unreachable or unconfigured, the visitor still gets a success response provided
+the email was delivered — a sheet outage must never cost somebody their submission. The outcome is
+reported as `sheet` in the JSON response and logged with the form and host.
 
 
 ## Community hero image
