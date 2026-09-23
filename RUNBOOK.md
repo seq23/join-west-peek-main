@@ -63,6 +63,26 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 - **Decisions an employee must ask, not make**: brand or colourway, copy meaning, legal or
   regulatory wording, removing a public claim, image rights, anything about money. Structure, CSS,
   validators, redirects, asset handling: decide, record on the card, keep going.
+- **Community visual system (23 Sep 2026 redesign)**: black background, one orange token
+  (`--wp-orange: #c45a3c`, the value already live on ventures), Maax self-hosted from
+  `sites/community/assets/fonts/`, no script/cursive type and no italics as a stylistic device
+  anywhere on the site. Its own stylesheet is `sites/community/assets/community.css` —
+  `shared/assets/base.css` is untouched by this and still serves the other two sites.
+- **Community nav is one list, same on every page**: Podcast &middot; Update &middot; Pitch &middot;
+  Workshops &middot; Dinners &rarr; `/episodes`, `/update`, `/pitch`, `/workshops`, `/#dinners`.
+  No navigation from joinwestpeek.com to westpeek.ventures, westpeekproductions.com or
+  westpeek.live (Scooter's 20 Sep 2026 rule, same as ventures isolation) — the JSON-LD entity
+  graph on the homepage is exempt, since structured data is not navigation. `/join` carries the
+  same nav and the community's sheet-writing join form, linked from the footer only. Guard:
+  `npm run validate:community-site`.
+- **Community homepage order is fixed**: Hero (text only, the brief's exact line, no image) &middot;
+  Origin/History &middot; Podcast &middot; The Update &middot; Pitch Competition &middot; Workshops
+  &middot; Dinners (copy-only, no button). `/podcast` and `/history` are retired and 301 to
+  `/episodes` and `/about` respectively, in `sites/community/_redirects`.
+- **Episode, winner, and history-event records live in one data file each**
+  (`sites/community/assets/data/episodes.json`, `winners.json`, `history-events.json`), read at
+  runtime by `assets/community.js`. No invented YouTube id, headshot, winner, or event may ship —
+  a missing record is a structured placeholder, never a guess.
 
 ## How to make a change
 1. Branch `work/<slug>` off `main` (CI runs on `work/**` pushes and on the PR).
@@ -84,6 +104,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_viability.mjs` | the Community assessment route and gates |
+| `scripts/validate_community_site.mjs` | the community redesign: shared nav on every page, exact homepage order, text-only hero with the brief's line, no italic/script markup, no sister-property links, `/podcast` and `/history` redirect, every episode's YouTube id and headshot real |
 | `.github/workflows/entity-validation.yml` | the JSON-LD entity graph on the three index pages; Organization schema on every built page; dated sitemaps |
 | `scripts/validate_runbook.mjs` | this file names real paths and scripts |
 

@@ -1,0 +1,65 @@
+[
+  {
+    "slug": "quarantinecon",
+    "name": "QuarantineCon",
+    "dateRange": "March 20, 2020 – March 22, 2021",
+    "description": "The original digital conference — where 5,000 people gathered virtually the first weekend of the pandemic to learn, partner, and connect.",
+    "flyer": "assets/img/history/quarantinecon.jpg"
+  },
+  {
+    "slug": "virtual-gym",
+    "name": "Virtual Gym",
+    "dateRange": "March 27 – May 7, 2020",
+    "description": "Live workouts with trainers from around the country, built to keep the community active and connected from home.",
+    "flyer": "assets/img/history/virtual-gym.jpg"
+  },
+  {
+    "slug": "know-your-tribe-hbcu",
+    "name": "Know Your Tribe / HBCU Event",
+    "dateRange": "June 9 – September 1, 2020",
+    "description": "Built with WeAreHBCUs to connect future students, current students, and alumni across the HBCU community.",
+    "flyer": "assets/img/history/know-your-tribe-hbcu.jpg"
+  },
+  {
+    "slug": "virtual-career-fair",
+    "name": "Virtual Career Fair",
+    "dateRange": "April 24 – July 23, 2020",
+    "description": "Companies and candidates meeting virtually, with career coaches and keynote speakers along the way.",
+    "flyer": "assets/img/history/virtual-career-fair.jpg"
+  },
+  {
+    "slug": "culinary-showcase",
+    "name": "Culinary Showcase",
+    "dateRange": "May 6 – 9, 2020",
+    "description": "Live demonstrations from chefs and mixologists, teaching new recipes for food and drink alike.",
+    "flyer": "assets/img/history/culinary-showcase.jpg"
+  },
+  {
+    "slug": "pivot-and-pitch",
+    "name": "Pivot & Pitch: Virtual Pitch Competition",
+    "dateRange": "May 23 – 24, 2020",
+    "description": "A virtual pitch competition for founders — its first winner took home $25,000.",
+    "flyer": "assets/img/history/pivot-and-pitch.jpg"
+  },
+  {
+    "slug": "sunday-suppers-sweet-auburn-stories",
+    "name": "Sunday Suppers / Sweet Auburn Stories",
+    "dateRange": "July 5 – November 29, 2020",
+    "description": "Sunday conversations with civil rights icons and community elders, preserving stories across generations.",
+    "flyer": "assets/img/history/sunday-suppers-sweet-auburn-stories.jpg"
+  },
+  {
+    "slug": "mental-health-wellness-retreat",
+    "name": "Mental Health & Wellness Retreat",
+    "dateRange": "April 27 – May 2, 2020",
+    "description": "Panels and breakout sessions on head, heart, and body — coping with the “new normal” together.",
+    "flyer": "assets/img/history/mental-health-wellness-retreat.jpg"
+  },
+  {
+    "slug": "higher-education-day",
+    "name": "Higher Education Day",
+    "dateRange": "August 20, 2020",
+    "description": "A day for deans, admissions counselors, and current students to talk through MBA, law, medical, and graduate school plans upended by COVID-19.",
+    "flyer": "assets/img/history/higher-education-day.jpg"
+  }
+]
