@@ -1,0 +1,5 @@
+# Retired routes from the pre-redesign site (23 Sep 2026 community rebuild).
+/podcast          /episodes         301
+/podcast.html     /episodes         301
+/history          /about            301
+/history.html     /about            301

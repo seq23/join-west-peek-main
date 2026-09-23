@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Join the West Peek Community | West Peek</title>
-  <meta name="description" content="Join a community of more than 5,000 founders, operators, investors, creatives and builders. Free. Newsletter, event invitations and podcast updates — no other email.">
-  <link rel="canonical" href="https://joinwestpeek.com/join"/>
+  <title>The Update | West Peek Community</title>
+  <meta name="description" content="Share wins, ask for help, and tell West Peek what you're building. Quarterly.">
+  <link rel="canonical" href="https://joinwestpeek.com/update"/>
   <link rel="stylesheet" href="/assets/community.css">
 <script type="application/ld+json" data-wp-identity>
 {
@@ -22,10 +22,10 @@
     },
     {
       "@type": "WebPage",
-      "@id": "https://joinwestpeek.com/join#webpage",
-      "url": "https://joinwestpeek.com/join",
-      "name": "Join the West Peek Community | West Peek",
-      "description": "Join a community of more than 5,000 founders, operators, investors, creatives and builders. Free. Newsletter, event invitations and podcast updates — no other email.",
+      "@id": "https://joinwestpeek.com/update#webpage",
+      "url": "https://joinwestpeek.com/update",
+      "name": "The Update | West Peek Community",
+      "description": "Share wins, ask for help, and tell West Peek what you",
       "isPartOf": {
         "@id": "https://joinwestpeek.com/#website"
       },
@@ -100,7 +100,7 @@
     <button class="wpc-nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <div class="wpc-nav__links">
       <a href="/episodes">Podcast</a>
-      <a href="/update">Update</a>
+      <a href="/update" aria-current="page">Update</a>
       <a href="/pitch">Pitch</a>
       <a href="/workshops">Workshops</a>
       <a href="/#dinners">Dinners</a>
@@ -109,53 +109,17 @@
 </nav>
 
 <div class="wpc-page-head">
-  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / Join</p>
-  <h1>Join the West Peek community</h1>
-  <p>More than 5,000 founders, operators, investors, creatives and builders. Free to join, and we only email when there is something real to say.</p>
+  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / Update</p>
+  <h1>The Update</h1>
+  <p>The Update is the lifeblood of West Peek &mdash; a safe space to share wins, big or small, ask for help, and talk through what's actually going on with what you're building. From what you share, we make the introductions, curate the workshops, and extend the dinner invites that fit where you are right now. We want you to feel less lonely as you build. It is not our independence but our interconnectedness that gets us there.</p>
+  <p><strong>Cadence: quarterly.</strong> A fast baseline (share a win or a shout-out) takes a minute; an optional deeper layer (what you're stuck on, who you want to meet) unlocks curated introductions.</p>
 </div>
 
-<div class="wpc-main wpc-form">
-  <form data-westpeek-form action="/api/lead" method="POST"
-        data-success="You're on the list. We'll be in touch when there's something real to share.">
-    <input type="hidden" name="site" value="community">
-    <input type="hidden" name="lead_type" value="community_join">
-    <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
-    <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
-
-    <label for="join-name">Name</label>
-    <input id="join-name" name="name" autocomplete="name">
-
-    <label for="join-email">Email</label>
-    <input id="join-email" name="email" type="email" autocomplete="email" required>
-
-    <label for="join-role">What best describes you?</label>
-    <select id="join-role" name="role" required>
-      <option value="">Select&hellip;</option>
-      <option>Founder</option>
-      <option>Operator</option>
-      <option>Investor</option>
-      <option>Creative</option>
-      <option>Builder</option>
-      <option>Something else</option>
-    </select>
-
-    <label for="join-interest">What are you most interested in?</label>
-    <select id="join-interest" name="interest" required>
-      <option value="">Select&hellip;</option>
-      <option>Newsletter</option>
-      <option>Events</option>
-      <option>Podcast updates</option>
-      <option>Meeting other founders</option>
-      <option>Partnerships</option>
-    </select>
-
-    <label for="join-note">What are you working on? (optional)</label>
-    <textarea id="join-note" name="description" placeholder="One line is plenty."></textarea>
-
-    <button type="submit" class="wpc-btn">Join the community</button>
-    <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
-    <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
-  </form>
+<div class="wpc-main">
+  <div class="wpc-embed">
+    <iframe src="https://airtable.com/embed/appvK9WhpOiYhjlcH/pagX6VfY2OFBSfv10/form" height="1200" title="The West Peek Update form"></iframe>
+  </div>
+  <p class="small" style="color:#9a9a9a">Form not loading? <a href="https://airtable.com/appvK9WhpOiYhjlcH/pagX6VfY2OFBSfv10/form" target="_blank" rel="noopener">Open the form in a new tab &rarr;</a></p>
 </div>
 
 <footer class="wpc-footer">
@@ -164,6 +128,5 @@
   <div style="margin-top:.5rem">&copy; West Peek</div>
 </footer>
 <script src="/assets/community.js"></script>
-<script src="/assets/js/forms.js"></script>
 </body>
 </html>
