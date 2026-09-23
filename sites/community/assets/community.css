@@ -1,0 +1,179 @@
+/* West Peek Community — visual system for joinwestpeek.com.
+ *
+ * Rebuilt from the Site Architecture & Design Brief (23 Sep 2026): black
+ * background, one orange accent token, Maax throughout, no script or
+ * italics anywhere. This file is scoped to sites/community/ only —
+ * shared/assets/base.css is untouched so ventures and productions are
+ * unaffected.
+ *
+ * The orange hex (#c45a3c) is the value already live on westpeek.ventures,
+ * approved as the community token too (Sequoia, 23 Sep 2026) and held here
+ * as a single custom property so a future change is one line.
+ */
+
+@font-face {
+  font-family: 'Maax';
+  src: url('fonts/Maax-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Maax';
+  src: url('fonts/Maax-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Maax';
+  src: url('fonts/Maax-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --wp-orange: #c45a3c;
+  --wp-orange-hover: #d4715a;
+  --wp-black: #0a0a0a;
+  --wp-panel: #131313;
+  --wp-line: rgba(255,255,255,0.09);
+  --wp-text: #f5f0eb;
+  --wp-text-dim: #9a9a9a;
+}
+
+.wpc-body { background: var(--wp-black); color: var(--wp-text); font-family: 'Maax', -apple-system, sans-serif; font-weight: 400; margin: 0; }
+.wpc-body h1, .wpc-body h2, .wpc-body h3, .wpc-body h4, .wpc-body nav, .wpc-body button { font-family: 'Maax', -apple-system, sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+.wpc-body em, .wpc-body i, .wpc-body .italic { font-style: normal; } /* No italics as a stylistic device, anywhere on this site. */
+.wpc-body a { color: var(--wp-orange); text-decoration: none; }
+.wpc-body a:hover, .wpc-body a:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.wpc-body img { max-width: 100%; display: block; }
+
+/* ---------------------------------------------------------------- Nav */
+.wpc-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--wp-line);
+}
+.wpc-nav__inner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.1rem 3rem; }
+.wpc-body a.wpc-nav__logo, .wpc-nav__logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--wp-text); font-weight: 700; font-size: 1rem; white-space: nowrap; }
+.wpc-body a.wpc-nav__logo:hover, .wpc-nav__logo:hover { text-decoration: none; }
+/* The approved monogram is black ink on transparent; the site is near-black.
+   Rendered white, the same treatment approved for ventures on 20 Sep 2026. */
+.wpc-nav__logo img { width: 28px; height: 28px; object-fit: contain; filter: invert(1); display: block; }
+.wpc-nav__toggle { display: none; flex-direction: column; gap: 4px; background: none; border: 1px solid var(--wp-line); border-radius: 4px; padding: .55rem .6rem; cursor: pointer; color: var(--wp-text); }
+.wpc-nav__toggle:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 2px; }
+.wpc-nav__toggle span { display: block; width: 18px; height: 2px; background: currentColor; border-radius: 2px; transition: transform .25s, opacity .25s; }
+.wpc-nav[data-open] .wpc-nav__toggle span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.wpc-nav[data-open] .wpc-nav__toggle span:nth-child(2) { opacity: 0; }
+.wpc-nav[data-open] .wpc-nav__toggle span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+.wpc-nav__links { display: flex; align-items: center; gap: 1.6rem; list-style: none; margin: 0; padding: 0; }
+.wpc-nav__links a { color: #b7b7b7; font-size: .85rem; font-weight: 600; transition: color .2s; }
+.wpc-nav__links a:hover, .wpc-nav__links a:focus-visible, .wpc-nav__links a[aria-current="page"] { color: var(--wp-text); text-decoration: none; }
+.wpc-nav__links a:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 3px; border-radius: 2px; }
+@media (max-width: 860px) {
+  .wpc-nav__inner { padding: .9rem 1.25rem; flex-wrap: wrap; }
+  .wpc-nav__toggle { display: flex; }
+  .wpc-nav__links { display: none; width: 100%; flex-direction: column; align-items: stretch; gap: .5rem; padding: .6rem 0 .4rem; }
+  .wpc-nav[data-open] .wpc-nav__links { display: flex; }
+  .wpc-nav__links a { width: 100%; min-height: 44px; display: flex; align-items: center; padding: .6rem .9rem; border: 1px solid var(--wp-line); border-radius: 6px; background: rgba(255,255,255,0.03); }
+}
+
+/* ---------------------------------------------------------------- Layout */
+.wpc-main { max-width: 1080px; margin: 0 auto; padding: 0 1.5rem; }
+.wpc-section { padding: 5rem 1.5rem; max-width: 1080px; margin: 0 auto; border-top: 1px solid var(--wp-line); }
+.wpc-section:first-of-type { border-top: 0; }
+.wpc-section__tag { color: var(--wp-orange); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .8rem; }
+.wpc-section h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); margin: 0 0 1rem; }
+.wpc-section p { color: #d8d3cc; line-height: 1.65; max-width: 62ch; margin: 0 0 1.25rem; font-size: 1.02rem; }
+
+/* Hero — text only, no image, no portrait. */
+.wpc-hero { padding: 7rem 1.5rem 4rem; max-width: 900px; margin: 0 auto; text-align: left; }
+.wpc-hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.12; margin: 0; }
+
+/* a.wpc-btn, not just .wpc-btn: a class+element selector is more specific than
+   a single class, so ".wpc-body a { color: var(--wp-orange) }" above would
+   otherwise win regardless of source order and print orange text on an
+   orange button - invisible. Caught on the preview screenshot, 23 Sep 2026. */
+.wpc-body a.wpc-btn, .wpc-btn { display: inline-flex; align-items: center; gap: .5rem; background: var(--wp-orange); color: #fff; padding: .85rem 1.6rem; border-radius: 6px; font-weight: 700; font-size: .92rem; border: 0; cursor: pointer; transition: background .2s; }
+.wpc-body a.wpc-btn:hover, .wpc-body a.wpc-btn:focus-visible, .wpc-btn:hover, .wpc-btn:focus-visible { background: var(--wp-orange-hover); text-decoration: none; color: #fff; }
+.wpc-body a.wpc-btn--ghost, .wpc-btn--ghost { background: transparent; border: 1px solid var(--wp-line); color: var(--wp-text); }
+.wpc-body a.wpc-btn--ghost:hover, .wpc-btn--ghost:hover { border-color: var(--wp-orange); color: var(--wp-text); }
+
+.wpc-page-head { padding: 3.5rem 1.5rem 1rem; max-width: 1080px; margin: 0 auto; }
+.wpc-page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); margin: 0 0 .75rem; }
+.wpc-page-head p { color: #d8d3cc; max-width: 62ch; line-height: 1.6; }
+.wpc-breadcrumb { color: var(--wp-text-dim); font-size: .8rem; margin: 0 0 1rem; }
+.wpc-breadcrumb a { color: var(--wp-text-dim); }
+
+/* ---------------------------------------------------------------- Grid cards (episodes + winners) */
+.wpc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.25rem; margin-top: 2rem; }
+.wpc-card {
+  background: var(--wp-panel); border: 1px solid var(--wp-line); border-radius: 10px; overflow: hidden;
+  cursor: pointer; text-align: left; width: 100%; color: inherit; font: inherit; padding: 0;
+}
+.wpc-card:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 2px; }
+.wpc-card__photo { width: 100%; aspect-ratio: 1/1; object-fit: cover; filter: grayscale(1); transition: filter .3s; }
+.wpc-card[aria-expanded="true"] .wpc-card__photo { filter: grayscale(0); }
+.wpc-card__body { padding: 1rem 1.1rem 1.25rem; }
+.wpc-card__number { color: var(--wp-orange); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .35rem; }
+.wpc-card__name { font-size: 1rem; font-weight: 700; margin: 0; }
+.wpc-card__detail { display: none; padding: 0 1.1rem 1.25rem; }
+.wpc-card[aria-expanded="true"] .wpc-card__detail { display: block; }
+.wpc-card__detail p { color: #d8d3cc; font-size: .92rem; line-height: 1.55; margin: 0 0 1rem; }
+.wpc-card__player { position: relative; width: 100%; aspect-ratio: 16/9; margin-bottom: 1rem; background: #000; border-radius: 6px; overflow: hidden; }
+.wpc-card__player iframe { width: 100%; height: 100%; border: 0; }
+.wpc-card__soon { padding: 1rem; border: 1px dashed var(--wp-line); border-radius: 6px; color: var(--wp-text-dim); font-size: .85rem; text-align: center; margin-bottom: 1rem; }
+
+/* ---------------------------------------------------------------- Structured placeholders */
+.wpc-placeholder { border: 1px dashed var(--wp-orange); border-radius: 8px; padding: 1.5rem; background: rgba(196,90,60,0.06); }
+.wpc-placeholder__tag { color: var(--wp-orange); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .6rem; }
+.wpc-placeholder p { margin: 0 0 .5rem; }
+.wpc-placeholder--empty { text-align: center; color: var(--wp-text-dim); padding: 3rem 1.5rem; border: 1px dashed var(--wp-line); border-radius: 8px; }
+
+/* ---------------------------------------------------------------- Embeds (Airtable, Luma) */
+.wpc-embed { border: 1px solid var(--wp-line); border-radius: 10px; overflow: hidden; background: #050505; margin: 1.5rem 0; }
+.wpc-embed iframe { width: 100%; border: 0; display: block; }
+
+/* ---------------------------------------------------------------- History gallery */
+.wpc-history-list { display: flex; flex-direction: column; gap: 0; margin-top: 2rem; border-top: 1px solid var(--wp-line); }
+.wpc-history-item { border-bottom: 1px solid var(--wp-line); }
+.wpc-history-item__toggle { width: 100%; display: flex; align-items: center; gap: 1.25rem; padding: 1.1rem 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.wpc-history-item__toggle:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 2px; }
+.wpc-history-item__thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; flex: none; }
+.wpc-history-item__name { font-weight: 700; margin: 0; }
+.wpc-history-item__dates { color: var(--wp-text-dim); font-size: .82rem; margin: .2rem 0 0; }
+.wpc-history-item__chevron { margin-left: auto; width: 10px; height: 10px; border-right: 2px solid var(--wp-text-dim); border-bottom: 2px solid var(--wp-text-dim); transform: rotate(45deg); transition: transform .2s; flex: none; }
+.wpc-history-item[data-open] .wpc-history-item__chevron { transform: rotate(-135deg); }
+.wpc-history-item__body { display: none; padding: 0 0 1.5rem 88px; }
+.wpc-history-item[data-open] .wpc-history-item__body { display: block; }
+.wpc-history-item__body img { max-width: 280px; border-radius: 8px; margin-bottom: 1rem; }
+.wpc-history-item__body p { color: #d8d3cc; max-width: 60ch; line-height: 1.6; }
+
+/* ---------------------------------------------------------------- Founding team */
+.wpc-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+.wpc-team__card { background: var(--wp-panel); border: 1px solid var(--wp-line); border-radius: 10px; padding: 1.5rem; }
+.wpc-team__card h3 { margin: 0 0 .6rem; }
+.wpc-team__card p { color: #d8d3cc; font-size: .92rem; line-height: 1.55; margin: 0; }
+
+/* ---------------------------------------------------------------- Forms (Join, mirrors base.css structure) */
+.wpc-form label { display: block; font-size: .8rem; color: var(--wp-text-dim); margin: 1rem 0 .3rem; }
+.wpc-form input, .wpc-form select, .wpc-form textarea {
+  width: 100%; box-sizing: border-box; background: var(--wp-panel); border: 1px solid var(--wp-line);
+  border-radius: 6px; padding: .7rem .85rem; color: var(--wp-text); font: inherit; font-size: .92rem;
+}
+.wpc-form input:focus-visible, .wpc-form select:focus-visible, .wpc-form textarea:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 1px; }
+.wpc-form button[type="submit"] { margin-top: 1.5rem; }
+.wpc-form .small { color: var(--wp-text-dim); font-size: .82rem; }
+
+/* ---------------------------------------------------------------- Footer */
+.wpc-footer { padding: 2.5rem 1.5rem; border-top: 1px solid var(--wp-line); text-align: center; color: var(--wp-text-dim); font-size: .8rem; }
+.wpc-footer a { color: var(--wp-text-dim); }
+.wpc-footer a:hover { color: var(--wp-text); }
+.wpc-footer__links { margin-bottom: .75rem; }
+.wpc-footer__links a { margin: 0 .5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wpc-body * { transition: none !important; }
+}
