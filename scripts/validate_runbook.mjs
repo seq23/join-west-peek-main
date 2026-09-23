@@ -5,7 +5,7 @@ import fs from "node:fs";
 const md = fs.readFileSync("RUNBOOK.md", "utf8");
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const paths = [...new Set([...md.matchAll(/`((?:sites|shared|scripts|functions|\.github)\/[^`#]+?)`/g)].map((m) => m[1]))].filter((p) => !p.includes("<"));
-const scripts = [...new Set([...md.matchAll(/`npm run ([a-z:-]+)`/g)].map((m) => m[1]))];
+const scripts = [...new Set([...md.matchAll(/`npm run ([a-z0-9:._-]+)`/g)].map((m) => m[1]))];
 const errors = [];
 if (!paths.length || !scripts.length) errors.push("RUNBOOK.md names no paths or no npm scripts");
 for (const p of paths) if (!fs.existsSync(p)) errors.push(`RUNBOOK.md names ${p}, which does not exist`);
