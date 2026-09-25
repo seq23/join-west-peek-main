@@ -114,10 +114,12 @@ jobs:
         run: npm run validate:runbook
 
       # Bing Site Scan, 25 Sep 2026: "Alt attribute for images is missing" on
-      # westpeekproductions.com/community-as-a-service/ (two logos with alt="").
-      # Every productions <img> must carry a non-empty alt, in sites/ and dist/.
-      - name: Validate productions images carry alt text
-        run: npm run validate:img-alt
+      # westpeekproductions.com/community-as-a-service/, and 10 of 15 pages with
+      # meta descriptions over 160 characters. Every productions <img> carries a
+      # non-empty alt; every indexable page a unique 30-70 title and 110-160
+      # description, in sites/ and dist/.
+      - name: Validate productions images, titles and descriptions
+        run: npm run validate:productions-seo
 
       # The entity check above reads the three hand-authored index pages. This
       # asserts the property that actually ships: every built page carries an
