@@ -2,8 +2,8 @@
   {
     "slug": "quarantinecon",
     "name": "QuarantineCon",
-    "dateRange": "March 20, 2020 – March 22, 2021",
-    "description": "The original digital conference — where 5,000 people gathered virtually the first weekend of the pandemic to learn, partner, and connect.",
+    "dateRange": "March 20, 2020 \u2013 March 22, 2021",
+    "description": "The original digital conference \u2014 where 5,000 people gathered virtually the first weekend of the pandemic to learn, partner, and connect.",
     "flyer": "assets/img/history/quarantinecon/scooter-taylor.webp",
     "photos": [
       {
@@ -12,7 +12,7 @@
       },
       {
         "src": "assets/img/history/quarantinecon/trevon-hill.webp",
-        "name": "Tre’von Hill"
+        "name": "Tre\u2019von Hill"
       },
       {
         "src": "assets/img/history/quarantinecon/skylar-marshai.webp",
@@ -20,7 +20,7 @@
       },
       {
         "src": "assets/img/history/quarantinecon/dearra-and-ken.webp",
-        "name": "De’arra & Ken"
+        "name": "De\u2019arra & Ken"
       },
       {
         "src": "assets/img/history/quarantinecon/jewel-burks-solomon.webp",
@@ -43,7 +43,7 @@
   {
     "slug": "virtual-gym",
     "name": "Virtual Gym",
-    "dateRange": "March 27 – May 7, 2020",
+    "dateRange": "March 27 \u2013 May 7, 2020",
     "description": "Live workouts with trainers from around the country, built to keep the community active and connected from home.",
     "flyer": "assets/img/history/virtual-gym/trey-cox.webp",
     "photos": [
@@ -120,7 +120,7 @@
   {
     "slug": "know-your-tribe-hbcu",
     "name": "Know Your Tribe / HBCU Event",
-    "dateRange": "June 9 – September 1, 2020",
+    "dateRange": "June 9 \u2013 September 1, 2020",
     "description": "Built with WeAreHBCUs to connect future students, current students, and alumni across the HBCU community.",
     "flyer": "assets/img/history/know-your-tribe-hbcu/01.webp",
     "photos": [
@@ -165,358 +165,350 @@
         "name": null
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/11.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/adrienne-seibert.webp",
+        "name": "Adrienne Seibert"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/12.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/alexander-lowe.webp",
+        "name": "Alexander Lowe"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/13.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/ashley-scott.webp",
+        "name": "Ashley Scott"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/14.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/brelyn-brooks.webp",
+        "name": "Brelyn Brooks"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/15.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/c-isaiah-smalls-ii.webp",
+        "name": "C. Isaiah Smalls II"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/16.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/darian-nwankwo.webp",
+        "name": "Darian Nwankwo"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/17.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/dehavia-stewart.webp",
+        "name": "De'Havia Stewart"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/18.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/dominique-mosley.webp",
+        "name": "Dominique Mosley"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/19.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/filmore-thomas.webp",
+        "name": "Filmore Thomas"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/20.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/giana-darville.webp",
+        "name": "Giana Darville"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/21.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/hannah-floyd.webp",
+        "name": "Hannah Floyd"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/22.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/imani-jennings.webp",
+        "name": "Imani Jennings"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/23.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/janece-dickerson.webp",
+        "name": "Ja'Nece Dickerson"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/24.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/jordan-jefferson.webp",
+        "name": "Jordan Jefferson"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/25.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/kellen-wilkins.webp",
+        "name": "Kellen Wilkins"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/26.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/myles-bartholomew.webp",
+        "name": "Myles Bartholomew"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/27.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/nathan-jones.webp",
+        "name": "Nathan Jones"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/28.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/nicole-johnson.webp",
+        "name": "Nicole Johnson"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/29.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/olumide-longe.webp",
+        "name": "Olumide Longe"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/30.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/thulani-vereen.webp",
+        "name": "Thulani Vereen"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/31.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/tino-mkorombindo.webp",
+        "name": "Tino Mkorombindo"
       },
       {
-        "src": "assets/img/history/know-your-tribe-hbcu/32.webp",
-        "name": null
-      },
-      {
-        "src": "assets/img/history/know-your-tribe-hbcu/33.webp",
-        "name": null
+        "src": "assets/img/history/know-your-tribe-hbcu/zakiya-evans.webp",
+        "name": "Zakiya Evans"
       }
     ]
   },
   {
     "slug": "virtual-career-fair-tech",
     "name": "Virtual Career Fair: Tech",
-    "dateRange": "April 24 – July 23, 2020",
+    "dateRange": "April 24 \u2013 July 23, 2020",
     "description": "Tech companies and candidates meeting virtually, with career coaches and keynote speakers along the way.",
-    "flyer": "assets/img/history/virtual-career-fair-tech/01.webp",
+    "flyer": "assets/img/history/virtual-career-fair-tech/damien-hooper-campbell.webp",
     "photos": [
       {
-        "src": "assets/img/history/virtual-career-fair-tech/01.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/damien-hooper-campbell.webp",
+        "name": "Damien Hooper-Campbell"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-tech/02.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/ernest-holmes.webp",
+        "name": "Ernest Holmes"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-tech/03.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/jaycee-holmes.webp",
+        "name": "Jaycee Holmes"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-tech/04.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/lelia-hampton.webp",
+        "name": "Lelia Hampton"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-tech/05.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/marcus-mitchell.webp",
+        "name": "Marcus Mitchell"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-tech/06.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/ruben-harris.webp",
+        "name": "Ruben Harris"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-tech/07.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/thulani-vereen.webp",
+        "name": "Thulani Vereen"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-tech/08.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-tech/vanessa-whatley.webp",
+        "name": "Vanessa Whatley"
       }
     ]
   },
   {
     "slug": "virtual-career-fair-jopwell",
     "name": "Virtual Career Fair, powered by Jopwell",
-    "dateRange": "April 24 – July 23, 2020",
+    "dateRange": "April 24 \u2013 July 23, 2020",
     "description": "A career fair run with Jopwell, connecting companies with Black, Latinx and Native American candidates.",
-    "flyer": "assets/img/history/virtual-career-fair-jopwell/01.webp",
+    "flyer": "assets/img/history/virtual-career-fair-jopwell/carla-harris.webp",
     "photos": [
       {
-        "src": "assets/img/history/virtual-career-fair-jopwell/01.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-jopwell/carla-harris.webp",
+        "name": "Carla Harris"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-jopwell/02.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-jopwell/desiree-booker.webp",
+        "name": "Desiree Booker"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-jopwell/03.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-jopwell/marli-crowe.webp",
+        "name": "Marli Crowe"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-jopwell/04.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-jopwell/nadia-abouzaid.webp",
+        "name": "Nadia Abouzaid"
       },
       {
-        "src": "assets/img/history/virtual-career-fair-jopwell/05.webp",
-        "name": null
+        "src": "assets/img/history/virtual-career-fair-jopwell/sydney-savage.webp",
+        "name": "Sydney Savage"
       }
     ]
   },
   {
     "slug": "culinary-showcase",
     "name": "Culinary Showcase",
-    "dateRange": "May 6 – 9, 2020",
+    "dateRange": "May 6 \u2013 9, 2020",
     "description": "Live demonstrations from chefs and mixologists, teaching new recipes for food and drink alike.",
-    "flyer": "assets/img/history/culinary-showcase/01.webp",
+    "flyer": "assets/img/history/culinary-showcase/chef-gabrielle.webp",
     "photos": [
       {
-        "src": "assets/img/history/culinary-showcase/01.webp",
-        "name": null
+        "src": "assets/img/history/culinary-showcase/chef-gabrielle.webp",
+        "name": "Chef Gabrielle"
       },
       {
-        "src": "assets/img/history/culinary-showcase/02.webp",
-        "name": null
+        "src": "assets/img/history/culinary-showcase/chef-jupiter.webp",
+        "name": "Chef Jupiter"
       },
       {
-        "src": "assets/img/history/culinary-showcase/03.webp",
-        "name": null
+        "src": "assets/img/history/culinary-showcase/chef-za.webp",
+        "name": "Chef Za"
       },
       {
-        "src": "assets/img/history/culinary-showcase/04.webp",
-        "name": null
+        "src": "assets/img/history/culinary-showcase/falayn-ferrell.webp",
+        "name": "Falayn Ferrell"
       },
       {
-        "src": "assets/img/history/culinary-showcase/05.webp",
-        "name": null
+        "src": "assets/img/history/culinary-showcase/laolu-onabanjo.webp",
+        "name": "Laolu Onabanjo"
       },
       {
-        "src": "assets/img/history/culinary-showcase/06.webp",
-        "name": null
-      },
-      {
-        "src": "assets/img/history/culinary-showcase/07.webp",
-        "name": null
+        "src": "assets/img/history/culinary-showcase/tyler-bryant.webp",
+        "name": "Tyler Bryant"
       }
     ]
   },
   {
     "slug": "pivot-and-pitch",
     "name": "Pitch & Pivot: Virtual Pitch Competition",
-    "dateRange": "May 23 – 24, 2020",
-    "description": "A virtual pitch competition for founders, in partnership with Collab Capital and Color of Change — its first winner took home $25,000.",
-    "flyer": "assets/img/history/pivot-and-pitch/01.webp",
+    "dateRange": "May 23 \u2013 24, 2020",
+    "description": "A virtual pitch competition for founders, in partnership with Collab Capital and Color of Change \u2014 its first winner took home $25,000.",
+    "flyer": "assets/img/history/pivot-and-pitch/andrew-hill.webp",
     "photos": [
       {
-        "src": "assets/img/history/pivot-and-pitch/01.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/andrew-hill.webp",
+        "name": "Andrew Hill"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/02.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/barry-givens.webp",
+        "name": "Barry Givens"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/03.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/donald-washington.webp",
+        "name": "Donald Washington"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/04.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/james-lott.webp",
+        "name": "James Lott"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/05.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/jasmine-jones.webp",
+        "name": "Jasmine Jones"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/06.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/jewel-burks-solomon.webp",
+        "name": "Jewel Burks Solomon"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/07.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/julius-bryant.webp",
+        "name": "Julius Bryant"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/08.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/justin-dawkins.webp",
+        "name": "Justin Dawkins"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/09.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/maisha-c-leek.webp",
+        "name": "Maisha C. Leek"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/10.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/mandela-sh-dixon.webp",
+        "name": "Mandela SH Dixon"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/11.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/omar-wasow.webp",
+        "name": "Omar Wasow"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/12.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/patrice-darby.webp",
+        "name": "Patrice Darby"
       },
       {
-        "src": "assets/img/history/pivot-and-pitch/13.webp",
-        "name": null
+        "src": "assets/img/history/pivot-and-pitch/ryan-wilson.webp",
+        "name": "Ryan Wilson"
       }
     ]
   },
   {
     "slug": "sunday-suppers-sweet-auburn-stories",
     "name": "Sunday Suppers / Sweet Auburn Stories",
-    "dateRange": "July 5 – November 29, 2020",
+    "dateRange": "July 5 \u2013 November 29, 2020",
     "description": "Sunday conversations with civil rights icons and community elders, preserving stories across generations.",
-    "flyer": "assets/img/history/sunday-suppers-sweet-auburn-stories/01.webp",
+    "flyer": "assets/img/history/sunday-suppers-sweet-auburn-stories/adrienne-white.webp",
     "photos": [
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/01.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/adrienne-white.webp",
+        "name": "Adrienne White"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/02.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/andre-washington.webp",
+        "name": "Andr\u00e9 Washington"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/03.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/cj-davis.webp",
+        "name": "C.J. Davis"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/04.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/david-moody.webp",
+        "name": "David Moody"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/05.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/demarius-brinkley.webp",
+        "name": "Demarius Brinkley"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/06.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/derek-watkins.webp",
+        "name": "Derek Watkins"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/07.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/dr-roslyn-pope.webp",
+        "name": "Dr. Roslyn Pope"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/08.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/henrietta-antonin.webp",
+        "name": "Henrietta Antonin"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/09.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/hourglass.webp",
+        "name": "Hourglass"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/10.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/pinky-cole.webp",
+        "name": "Pinky Cole"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/11.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/tamieka-atkins.webp",
+        "name": "Tamieka Atkins"
       },
       {
-        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/12.webp",
-        "name": null
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/tyra-beaman.webp",
+        "name": "Tyra Beaman"
       }
     ]
   },
   {
     "slug": "mental-health-wellness-retreat",
     "name": "A Day for Mental Health and Wellness",
-    "dateRange": "April 27 – May 2, 2020",
-    "description": "Panels and breakout sessions on head, heart, and body — coping with the new normal together.",
-    "flyer": "assets/img/history/mental-health-wellness-retreat/01.webp",
+    "dateRange": "April 27 \u2013 May 2, 2020",
+    "description": "Panels and breakout sessions on head, heart, and body \u2014 coping with the new normal together.",
+    "flyer": "assets/img/history/mental-health-wellness-retreat/brittany-rogers.webp",
     "photos": [
       {
-        "src": "assets/img/history/mental-health-wellness-retreat/01.webp",
-        "name": null
+        "src": "assets/img/history/mental-health-wellness-retreat/brittany-rogers.webp",
+        "name": "Brittany Rogers"
       },
       {
-        "src": "assets/img/history/mental-health-wellness-retreat/02.webp",
-        "name": null
+        "src": "assets/img/history/mental-health-wellness-retreat/christina-rice.webp",
+        "name": "Christina Rice"
       },
       {
-        "src": "assets/img/history/mental-health-wellness-retreat/03.webp",
-        "name": null
+        "src": "assets/img/history/mental-health-wellness-retreat/dr-alduan-tartt.webp",
+        "name": "Dr. Alduan Tartt"
       },
       {
-        "src": "assets/img/history/mental-health-wellness-retreat/04.webp",
-        "name": null
+        "src": "assets/img/history/mental-health-wellness-retreat/erin-johnson.webp",
+        "name": "Erin Johnson"
       },
       {
-        "src": "assets/img/history/mental-health-wellness-retreat/05.webp",
-        "name": null
+        "src": "assets/img/history/mental-health-wellness-retreat/jai-huntley.webp",
+        "name": "Jai Huntley"
       },
       {
-        "src": "assets/img/history/mental-health-wellness-retreat/06.webp",
-        "name": null
+        "src": "assets/img/history/mental-health-wellness-retreat/julianne-plummer.webp",
+        "name": "Julianne Plummer"
       },
       {
-        "src": "assets/img/history/mental-health-wellness-retreat/07.webp",
-        "name": null
+        "src": "assets/img/history/mental-health-wellness-retreat/marla-stewart.webp",
+        "name": "Marla Stewart"
       }
     ]
   },
@@ -525,91 +517,87 @@
     "name": "Higher Education Day",
     "dateRange": "August 20, 2020",
     "description": "A day for deans, admissions counselors, and current students to talk through MBA, law, medical, and graduate school plans upended by COVID-19.",
-    "flyer": "assets/img/history/higher-education-day/01.webp",
+    "flyer": "assets/img/history/higher-education-day/aaron-hancock.webp",
     "photos": [
       {
-        "src": "assets/img/history/higher-education-day/01.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/aaron-hancock.webp",
+        "name": "Aaron Hancock"
       },
       {
-        "src": "assets/img/history/higher-education-day/02.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/brittanie-height.webp",
+        "name": "Brittanie Height"
       },
       {
-        "src": "assets/img/history/higher-education-day/03.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/cj-plummer.webp",
+        "name": "CJ Plummer"
       },
       {
-        "src": "assets/img/history/higher-education-day/04.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/cedric-bright.webp",
+        "name": "Cedric Bright"
       },
       {
-        "src": "assets/img/history/higher-education-day/05.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/chris-staten.webp",
+        "name": "Chris Staten"
       },
       {
-        "src": "assets/img/history/higher-education-day/06.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/dshai-hendricks.webp",
+        "name": "D'Shai Hendricks"
       },
       {
-        "src": "assets/img/history/higher-education-day/07.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/daniel-amponsah.webp",
+        "name": "Daniel Amponsah"
       },
       {
-        "src": "assets/img/history/higher-education-day/08.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/david-rose.webp",
+        "name": "David Rose"
       },
       {
-        "src": "assets/img/history/higher-education-day/09.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/devonte-johnson.webp",
+        "name": "Devonte Johnson"
       },
       {
-        "src": "assets/img/history/higher-education-day/10.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/dwayne-compton.webp",
+        "name": "Dwayne Compton"
       },
       {
-        "src": "assets/img/history/higher-education-day/11.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/erika-baker.webp",
+        "name": "Erika Baker"
       },
       {
-        "src": "assets/img/history/higher-education-day/12.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/gilbert-murimwa.webp",
+        "name": "Gilbert Murimwa"
       },
       {
-        "src": "assets/img/history/higher-education-day/13.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/jaquial-durham.webp",
+        "name": "Jaquial Durham"
       },
       {
-        "src": "assets/img/history/higher-education-day/14.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/jasmin-eatman.webp",
+        "name": "Jasmin Eatman"
       },
       {
-        "src": "assets/img/history/higher-education-day/15.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/maija-hallsmith.webp",
+        "name": "Maija Hallsmith"
       },
       {
-        "src": "assets/img/history/higher-education-day/16.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/rachel-oreggio.webp",
+        "name": "Rachel O'Reggio"
       },
       {
-        "src": "assets/img/history/higher-education-day/17.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/tamanda-douglas.webp",
+        "name": "Tamanda Douglas"
       },
       {
-        "src": "assets/img/history/higher-education-day/18.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/tiffani-mcelrath.webp",
+        "name": "Tiffani McElrath"
       },
       {
-        "src": "assets/img/history/higher-education-day/19.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/tim-purdie.webp",
+        "name": "Tim Purdie"
       },
       {
-        "src": "assets/img/history/higher-education-day/20.webp",
-        "name": null
-      },
-      {
-        "src": "assets/img/history/higher-education-day/21.webp",
-        "name": null
+        "src": "assets/img/history/higher-education-day/tracy-williams.webp",
+        "name": "Tracy Williams"
       }
     ]
   },
@@ -618,15 +606,15 @@
     "name": "Wealth Building 101",
     "dateRange": "2020",
     "description": "A session on building wealth from the ground up: budgeting, credit, and investing basics for the community.",
-    "flyer": "assets/img/history/wealth-building-101/01.webp",
+    "flyer": "assets/img/history/wealth-building-101/ashley-fox.webp",
     "photos": [
       {
-        "src": "assets/img/history/wealth-building-101/01.webp",
-        "name": null
+        "src": "assets/img/history/wealth-building-101/ashley-fox.webp",
+        "name": "Ashley Fox"
       },
       {
-        "src": "assets/img/history/wealth-building-101/02.webp",
-        "name": null
+        "src": "assets/img/history/wealth-building-101/rob-boyd.webp",
+        "name": "Rob Boyd"
       }
     ]
   },
@@ -635,11 +623,11 @@
     "name": "Fireside Chat with Cam Kirk",
     "dateRange": "2020",
     "description": "A fireside conversation with photographer and entrepreneur Cam Kirk.",
-    "flyer": "assets/img/history/fireside-chat-cam-kirk/01.webp",
+    "flyer": "assets/img/history/fireside-chat-cam-kirk/cam-kirk.webp",
     "photos": [
       {
-        "src": "assets/img/history/fireside-chat-cam-kirk/01.webp",
-        "name": null
+        "src": "assets/img/history/fireside-chat-cam-kirk/cam-kirk.webp",
+        "name": "Cam Kirk"
       }
     ]
   }
