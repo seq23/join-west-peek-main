@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Join the West Peek Community | West Peek</title>
-  <meta name="description" content="Join a community of more than 5,000 founders, operators, investors, creatives and builders. Free. Newsletter, event invitations and podcast updates — no other email.">
-  <link rel="canonical" href="https://joinwestpeek.com/join"/>
+  <title>Pitch Competition | West Peek Community</title>
+  <meta name="description" content="Monthly pitch competition in partnership with Sengo. Non-dilutive capital for founders at the earliest stages.">
+  <link rel="canonical" href="https://joinwestpeek.com/pitch"/>
   <link rel="stylesheet" href="/assets/community.css">
 <script type="application/ld+json" data-wp-identity>
 {
@@ -22,10 +22,10 @@
     },
     {
       "@type": "WebPage",
-      "@id": "https://joinwestpeek.com/join#webpage",
-      "url": "https://joinwestpeek.com/join",
-      "name": "Join the West Peek Community | West Peek",
-      "description": "Join a community of more than 5,000 founders, operators, investors, creatives and builders. Free. Newsletter, event invitations and podcast updates — no other email.",
+      "@id": "https://joinwestpeek.com/pitch#webpage",
+      "url": "https://joinwestpeek.com/pitch",
+      "name": "Pitch Competition | West Peek Community",
+      "description": "Monthly pitch competition in partnership with Sengo. Non-dilutive capital for founders at the earliest stages.",
       "isPartOf": {
         "@id": "https://joinwestpeek.com/#website"
       },
@@ -101,7 +101,7 @@
     <div class="wpc-nav__links">
       <a href="/episodes">Podcast</a>
       <a href="/update">Update</a>
-      <a href="/pitch">Pitch</a>
+      <a href="/pitch" aria-current="page">Pitch</a>
       <a href="/workshops">Workshops</a>
       <a href="/#dinners">Dinners</a>
     </div>
@@ -109,54 +109,25 @@
 </nav>
 
 <div class="wpc-page-head">
-  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / Join</p>
-  <h1>Join the West Peek community</h1>
-  <p>More than 5,000 founders, operators, investors, creatives and builders. Free to join, and we only email when there is something real to say.</p>
+  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / Pitch</p>
+  <h1>Pitch Competition</h1>
+  <p>We host monthly pitch competitions in partnership with Sengo, so you can get access to non-dilutive capital. This is a great way to practice your pitch &mdash; pitch in front of real investors to get real feedback, and in front of a live audience, which can lead to more opportunities and more awareness.</p>
+  <p><strong>Prize: a $1,000 cash prize, along with a $500 Audience Choice Award.</strong> Cadence: monthly.</p>
 </div>
 
-<div class="wpc-main wpc-form">
-  <form data-westpeek-form action="/api/lead" method="POST"
-        data-success="You're on the list. We'll be in touch when there's something real to share.">
-    <input type="hidden" name="site" value="community">
-    <input type="hidden" name="lead_type" value="community_join">
-    <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
-    <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
-
-    <label for="join-name">Name</label>
-    <input id="join-name" name="name" autocomplete="name">
-
-    <label for="join-email">Email</label>
-    <input id="join-email" name="email" type="email" autocomplete="email" required>
-
-    <label for="join-role">What best describes you?</label>
-    <select id="join-role" name="role" required>
-      <option value="">Select&hellip;</option>
-      <option>Founder</option>
-      <option>Operator</option>
-      <option>Investor</option>
-      <option>Creative</option>
-      <option>Builder</option>
-      <option>Something else</option>
-    </select>
-
-    <label for="join-interest">What are you most interested in?</label>
-    <select id="join-interest" name="interest" required>
-      <option value="">Select&hellip;</option>
-      <option>Newsletter</option>
-      <option>Events</option>
-      <option>Podcast updates</option>
-      <option>Meeting other founders</option>
-      <option>Partnerships</option>
-    </select>
-
-    <label for="join-note">What are you working on? (optional)</label>
-    <textarea id="join-note" name="description" placeholder="One line is plenty."></textarea>
-
-    <button type="submit" class="wpc-btn">Join the community</button>
-    <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
-    <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
-  </form>
+<div class="wpc-main">
+  <div class="wpc-placeholder">
+    <p class="wpc-placeholder__tag">Application &mdash; pending</p>
+    <p>Sengo's application link is not yet connected. The Sengo Airtable base referenced in a prior invitation is no longer accessible, and no public application URL has been located.</p>
+    <p class="small" style="color:#9a9a9a">Once Sengo provides the current application link, it replaces this block with no other layout change.</p>
+  </div>
 </div>
+
+<section class="wpc-section">
+  <p class="wpc-section__tag">Past Winners</p>
+  <h2>Past Winners</h2>
+  <div class="wpc-grid" id="winner-grid"></div>
+</section>
 
 <footer class="wpc-footer">
   <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.linkedin.com/company/west-peek-group/about/" target="_blank" rel="noopener">LinkedIn</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
@@ -164,6 +135,5 @@
   <div style="margin-top:.5rem">&copy; West Peek</div>
 </footer>
 <script src="/assets/community.js"></script>
-<script src="/assets/js/forms.js"></script>
 </body>
 </html>

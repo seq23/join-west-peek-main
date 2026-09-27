@@ -249,9 +249,18 @@ const required = {
     path.join(outAssets, "js", "forms.js"),
   ],
   community: [
-    path.join(outAssets, "base.css"),
-    path.join(outAssets, "img", "community-logo.jpg"),
+    // 23 Sep 2026 redesign: black/orange visual system, self-hosted Maax, and
+    // the data files the episode/winner/history pages read at runtime.
     path.join(outAssets, "js", "forms.js"),
+    path.join(outAssets, "community.css"),
+    path.join(outAssets, "community.js"),
+    path.join(outAssets, "img", "community-monogram.png"),
+    path.join(outAssets, "fonts", "Maax-Regular.woff2"),
+    path.join(outAssets, "fonts", "Maax-Medium.woff2"),
+    path.join(outAssets, "fonts", "Maax-Bold.woff2"),
+    path.join(outAssets, "data", "episodes.json"),
+    path.join(outAssets, "data", "winners.json"),
+    path.join(outAssets, "data", "history-events.json"),
   ],
 };
 
