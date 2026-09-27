@@ -1,1 +1,66 @@
-[]
+[
+  {
+    "company": "Nibble Foods",
+    "founder": "Josh Van Tassel and Alex Pope",
+    "winDate": "August 2026",
+    "headshot": "assets/img/pitch-winners/nibble-foods.webp",
+    "headshotAlt": "Josh Van Tassel and Alex Pope, founders of Nibble Foods, August 2026 pitch competition winners",
+    "description": "Josh Van Tassel and Alex Pope, founders of Nibble Foods, won the August 2026 West Peek pitch competition with their frozen cheesecake bites."
+  },
+  {
+    "company": "My Block Skin",
+    "founder": "Dujon Smith",
+    "winDate": "June 2026",
+    "headshot": "assets/img/pitch-winners/my-block-skin.webp",
+    "headshotAlt": "Dujon Smith, founder of My Block Skin, June 2026 pitch competition winner",
+    "description": "Dujon Smith, founder of My Block Skin, won the June 2026 West Peek pitch competition with his men's sun-care line."
+  },
+  {
+    "company": "Green Jobs Board",
+    "founder": "Kristy Drutman",
+    "winDate": "May 2026",
+    "headshot": "assets/img/pitch-winners/green-jobs-board.webp",
+    "headshotAlt": "Kristy Drutman, founder of Green Jobs Board, May 2026 pitch competition winner",
+    "description": "Kristy Drutman, founder of Green Jobs Board, won the May 2026 West Peek pitch competition with her climate-careers job platform."
+  },
+  {
+    "company": "Nou Ni",
+    "founder": "Nadia Crevecoeur",
+    "winDate": "March 2026",
+    "headshot": "assets/img/pitch-winners/nou-ni.webp",
+    "headshotAlt": "Nadia Crevecoeur, founder of Nou Ni, March 2026 pitch competition winner",
+    "description": "Nadia Crevecoeur, founder of Nou Ni, won the March 2026 West Peek pitch competition."
+  },
+  {
+    "company": "Postpartum Panty Party",
+    "founder": "Lisa Vominh",
+    "winDate": "January 2026",
+    "headshot": "assets/img/pitch-winners/postpartum-panty-party.webp",
+    "headshotAlt": "Lisa Vominh, founder of Postpartum Panty Party, January 2026 pitch competition winner",
+    "description": "Lisa Vominh, founder of Postpartum Panty Party, won the January 2026 West Peek pitch competition with her postpartum recovery kits."
+  },
+  {
+    "company": "Hardcore PB Spread Co",
+    "founder": "Bryant Williams",
+    "winDate": "November 2025",
+    "headshot": "assets/img/pitch-winners/hardcore-pb-spread-co.webp",
+    "headshotAlt": "Bryant Williams, founder of Hardcore PB Spread Co, November 2025 pitch competition winner",
+    "description": "Bryant Williams, founder of Hardcore PB Spread Co, won the November 2025 West Peek pitch competition with his peanut butter line."
+  },
+  {
+    "company": "The Jefas",
+    "founder": "Aurora Diaz",
+    "winDate": "October 2025",
+    "headshot": "assets/img/pitch-winners/the-jefas.webp",
+    "headshotAlt": "Aurora Diaz, founder of The Jefas, October 2025 pitch competition winner",
+    "description": "Aurora Diaz, founder of The Jefas, won the October 2025 West Peek pitch competition with her beauty brand."
+  },
+  {
+    "company": "Psyflo",
+    "founder": "Deanna Oliver",
+    "winDate": "September 2025",
+    "headshot": "assets/img/pitch-winners/psyflo.webp",
+    "headshotAlt": "Deanna Oliver, founder of Psyflo, September 2025 pitch competition winner",
+    "description": "Deanna Oliver, founder of Psyflo, won the September 2025 West Peek pitch competition."
+  }
+]

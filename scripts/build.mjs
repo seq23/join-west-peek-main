@@ -23,6 +23,48 @@ fs.mkdirSync(out, { recursive: true });
 
 copyRecursive(src, out);
 
+// Per-episode pages for community: one template + episodes.json, not one
+// hand-written file per guest, so a new episode is a JSON row rather than a
+// page somebody has to remember to write. Generated before the 404/schema/
+// sitemap passes below so an episode page gets the same treatment as any
+// other page (Organization schema, sitemap entry, dated lastmod).
+if (target === "community") {
+  const templatePath = path.join(src, "episode-template.html");
+  const episodesPath = path.join(src, "assets", "data", "episodes.json");
+  if (exists(templatePath) && exists(episodesPath)) {
+    const template = fs.readFileSync(templatePath, "utf8");
+    const episodes = JSON.parse(fs.readFileSync(episodesPath, "utf8"));
+    const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const videoBlock = (ep) => ep.youtube
+      ? `      <div class="wpc-card__player"><iframe src="https://www.youtube-nocookie.com/embed/${esc(ep.youtube)}" title="${esc(ep.guest)} on Good People Should Meet Good People" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
+      : `      <div class="wpc-card__soon">Episode coming soon</div>`;
+    const otherEpisodeCard = (ep) =>
+      `      <a class="wpc-card" href="/episodes/${esc(ep.slug)}/"><img class="wpc-card__photo" src="/${esc(ep.headshot)}" alt="${esc(ep.headshotAlt || ep.guest)}" loading="lazy"><div class="wpc-card__body"><p class="wpc-card__number">Episode ${ep.number}${ep.youtube ? "" : " &middot; coming soon"}</p><h3 class="wpc-card__name">${esc(ep.guest)}</h3></div></a>`;
+
+    for (const ep of episodes) {
+      if (!ep.slug) fail(`community episode "${ep.guest}" has no slug; cannot generate /episodes/${"<slug>"}`);
+      const others = episodes.filter((e) => e.slug !== ep.slug).map(otherEpisodeCard).join("\n");
+      const page = template
+        .replaceAll("{{SLUG}}", esc(ep.slug))
+        .replaceAll("{{NUMBER}}", esc(ep.number))
+        .replaceAll("{{GUEST}}", esc(ep.guest))
+        .replaceAll("{{TITLE}}", esc(ep.title))
+        .replaceAll("{{SYNOPSIS}}", esc(ep.synopsis))
+        .replaceAll("{{HEADSHOT}}", esc(ep.headshot))
+        .replaceAll("{{HEADSHOT_ALT}}", esc(ep.headshotAlt || ep.guest))
+        .replace("{{VIDEO_BLOCK}}", videoBlock(ep))
+        .replace("{{OTHER_EPISODES}}", others);
+      const outDir = path.join(out, "episodes", ep.slug);
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(path.join(outDir, "index.html"), page);
+    }
+    // The template itself is source, not a page - it has no real content and
+    // must not ship or show up in the sitemap.
+    fs.rmSync(path.join(out, "episode-template.html"), { force: true });
+    console.log(`episodes: generated ${episodes.length} page(s) under /episodes/<slug>`);
+  }
+}
+
 // A real 404. Without a 404.html in the output, Cloudflare Pages answers 200 with
 // the site index for every address that does not exist, so search engines can
 // index unlimited synthetic URLs carrying a duplicate of the homepage. Verified
@@ -261,6 +303,8 @@ const required = {
     path.join(outAssets, "data", "episodes.json"),
     path.join(outAssets, "data", "winners.json"),
     path.join(outAssets, "data", "history-events.json"),
+    path.join(outAssets, "data", "hero.json"),
+    path.join(outAssets, "data", "workshops.json"),
   ],
 };
 

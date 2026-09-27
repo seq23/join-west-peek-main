@@ -63,26 +63,39 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 - **Decisions an employee must ask, not make**: brand or colourway, copy meaning, legal or
   regulatory wording, removing a public claim, image rights, anything about money. Structure, CSS,
   validators, redirects, asset handling: decide, record on the card, keep going.
-- **Community visual system (23 Sep 2026 redesign)**: black background, one orange token
-  (`--wp-orange: #c45a3c`, the value already live on ventures), Maax self-hosted from
+- **Community visual system (23 Sep 2026 redesign; brightened 27 Sep 2026)**: white background,
+  body ink `#343F49`, one orange token for buttons/links (`--wp-orange: #e0632f`, lifted from the
+  original `#c45a3c` per Scooter's 27 Sep 2026 note that black read too dark), and the deeper
+  tones from "website design thoughts.pdf" (page 3) as section accents
+  (`--wp-accent-red/amber/gold/teal/plum/violet/olive`). Maax self-hosted from
   `sites/community/assets/fonts/`, no script/cursive type and no italics as a stylistic device
   anywhere on the site. Its own stylesheet is `sites/community/assets/community.css` —
-  `shared/assets/base.css` is untouched by this and still serves the other two sites.
+  `shared/assets/base.css` is untouched by this and still serves the other two sites. Scroll
+  motion on the homepage and about page (`[data-parallax-speed]` elements, transform-only, JS in
+  `assets/community.js`) is off under `prefers-reduced-motion`.
 - **Community nav is one list, same on every page**: Podcast &middot; Update &middot; Pitch &middot;
-  Workshops &middot; Dinners &rarr; `/episodes`, `/update`, `/pitch`, `/workshops`, `/#dinners`.
+  Workshops &rarr; `/episodes`, `/update`, `/pitch`, `/workshops`. Dinners was removed from the
+  nav and the homepage 27 Sep 2026 (Scooter: no photos yet); the copy and code are not deleted,
+  only unlinked, so it can come back with a nav row and a homepage section when there are photos.
   No navigation from joinwestpeek.com to westpeek.ventures, westpeekproductions.com or
   westpeek.live (Scooter's 20 Sep 2026 rule, same as ventures isolation) — the JSON-LD entity
   graph on the homepage is exempt, since structured data is not navigation. `/join` carries the
-  same nav and the community's sheet-writing join form, linked from the footer only. Guard:
-  `npm run validate:community-site`.
-- **Community homepage order is fixed**: Hero (text only, the brief's exact line, no image) &middot;
-  Origin/History &middot; Podcast &middot; The Update &middot; Pitch Competition &middot; Workshops
-  &middot; Dinners (copy-only, no button). `/podcast` and `/history` are retired and 301 to
-  `/episodes` and `/about` respectively, in `sites/community/_redirects`.
+  same nav and the community's sheet-writing join form, reachable from the hero Join button and
+  the footer. **Footer carries no LinkedIn link** (27 Sep 2026). Guard: `npm run validate:community-site`.
+- **Community homepage order is fixed**: Hero (the brief's exact line, a Join button, and a photo
+  slot that stays hidden until `assets/data/hero.json` names a photo) &middot; Origin/History
+  &middot; Podcast &middot; The Update &middot; Pitch Competition &middot; Workshops. `/podcast`
+  and `/history` are retired and 301 to `/episodes` and `/about` respectively, in
+  `sites/community/_redirects`.
 - **Episode, winner, and history-event records live in one data file each**
   (`sites/community/assets/data/episodes.json`, `winners.json`, `history-events.json`), read at
   runtime by `assets/community.js`. No invented YouTube id, headshot, winner, or event may ship —
-  a missing record is a structured placeholder, never a guess.
+  a missing record is a structured placeholder, never a guess. Each history-event record carries a
+  `photos` array (`{src, name}`, `name` null when the source file carries none) rendered as a
+  flyer carousel; `flyer` stays as the first photo for the collapsed-row thumbnail. Each episode
+  gets its own page at `/episodes/<slug>`, generated at build time by `scripts/build.mjs` from
+  `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
+  is a JSON row, not a new page to remember to write.
 
 ## How to make a change
 1. Branch `work/<slug>` off `main` (CI runs on `work/**` pushes and on the PR).

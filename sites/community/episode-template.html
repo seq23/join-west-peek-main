@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{GUEST}} | Good People Should Meet Good People | West Peek Community</title>
+  <meta name="description" content="{{TITLE}}">
+  <link rel="canonical" href="https://joinwestpeek.com/episodes/{{SLUG}}/"/>
+  <link rel="stylesheet" href="/assets/community.css">
+</head>
+<body class="wpc-body">
+<nav class="wpc-nav" aria-label="Main navigation">
+  <div class="wpc-nav__inner">
+    <a class="wpc-nav__logo" href="/"><img src="/assets/img/community-monogram.png" alt="West Peek"><span>West Peek</span></a>
+    <button class="wpc-nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div class="wpc-nav__links">
+      <a href="/episodes" aria-current="page">Podcast</a>
+      <a href="/update">Update</a>
+      <a href="/pitch">Pitch</a>
+      <a href="/workshops">Workshops</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wpc-page-head">
+  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / <a href="/episodes">Podcast</a> / {{GUEST}}</p>
+  <p class="wpc-section__tag" data-accent="podcast">Good People Should Meet Good People</p>
+  <p class="wpc-series-intro">What happens when you meet the right person at the right time under the right context? We interview entrepreneurs, creatives, and professionals doing great work in their fields and communities who have something to teach us. Every good person should meet the people below.</p>
+</div>
+
+<div class="wpc-main">
+  <article class="wpc-episode">
+    <div class="wpc-episode__photo">
+      <p class="wpc-card__number">Episode {{NUMBER}}</p>
+      <img src="/{{HEADSHOT}}" alt="{{HEADSHOT_ALT}}" loading="lazy">
+    </div>
+    <div class="wpc-episode__player">
+      <h1>{{GUEST}}</h1>
+      <p class="wpc-episode__title">{{TITLE}}</p>
+{{VIDEO_BLOCK}}
+      <p>{{SYNOPSIS}}</p>
+    </div>
+  </article>
+
+  <section class="wpc-episode__more">
+    <p class="wpc-section__tag" data-accent="podcast">More Episodes</p>
+    <div class="wpc-episode__row">
+{{OTHER_EPISODES}}
+    </div>
+  </section>
+</div>
+
+<footer class="wpc-footer">
+  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
+  <div>Good people should meet good people.</div>
+  <div style="margin-top:.5rem">&copy; West Peek</div>
+</footer>
+<script src="/assets/community.js"></script>
+</body>
+</html>

@@ -54,15 +54,15 @@
       "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
     },
     {
-      "repo": "airtable",
-      "file": "sites/community/update.html embeds https://airtable.com/appvK9WhpOiYhjlcH/pagX6VfY2OFBSfv10/form",
-      "form": "community_update",
-      "host": "joinwestpeek.com (form itself is hosted by Airtable, not this repo)",
-      "description": "The Update — quarterly wins/asks form. The page embeds Airtable's own hosted form; join-west-peek-main carries no <form> element for it, so FORM-10's local markup check does not apply to this row.",
-      "destination": "named_stop",
-      "reason": "NAMED STOP - the people filling this in are West Peek's own contacts, so they belong in the master network sheet by rule, but the Site Architecture & Design Brief (Part Five, 'All forms run on Airtable') puts this form on Airtable, and nothing in this repo can bridge a third-party embedded Airtable form back into the West Peek Network OS intake door. The form works and collects submissions; it collects them into Airtable, not the sheet. Closing this gap needs an Airtable automation or webhook posting to the intake door, which is outside sites/community and outside this change.",
-      "named_by": "Claude (Porter), on the owner's PRE-APPROVED build-this-folder instruction",
-      "date": "2026-09-23"
+      "repo": "join-west-peek-main",
+      "site": "community",
+      "file": "sites/community/update.html",
+      "form": "the_update",
+      "host": "joinwestpeek.com",
+      "description": "The Update — quarterly wins/asks form, rebuilt in the ventures form style (steps, progress bar) and gated to its window by functions/update.js. The Airtable embed named_stop this row used to carry is closed: this form now posts to /api/lead directly, like every other West Peek form.",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form",
+      "note": "Replaces the 23 Sep 2026 named_stop row (the_update was on Airtable, unreachable from this repo). The Airtable base and its existing data are untouched — only the live form on joinwestpeek.com changed. Sequoia, 27 Sep 2026."
     },
     {
       "repo": "join-west-peek-main",
