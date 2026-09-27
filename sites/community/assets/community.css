@@ -55,12 +55,22 @@
   --wp-accent-olive: #6d6614;
 }
 
-.wpc-body { background: var(--wp-black); color: var(--wp-text); font-family: 'Maax', -apple-system, sans-serif; font-weight: 400; margin: 0; }
+html { overflow-x: hidden; }
+*, *::before, *::after { box-sizing: border-box; }
+.wpc-body { background: var(--wp-black); color: var(--wp-text); font-family: 'Maax', -apple-system, sans-serif; font-weight: 400; margin: 0; overflow-x: hidden; width: 100%; }
 .wpc-body h1, .wpc-body h2, .wpc-body h3, .wpc-body h4, .wpc-body nav, .wpc-body button { font-family: 'Maax', -apple-system, sans-serif; font-weight: 700; letter-spacing: -0.01em; color: var(--wp-text); }
 .wpc-body em, .wpc-body i, .wpc-body .italic { font-style: normal; } /* No italics as a stylistic device, anywhere on this site. */
 .wpc-body a { color: var(--wp-orange); text-decoration: none; }
 .wpc-body a:hover, .wpc-body a:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 .wpc-body img { max-width: 100%; display: block; }
+/* The browser's own [hidden] { display: none } is a user-agent rule, so ANY
+   author rule that sets display on the same element beats it regardless of
+   specificity (origin outranks specificity in the cascade) - the hero-photo
+   slot above hit exactly this against ".wpc-body img", and the wizard's
+   Back/Submit buttons hit it against .wpc-btn's display:inline-flex. One
+   rule here, scoped to this stylesheet's own components, is cheaper than
+   chasing every future case individually. */
+.wpc-body [hidden] { display: none !important; }
 
 /* ---------------------------------------------------------------- Nav */
 .wpc-nav {
@@ -95,11 +105,11 @@
 
 /* ---------------------------------------------------------------- Layout */
 .wpc-main { max-width: 1080px; margin: 0 auto; padding: 0 1.5rem; }
-.wpc-section { padding: 5rem 1.5rem; max-width: 1080px; margin: 0 auto; border-top: 1px solid var(--wp-line); }
+.wpc-section { width: 100%; padding: 5rem 1.5rem; max-width: 1080px; margin: 0 auto; border-top: 1px solid var(--wp-line); }
 .wpc-section:first-of-type { border-top: 0; }
 .wpc-section__tag { color: var(--wp-orange); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .8rem; }
 .wpc-section h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); margin: 0 0 1rem; }
-.wpc-section p { color: var(--wp-body); line-height: 1.65; max-width: 62ch; margin: 0 0 1.25rem; font-size: 1.02rem; }
+.wpc-section p { color: var(--wp-body); line-height: 1.65; max-width: 62ch; margin: 0 0 1.25rem; font-size: 1.02rem; overflow-wrap: break-word; }
 
 /* Hero — text, a Join CTA where people land, and a photo slot that stays
    hidden until assets/data/hero.json names a photo (no empty placeholder
@@ -107,8 +117,14 @@
 .wpc-hero { padding: 7rem 1.5rem 4rem; max-width: 900px; margin: 0 auto; text-align: left; position: relative; overflow: hidden; }
 .wpc-hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.12; margin: 0 0 1.75rem; }
 .wpc-hero__cta { margin-top: .5rem; }
-.wpc-hero__photo { display: none; width: 100%; max-width: 560px; height: 320px; object-fit: cover; border-radius: 12px; margin-top: 2.5rem; }
-.wpc-hero__photo[data-loaded] { display: block; }
+/* .wpc-hero .wpc-hero__photo (two classes), not just .wpc-hero__photo: the
+   general ".wpc-body img { display: block }" rule above is a class+element
+   selector (0,1,1), which otherwise outranks a single-class ".wpc-hero__photo"
+   (0,1,0) and forces the empty slot visible regardless of source order -
+   caught on the homepage screenshot, 27 Sep 2026: an empty bordered box sat
+   in the hero on every load, photo or not. */
+.wpc-hero .wpc-hero__photo { display: none; width: 100%; max-width: 560px; height: 320px; object-fit: cover; border-radius: 12px; margin-top: 2.5rem; }
+.wpc-hero .wpc-hero__photo[data-loaded] { display: block; }
 
 /* Section accents: each of the deep PDF-palette tones assigned to one
    section tag via data-accent="<name>" in the markup, so the page reads with
@@ -130,9 +146,9 @@
 .wpc-body a.wpc-btn--ghost, .wpc-btn--ghost { background: transparent; border: 1px solid var(--wp-line); color: var(--wp-text); }
 .wpc-body a.wpc-btn--ghost:hover, .wpc-btn--ghost:hover { border-color: var(--wp-orange); color: var(--wp-text); }
 
-.wpc-page-head { padding: 3.5rem 1.5rem 1rem; max-width: 1080px; margin: 0 auto; }
+.wpc-page-head { width: 100%; padding: 3.5rem 1.5rem 1rem; max-width: 1080px; margin: 0 auto; }
 .wpc-page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); margin: 0 0 .75rem; }
-.wpc-page-head p { color: var(--wp-body); max-width: 62ch; line-height: 1.6; }
+.wpc-page-head p { color: var(--wp-body); max-width: 62ch; line-height: 1.6; overflow-wrap: break-word; }
 .wpc-breadcrumb { color: var(--wp-text-dim); font-size: .8rem; margin: 0 0 1rem; }
 .wpc-breadcrumb a { color: var(--wp-text-dim); }
 
@@ -155,7 +171,7 @@
 }
 
 /* ---------------------------------------------------------------- Grid cards (episodes + winners) */
-.wpc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.25rem; margin-top: 2rem; }
+.wpc-grid { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.25rem; margin-top: 2rem; }
 .wpc-card {
   display: block; background: var(--wp-panel); border: 1px solid var(--wp-line); border-radius: 10px; overflow: hidden;
   cursor: pointer; text-align: left; width: 100%; color: inherit; font: inherit; padding: 0; text-decoration: none;

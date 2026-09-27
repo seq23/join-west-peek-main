@@ -117,7 +117,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_viability.mjs` | the Community assessment route and gates |
-| `scripts/validate_community_site.mjs` | the community redesign: shared nav on every page, exact homepage order, text-only hero with the brief's line, no italic/script markup, no sister-property links, `/podcast` and `/history` redirect, every episode's YouTube id and headshot real |
+| `scripts/validate_community_site.mjs` | the community redesign: shared four-item nav on every page, exact homepage order, hero with the brief's line and no shipped photo until hero.json names one, no italic/script markup, no sister-property or LinkedIn links, no Dinners, no "Who built it", no Airtable embed, podcast intro present, Update form actually gated (markers + functions/update.js), `/podcast` and `/history` redirect, every episode's YouTube id, headshot and generated /episodes/<slug> page real |
 | `.github/workflows/entity-validation.yml` | the JSON-LD entity graph on the three index pages; Organization schema on every built page; dated sitemaps |
 | `scripts/validate_runbook.mjs` | this file names real paths and scripts |
 
