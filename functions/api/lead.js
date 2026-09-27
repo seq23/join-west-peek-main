@@ -109,7 +109,13 @@ const COMMUNITY_HOSTS = [
   'joinwestpeek.com',
   'www.joinwestpeek.com',
   'westpeek.co',
-  'join-west-peek-main.pages.dev'
+  // The Pages project is named join-west-peek-main but its pages.dev alias is
+  // west-peek-community.pages.dev (the name it had first). The old entry named a
+  // host that does not exist, so a real person submitting through the alias
+  // skipped the sheet. Preview deployments share this suffix but carry no
+  // intake variables (the preview environment is empty on purpose), so a test
+  // submission on a preview never reaches the sheet.
+  'west-peek-community.pages.dev'
 ];
 
 /** Only these properties' visitors are West Peek's own network contacts. */

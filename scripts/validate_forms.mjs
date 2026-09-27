@@ -838,6 +838,21 @@ async function checkFormsRegister() {
     } else {
       pass();
     }
+
+    // Each sheet property's real pages.dev alias resolves to that property. The Pages
+    // project for the community site is named join-west-peek-main but serves at
+    // west-peek-community.pages.dev; lead.js once listed the project name as a host, a
+    // host that does not exist, so a person submitting through the real alias skipped the
+    // sheet. The alias is what Cloudflare reports under "Project Domains".
+    const PAGES_DEV_ALIAS = { community: 'west-peek-community.pages.dev', ventures: 'west-peek-ventures.pages.dev' };
+    for (const [site, alias] of Object.entries(PAGES_DEV_ALIAS)) {
+      const resolved = leadGate.siteForHost(alias);
+      if (resolved !== site || !leadGate.writesToSheet(alias)) {
+        fail('FORM-10', rel(LEAD_HANDLER), `${alias} is the live pages.dev alias for "${site}" but lead.js resolves it to "${resolved}"${leadGate.writesToSheet(alias) ? '' : ' and does not write it to the sheet'}. A dead host name in the list means real submissions through the alias skip the sheet.`);
+      } else {
+        pass();
+      }
+    }
   }
 
   // (e) THE WIRING, not the prose. lead.js must genuinely reach the door.
