@@ -4,62 +4,643 @@
     "name": "QuarantineCon",
     "dateRange": "March 20, 2020 – March 22, 2021",
     "description": "The original digital conference — where 5,000 people gathered virtually the first weekend of the pandemic to learn, partner, and connect.",
-    "flyer": "assets/img/history/quarantinecon.jpg"
+    "flyer": "assets/img/history/quarantinecon/scooter-taylor.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/quarantinecon/scooter-taylor.webp",
+        "name": "Scooter Taylor"
+      },
+      {
+        "src": "assets/img/history/quarantinecon/trevon-hill.webp",
+        "name": "Tre’von Hill"
+      },
+      {
+        "src": "assets/img/history/quarantinecon/skylar-marshai.webp",
+        "name": "Skylar Marshai"
+      },
+      {
+        "src": "assets/img/history/quarantinecon/dearra-and-ken.webp",
+        "name": "De’arra & Ken"
+      },
+      {
+        "src": "assets/img/history/quarantinecon/jewel-burks-solomon.webp",
+        "name": "Jewel Burks-Solomon"
+      },
+      {
+        "src": "assets/img/history/quarantinecon/jason-geter.webp",
+        "name": "Jason Geter"
+      },
+      {
+        "src": "assets/img/history/quarantinecon/dr-shemeka-banger-hill.webp",
+        "name": "Dr. Shemeka Banger-Hill"
+      },
+      {
+        "src": "assets/img/history/quarantinecon/bea-dixon.webp",
+        "name": "Bea Dixon"
+      }
+    ]
   },
   {
     "slug": "virtual-gym",
     "name": "Virtual Gym",
     "dateRange": "March 27 – May 7, 2020",
     "description": "Live workouts with trainers from around the country, built to keep the community active and connected from home.",
-    "flyer": "assets/img/history/virtual-gym.jpg"
+    "flyer": "assets/img/history/virtual-gym/trey-cox.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/virtual-gym/trey-cox.webp",
+        "name": "Trey Cox"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/lola-fit.webp",
+        "name": "Lola Fit"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/kelli-riles.webp",
+        "name": "Kelli Riles"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/albeny-carr.webp",
+        "name": "Albeny Carr"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/marcus-lowe.webp",
+        "name": "Marcus Lowe"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/sidebarre-dc.webp",
+        "name": "Sidebarre DC"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/coach-lala-v.webp",
+        "name": "Coach Lala V"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/calvin-bryant.webp",
+        "name": "Calvin Bryant"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/justin-holman.webp",
+        "name": "Justin Holman"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/jasmine-brown.webp",
+        "name": "Jasmine Brown"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/heather-holly.webp",
+        "name": "Heather Holly"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/raven-camille.webp",
+        "name": "Raven Camille"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/corbin-booker.webp",
+        "name": "Corbin Booker"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/ieisha-ashwood.webp",
+        "name": "Ieisha Ashwood"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/kandlar-rhodes.webp",
+        "name": "Kandlar Rhodes"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/reggis-ball-may-2.webp",
+        "name": "Reggis Ball (May 2)"
+      },
+      {
+        "src": "assets/img/history/virtual-gym/reggis-ball-may-9.webp",
+        "name": "Reggis Ball (May 9)"
+      }
+    ]
   },
   {
     "slug": "know-your-tribe-hbcu",
     "name": "Know Your Tribe / HBCU Event",
     "dateRange": "June 9 – September 1, 2020",
     "description": "Built with WeAreHBCUs to connect future students, current students, and alumni across the HBCU community.",
-    "flyer": "assets/img/history/know-your-tribe-hbcu.jpg"
+    "flyer": "assets/img/history/know-your-tribe-hbcu/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/05.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/06.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/07.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/08.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/09.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/10.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/11.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/12.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/13.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/14.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/15.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/16.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/17.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/18.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/19.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/20.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/21.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/22.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/23.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/24.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/25.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/26.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/27.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/28.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/29.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/30.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/31.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/32.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/know-your-tribe-hbcu/33.webp",
+        "name": null
+      }
+    ]
   },
   {
-    "slug": "virtual-career-fair",
-    "name": "Virtual Career Fair",
+    "slug": "virtual-career-fair-tech",
+    "name": "Virtual Career Fair: Tech",
     "dateRange": "April 24 – July 23, 2020",
-    "description": "Companies and candidates meeting virtually, with career coaches and keynote speakers along the way.",
-    "flyer": "assets/img/history/virtual-career-fair.jpg"
+    "description": "Tech companies and candidates meeting virtually, with career coaches and keynote speakers along the way.",
+    "flyer": "assets/img/history/virtual-career-fair-tech/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/05.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/06.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/07.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-tech/08.webp",
+        "name": null
+      }
+    ]
+  },
+  {
+    "slug": "virtual-career-fair-jopwell",
+    "name": "Virtual Career Fair, powered by Jopwell",
+    "dateRange": "April 24 – July 23, 2020",
+    "description": "A career fair run with Jopwell, connecting companies with Black, Latinx and Native American candidates.",
+    "flyer": "assets/img/history/virtual-career-fair-jopwell/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/virtual-career-fair-jopwell/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-jopwell/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-jopwell/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-jopwell/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/virtual-career-fair-jopwell/05.webp",
+        "name": null
+      }
+    ]
   },
   {
     "slug": "culinary-showcase",
     "name": "Culinary Showcase",
     "dateRange": "May 6 – 9, 2020",
     "description": "Live demonstrations from chefs and mixologists, teaching new recipes for food and drink alike.",
-    "flyer": "assets/img/history/culinary-showcase.jpg"
+    "flyer": "assets/img/history/culinary-showcase/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/culinary-showcase/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/culinary-showcase/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/culinary-showcase/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/culinary-showcase/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/culinary-showcase/05.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/culinary-showcase/06.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/culinary-showcase/07.webp",
+        "name": null
+      }
+    ]
   },
   {
     "slug": "pivot-and-pitch",
-    "name": "Pivot & Pitch: Virtual Pitch Competition",
+    "name": "Pitch & Pivot: Virtual Pitch Competition",
     "dateRange": "May 23 – 24, 2020",
-    "description": "A virtual pitch competition for founders — its first winner took home $25,000.",
-    "flyer": "assets/img/history/pivot-and-pitch.jpg"
+    "description": "A virtual pitch competition for founders, in partnership with Collab Capital and Color of Change — its first winner took home $25,000.",
+    "flyer": "assets/img/history/pivot-and-pitch/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/pivot-and-pitch/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/05.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/06.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/07.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/08.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/09.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/10.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/11.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/12.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/pivot-and-pitch/13.webp",
+        "name": null
+      }
+    ]
   },
   {
     "slug": "sunday-suppers-sweet-auburn-stories",
     "name": "Sunday Suppers / Sweet Auburn Stories",
     "dateRange": "July 5 – November 29, 2020",
     "description": "Sunday conversations with civil rights icons and community elders, preserving stories across generations.",
-    "flyer": "assets/img/history/sunday-suppers-sweet-auburn-stories.jpg"
+    "flyer": "assets/img/history/sunday-suppers-sweet-auburn-stories/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/05.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/06.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/07.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/08.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/09.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/10.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/11.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/sunday-suppers-sweet-auburn-stories/12.webp",
+        "name": null
+      }
+    ]
   },
   {
     "slug": "mental-health-wellness-retreat",
-    "name": "Mental Health & Wellness Retreat",
+    "name": "A Day for Mental Health and Wellness",
     "dateRange": "April 27 – May 2, 2020",
-    "description": "Panels and breakout sessions on head, heart, and body — coping with the “new normal” together.",
-    "flyer": "assets/img/history/mental-health-wellness-retreat.jpg"
+    "description": "Panels and breakout sessions on head, heart, and body — coping with the new normal together.",
+    "flyer": "assets/img/history/mental-health-wellness-retreat/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/mental-health-wellness-retreat/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/mental-health-wellness-retreat/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/mental-health-wellness-retreat/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/mental-health-wellness-retreat/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/mental-health-wellness-retreat/05.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/mental-health-wellness-retreat/06.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/mental-health-wellness-retreat/07.webp",
+        "name": null
+      }
+    ]
   },
   {
     "slug": "higher-education-day",
     "name": "Higher Education Day",
     "dateRange": "August 20, 2020",
     "description": "A day for deans, admissions counselors, and current students to talk through MBA, law, medical, and graduate school plans upended by COVID-19.",
-    "flyer": "assets/img/history/higher-education-day.jpg"
+    "flyer": "assets/img/history/higher-education-day/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/higher-education-day/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/02.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/03.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/04.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/05.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/06.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/07.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/08.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/09.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/10.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/11.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/12.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/13.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/14.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/15.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/16.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/17.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/18.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/19.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/20.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/higher-education-day/21.webp",
+        "name": null
+      }
+    ]
+  },
+  {
+    "slug": "wealth-building-101",
+    "name": "Wealth Building 101",
+    "dateRange": "2020",
+    "description": "A session on building wealth from the ground up: budgeting, credit, and investing basics for the community.",
+    "flyer": "assets/img/history/wealth-building-101/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/wealth-building-101/01.webp",
+        "name": null
+      },
+      {
+        "src": "assets/img/history/wealth-building-101/02.webp",
+        "name": null
+      }
+    ]
+  },
+  {
+    "slug": "fireside-chat-cam-kirk",
+    "name": "Fireside Chat with Cam Kirk",
+    "dateRange": "2020",
+    "description": "A fireside conversation with photographer and entrepreneur Cam Kirk.",
+    "flyer": "assets/img/history/fireside-chat-cam-kirk/01.webp",
+    "photos": [
+      {
+        "src": "assets/img/history/fireside-chat-cam-kirk/01.webp",
+        "name": null
+      }
+    ]
   }
 ]

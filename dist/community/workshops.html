@@ -102,9 +102,7 @@
       <a href="/episodes">Podcast</a>
       <a href="/update">Update</a>
       <a href="/pitch">Pitch</a>
-      <a href="/workshops" aria-current="page">Workshops</a>
-      <a href="/#dinners">Dinners</a>
-    </div>
+      <a href="/workshops" aria-current="page">Workshops</a>    </div>
   </div>
 </nav>
 
@@ -115,14 +113,25 @@
 </div>
 
 <div class="wpc-main">
-  <div class="wpc-embed">
-    <iframe src="https://luma.com/embed/calendar/cal-xCKjrj2krXtyqGh/events" height="600" title="West Peek Community workshop calendar" allow="fullscreen" aria-hidden="false"></iframe>
-  </div>
-  <p>No workshops scheduled yet &mdash; follow the calendar to hear first. <a href="https://luma.com/westpeekcommunity" target="_blank" rel="noopener">Follow the calendar on Luma &rarr;</a></p>
+  <!-- Hidden by default and only shown by community.js once /api/workshops
+       reports a real upcoming event (fails closed on any error). -->
+  <section id="workshops-upcoming" hidden>
+    <p class="wpc-section__tag" data-accent="workshops">Upcoming</p>
+    <div class="wpc-embed">
+      <iframe src="https://luma.com/embed/calendar/cal-xCKjrj2krXtyqGh/events" height="600" title="West Peek Community workshop calendar" allow="fullscreen" aria-hidden="false"></iframe>
+    </div>
+  </section>
+  <p id="workshops-empty">No workshops scheduled yet &mdash; follow the calendar to hear first. <a href="https://luma.com/westpeekcommunity" target="_blank" rel="noopener">Follow the calendar on Luma &rarr;</a></p>
 </div>
 
+<section class="wpc-section" data-parallax-speed="0.02">
+  <p class="wpc-section__tag" data-accent="workshops">Past Workshops</p>
+  <h2>Past Workshops</h2>
+  <div class="wpc-episode__row" id="workshops-past"></div>
+</section>
+
 <footer class="wpc-footer">
-  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.linkedin.com/company/west-peek-group/about/" target="_blank" rel="noopener">LinkedIn</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
+  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
   <div>Good people should meet good people.</div>
   <div style="margin-top:.5rem">&copy; West Peek</div>
 </footer>

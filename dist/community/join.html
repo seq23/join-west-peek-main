@@ -102,9 +102,7 @@
       <a href="/episodes">Podcast</a>
       <a href="/update">Update</a>
       <a href="/pitch">Pitch</a>
-      <a href="/workshops">Workshops</a>
-      <a href="/#dinners">Dinners</a>
-    </div>
+      <a href="/workshops">Workshops</a>    </div>
   </div>
 </nav>
 
@@ -128,29 +126,26 @@
     <label for="join-email">Email</label>
     <input id="join-email" name="email" type="email" autocomplete="email" required>
 
+    <label for="join-city">City</label>
+    <input id="join-city" name="city" autocomplete="address-level2">
+
     <label for="join-role">What best describes you?</label>
     <select id="join-role" name="role" required>
       <option value="">Select&hellip;</option>
-      <option>Founder</option>
-      <option>Operator</option>
-      <option>Investor</option>
+      <option>Entrepreneur</option>
       <option>Creative</option>
-      <option>Builder</option>
-      <option>Something else</option>
+      <option>Professional</option>
+      <option>Investor</option>
     </select>
+
+    <label for="join-company">Company</label>
+    <input id="join-company" name="company" autocomplete="organization">
 
     <label for="join-interest">What are you most interested in?</label>
-    <select id="join-interest" name="interest" required>
-      <option value="">Select&hellip;</option>
-      <option>Newsletter</option>
-      <option>Events</option>
-      <option>Podcast updates</option>
-      <option>Meeting other founders</option>
-      <option>Partnerships</option>
-    </select>
+    <input id="join-interest" name="interest">
 
-    <label for="join-note">What are you working on? (optional)</label>
-    <textarea id="join-note" name="description" placeholder="One line is plenty."></textarea>
+    <label for="join-goal">What are you looking to accomplish in the next 12 months?</label>
+    <textarea id="join-goal" name="description" placeholder="One or two lines is plenty."></textarea>
 
     <button type="submit" class="wpc-btn">Join the community</button>
     <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
@@ -159,7 +154,7 @@
 </div>
 
 <footer class="wpc-footer">
-  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.linkedin.com/company/west-peek-group/about/" target="_blank" rel="noopener">LinkedIn</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
+  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
   <div>Good people should meet good people.</div>
   <div style="margin-top:.5rem">&copy; West Peek</div>
 </footer>

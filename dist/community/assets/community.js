@@ -23,6 +23,37 @@
     });
   }
 
+  // ---------------------------------------------------------------- Parallax
+  // Transform-only layered scroll motion on any [data-parallax-speed]
+  // element, desktop and mobile alike (the scroll event fires on touch
+  // scrolling too). Off entirely when the visitor asked for reduced motion.
+  (function parallax() {
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return;
+    var layers = Array.prototype.slice.call(document.querySelectorAll('[data-parallax-speed]'));
+    if (!layers.length) return;
+    var ticking = false;
+    function apply() {
+      var vh = window.innerHeight;
+      layers.forEach(function (el) {
+        var speed = parseFloat(el.getAttribute('data-parallax-speed')) || 0;
+        var rect = el.getBoundingClientRect();
+        var progress = (vh - rect.top) / (vh + rect.height); // 0 entering, 1 leaving
+        var offset = (progress - 0.5) * speed * vh;
+        el.style.transform = 'translateY(' + offset.toFixed(1) + 'px)';
+      });
+      ticking = false;
+    }
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(apply);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    apply();
+  })();
+
   function youtubeEmbed(id) {
     var wrap = document.createElement('div');
     wrap.className = 'wpc-card__player';
@@ -74,26 +105,166 @@
     });
   }
 
+  // ---------------------------------------------------------------- The Update:
+  // countdown + gated multi-step wizard. Same window functions/update.js
+  // enforces server-side; this is what actually shows/hides on a page that
+  // did arrive with the form in it (window open, or a *.pages.dev preview),
+  // renders the countdown copy, and drives the step/progress-bar UI.
+  (function updateWindow() {
+    var countdownEl = document.getElementById('update-countdown');
+    var formWrap = document.getElementById('update-form-wrap');
+    if (!countdownEl || !formWrap) return;
+
+    var OPENS_AT = Date.parse('2026-10-01T04:00:00Z');   // Oct 1 2026 00:00 ET (EDT)
+    var CLOSES_AT = Date.parse('2026-11-01T03:59:59Z');  // Oct 31 2026 23:59:59 ET (EDT)
+    var NEXT_OPENS_AT = Date.parse('2027-01-01T05:00:00Z'); // Jan 1 2027 00:00 ET (EST)
+
+    var isPreview = /\.pages\.dev$/.test(window.location.hostname);
+    var now = Date.now();
+    var isOpen = now >= OPENS_AT && now <= CLOSES_AT;
+
+    if (isPreview || isOpen) {
+      countdownEl.hidden = true;
+      formWrap.hidden = false;
+      wireUpdateSteps(formWrap);
+    } else {
+      formWrap.hidden = true;
+      countdownEl.hidden = false;
+      var target = now < OPENS_AT ? OPENS_AT : NEXT_OPENS_AT;
+      var days = Math.max(0, Math.ceil((target - now) / 86400000));
+      var textEl = document.getElementById('update-countdown-text');
+      if (textEl) {
+        textEl.textContent = days <= 0
+          ? 'The Q4 Update opens today.'
+          : 'The Q4 Update opens in ' + days + ' day' + (days === 1 ? '' : 's') + ' (October 1) and stays open through the end of the month.';
+      }
+    }
+  })();
+
+  function wireUpdateSteps(formWrap) {
+    var steps = Array.prototype.slice.call(formWrap.querySelectorAll('.wpc-steps__step'));
+    if (!steps.length) return;
+    var back = document.getElementById('update-back');
+    var next = document.getElementById('update-next');
+    var submit = document.getElementById('update-submit');
+    var bar = document.getElementById('update-progress');
+    var label = document.getElementById('update-step-label');
+    var current = 0;
+
+    function show(i) {
+      steps.forEach(function (s, idx) { s.hidden = idx !== i; });
+      back.hidden = i === 0;
+      var last = i === steps.length - 1;
+      next.hidden = last;
+      submit.hidden = !last;
+      if (bar) bar.style.width = Math.round(((i + 1) / steps.length) * 100) + '%';
+      if (label) label.textContent = 'Step ' + (i + 1) + ' of ' + steps.length + ' · Takes 3 minutes';
+    }
+
+    next.addEventListener('click', function () {
+      if (current < steps.length - 1) { current += 1; show(current); }
+    });
+    back.addEventListener('click', function () {
+      if (current > 0) { current -= 1; show(current); }
+    });
+    show(current);
+  }
+
+  // Upcoming workshops: hidden unless /api/workshops reports a real future
+  // Luma event. Fails closed - any error leaves it hidden.
+  var upcomingSection = document.getElementById('workshops-upcoming');
+  if (upcomingSection) {
+    var emptyMsg = document.getElementById('workshops-empty');
+    fetch('/api/workshops').then(function (r) { return r.json(); }).then(function (data) {
+      if (data && data.hasUpcoming) {
+        upcomingSection.hidden = false;
+        if (emptyMsg) emptyMsg.hidden = true;
+      }
+    }).catch(function () {});
+  }
+
+  var pastWorkshops = document.getElementById('workshops-past');
+  if (pastWorkshops) {
+    fetch('assets/data/workshops.json').then(function (r) { return r.json(); }).then(function (workshops) {
+      workshops.forEach(function (w) {
+        var card = document.createElement('div');
+        card.className = 'wpc-card';
+        card.style.cursor = 'default';
+        if (w.flyer) {
+          var img = document.createElement('img');
+          img.className = 'wpc-card__photo';
+          img.src = w.flyer;
+          img.alt = w.flyerAlt || w.title;
+          img.loading = 'lazy';
+          card.appendChild(img);
+        }
+        var body = document.createElement('div');
+        body.className = 'wpc-card__body';
+        var name = document.createElement('h3');
+        name.className = 'wpc-card__name';
+        name.textContent = w.title;
+        body.appendChild(name);
+        if (w.youtube) {
+          var link = document.createElement('a');
+          link.href = 'https://youtu.be/' + w.youtube;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.textContent = 'Watch →';
+          body.appendChild(link);
+        } else {
+          var soon = document.createElement('p');
+          soon.className = 'small';
+          soon.textContent = 'Recording coming soon';
+          body.appendChild(soon);
+        }
+        card.appendChild(body);
+        pastWorkshops.appendChild(card);
+      });
+    });
+  }
+
+  var heroPhoto = document.getElementById('hero-photo');
+  if (heroPhoto) {
+    fetch('assets/data/hero.json').then(function (r) { return r.json(); }).then(function (hero) {
+      if (!hero || !hero.photo) return; // stays hidden - no empty placeholder ships
+      heroPhoto.src = hero.photo;
+      heroPhoto.alt = hero.alt || '';
+      heroPhoto.setAttribute('data-loaded', '');
+    }).catch(function () {});
+  }
+
+  // The episode grid on /episodes links out to each guest's own page
+  // (/episodes/<slug>, generated at build time) rather than expanding in
+  // place - the winner grid below still uses the shared expand-in-place
+  // pattern, since winners have no page of their own.
   var episodeGrid = document.getElementById('episode-grid');
   if (episodeGrid) {
     fetch('assets/data/episodes.json').then(function (r) { return r.json(); }).then(function (episodes) {
-      wireCardGrid(episodeGrid, episodes, {
-        summary: function (ep) {
-          return '<p class="wpc-card__number">Episode ' + ep.number + '</p><h3 class="wpc-card__name">' + ep.guest + '</h3>';
-        },
-        expand: function (detail, ep) {
-          var p = document.createElement('p');
-          p.textContent = ep.synopsis;
-          if (ep.youtube) {
-            detail.appendChild(youtubeEmbed(ep.youtube));
-          } else {
-            var soon = document.createElement('div');
-            soon.className = 'wpc-card__soon';
-            soon.textContent = 'Episode coming soon';
-            detail.appendChild(soon);
-          }
-          detail.appendChild(p);
-        }
+      episodes.forEach(function (ep) {
+        var card = document.createElement('a');
+        card.className = 'wpc-card';
+        card.href = '/episodes/' + ep.slug + '/';
+
+        var photo = document.createElement('img');
+        photo.className = 'wpc-card__photo';
+        photo.src = ep.headshot;
+        photo.alt = ep.headshotAlt || ep.guest;
+        photo.loading = 'lazy';
+        card.appendChild(photo);
+
+        var body = document.createElement('div');
+        body.className = 'wpc-card__body';
+        var num = document.createElement('p');
+        num.className = 'wpc-card__number';
+        num.textContent = 'Episode ' + ep.number + (ep.youtube ? '' : ' · coming soon');
+        var name = document.createElement('h3');
+        name.className = 'wpc-card__name';
+        name.textContent = ep.guest;
+        body.appendChild(num);
+        body.appendChild(name);
+        card.appendChild(body);
+
+        episodeGrid.appendChild(card);
       });
     });
   }
@@ -134,11 +305,28 @@
         btn.setAttribute('aria-expanded', 'false');
         var bodyId = 'history-body-' + i;
         btn.setAttribute('aria-controls', bodyId);
-        btn.innerHTML =
-          '<img class="wpc-history-item__thumb" src="' + ev.flyer + '" alt="" loading="lazy">' +
-          '<span><span class="wpc-history-item__name">' + ev.name + '</span>' +
-          '<span class="wpc-history-item__dates">' + ev.dateRange + '</span></span>' +
-          '<span class="wpc-history-item__chevron" aria-hidden="true"></span>';
+
+        var thumb = document.createElement('img');
+        thumb.className = 'wpc-history-item__thumb';
+        thumb.src = ev.flyer;
+        thumb.alt = '';
+        thumb.loading = 'lazy';
+        var label = document.createElement('span');
+        var nameEl = document.createElement('span');
+        nameEl.className = 'wpc-history-item__name';
+        nameEl.textContent = ev.name;
+        var datesEl = document.createElement('span');
+        datesEl.className = 'wpc-history-item__dates';
+        datesEl.textContent = ev.dateRange;
+        label.appendChild(nameEl);
+        label.appendChild(datesEl);
+        var chevron = document.createElement('span');
+        chevron.className = 'wpc-history-item__chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+        btn.appendChild(thumb);
+        btn.appendChild(label);
+        btn.appendChild(chevron);
+
         btn.addEventListener('click', function () {
           var open = item.hasAttribute('data-open');
           if (open) { item.removeAttribute('data-open'); btn.setAttribute('aria-expanded', 'false'); }
@@ -148,14 +336,29 @@
         var body = document.createElement('div');
         body.className = 'wpc-history-item__body';
         body.id = bodyId;
-        var img = document.createElement('img');
-        img.src = ev.flyer;
-        img.alt = ev.name + ' flyer';
-        img.loading = 'lazy';
+
         var p = document.createElement('p');
         p.textContent = ev.description;
-        body.appendChild(img);
         body.appendChild(p);
+
+        var carousel = document.createElement('div');
+        carousel.className = 'wpc-flyer-carousel';
+        (ev.photos || [{ src: ev.flyer, name: null }]).forEach(function (photo) {
+          var fig = document.createElement('figure');
+          fig.className = 'wpc-flyer-carousel__item';
+          var img = document.createElement('img');
+          img.src = photo.src;
+          img.alt = photo.name ? (photo.name + ', ' + ev.name) : (ev.name + ' flyer');
+          img.loading = 'lazy';
+          fig.appendChild(img);
+          if (photo.name) {
+            var cap = document.createElement('figcaption');
+            cap.textContent = photo.name;
+            fig.appendChild(cap);
+          }
+          carousel.appendChild(fig);
+        });
+        body.appendChild(carousel);
 
         item.appendChild(btn);
         item.appendChild(body);
