@@ -66,6 +66,10 @@
 const MAX_FIELD = 5000;
 const REQUIRED = ['email'];
 
+/** The one file field this handler accepts, and how big it may be. */
+const FILE_FIELD = 'deck_file';
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
 /**
  * Fields that exist ONLY to catch bots. Every one of these must be genuinely
  * hidden in every form that carries it - no label, display:none, tabindex="-1".
@@ -145,6 +149,31 @@ function looksLikeEmail(value) {
 }
 
 /**
+ * This repo has no storage binding, so a file part is never held past this
+ * one request: it is read into memory, validated, and either attached to the
+ * outgoing Resend email or rejected. Nothing is written to disk or R2.
+ */
+async function readDeckFile(value) {
+  if (!(value instanceof File) || value.size === 0) return { file: null, error: null };
+  if (value.size > MAX_FILE_BYTES) return { file: null, error: 'deck_file_too_large' };
+  const bytes = new Uint8Array(await value.arrayBuffer());
+  const header = new TextDecoder().decode(bytes.slice(0, 5));
+  const looksPdf = header === '%PDF-' && (value.type === 'application/pdf' || /\.pdf$/i.test(value.name || ''));
+  if (!looksPdf) return { file: null, error: 'deck_file_invalid' };
+  return { file: { filename: value.name || 'deck.pdf', bytes }, error: null };
+}
+
+/** Resend wants attachment content as base64. Chunked so a 10MB file does not blow the call stack. */
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+/**
  * Post one submission to the Network OS intake door.
  *
  * Returns a short status string rather than throwing, because no outcome here
@@ -215,13 +244,21 @@ function json(body, status) {
 
 export async function onRequestPost({ request, env }) {
   let fields = {};
+  let deckFile = null;
   try {
     const type = request.headers.get('content-type') || '';
     if (type.includes('application/json')) {
       fields = await request.json();
     } else {
       const form = await request.formData();
-      for (const [k, v] of form.entries()) fields[k] = typeof v === 'string' ? v : '';
+      for (const [k, v] of form.entries()) {
+        if (typeof v === 'string') { fields[k] = v; continue; }
+        if (k !== FILE_FIELD) { fields[k] = ''; continue; }
+        const { file, error } = await readDeckFile(v);
+        if (error) return json({ ok: false, error }, 400);
+        deckFile = file;
+        fields[k] = file ? file.filename : '';
+      }
     }
   } catch {
     return json({ ok: false, error: 'unreadable_body' }, 400);
@@ -264,7 +301,7 @@ export async function onRequestPost({ request, env }) {
   // founder-supplied data the fund wants, so it stays in the email body.
   const lines = Object.entries(fields)
     .filter(([k]) => !HONEYPOT_FIELDS.includes(k))
-    .map(([k, v]) => `${k}: ${clean(v)}`)
+    .map(([k, v]) => (k === FILE_FIELD && v ? `${k}: ${clean(v)} (attached to this email)` : `${k}: ${clean(v)}`))
     .concat([`submitted_at: ${new Date().toISOString()}`])
     .join('\n');
 
@@ -280,6 +317,7 @@ export async function onRequestPost({ request, env }) {
           ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
           : `New enquiry from ${site}`,
         text: `${lines}\n\nSubmitted from: ${request.url}`,
+        ...(deckFile ? { attachments: [{ filename: deckFile.filename, content: bytesToBase64(deckFile.bytes) }] } : {}),
       }),
     });
     if (!res.ok) {

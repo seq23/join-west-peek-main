@@ -300,6 +300,25 @@ function checkForm(file, html, formHtml, formIndex, hp) {
   if (!optedOut) {
     const identity = formIdentity(file, formHtml);
     observedForms.push({ ...identity, where, action, sharedHandler });
+
+    // FORM-11 - the ventures deck forms (Scooter, 27 Sep 2026) ask for the deck
+    // last, right before Submit, so a founder fills in everything else first.
+    if (identity.site === 'ventures' && (identity.form === 'founder_apply' || identity.form === 'founder_pitch')) {
+      const dataControls = controls
+        .map((c) => attrsOf(c[0]))
+        .filter((a) => (a.type || 'text').toLowerCase() !== 'hidden')
+        .filter((a) => !hp.includes(a.name));
+      const last = dataControls[dataControls.length - 1];
+      pass();
+      if (!last || (last.name !== 'deck_file' && last.name !== 'deck')) {
+        fail(
+          'FORM-11',
+          where,
+          `ventures form "${identity.form}" must end with the deck field (link or PDF) right before ` +
+            `Submit; last data-bearing field was "${last && last.name}".`
+        );
+      }
+    }
   }
 
   pass(); // FORM-2/FORM-3 held for this form
