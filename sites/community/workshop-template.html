@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{TITLE}} | Workshops | West Peek Community</title>
+  <meta name="description" content="{{TITLE}}, with {{GUEST}} — a West Peek Community workshop.">
+  <link rel="canonical" href="https://joinwestpeek.com/workshops/{{SLUG}}/"/>
+  <meta property="og:title" content="{{TITLE}} | West Peek Community Workshops">
+  <meta property="og:description" content="Good People Should Meet Good People — the West Peek Community podcast and workshops.">
+  <meta property="og:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
+  <meta property="og:url" content="https://joinwestpeek.com/workshops/{{SLUG}}/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
+  <link rel="stylesheet" href="/assets/community.css">
+</head>
+<body class="wpc-body">
+<nav class="wpc-nav" aria-label="Main navigation">
+  <div class="wpc-nav__inner">
+    <a class="wpc-nav__logo" href="/"><img src="/assets/img/community-monogram.png" alt="West Peek"><span>West Peek</span></a>
+    <button class="wpc-nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div class="wpc-nav__links">
+      <a href="/episodes">Podcast</a>
+      <a href="/update">Update</a>
+      <a href="/pitch">Pitch</a>
+      <a href="/workshops" aria-current="page">Workshops</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wpc-page-head">
+  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / <a href="/workshops">Workshops</a> / {{TITLE}}</p>
+  <p class="wpc-section__tag" data-accent="workshops">Past Workshops</p>
+</div>
+
+<div class="wpc-main">
+  <article class="wpc-episode">
+    <div class="wpc-episode__photo">
+      <img src="/{{FLYER}}" alt="{{FLYER_ALT}}" loading="lazy">
+    </div>
+    <div class="wpc-episode__player">
+      <h1>{{TITLE}}</h1>
+      <p class="wpc-episode__title">{{GUEST}}</p>
+{{VIDEO_BLOCK}}
+    </div>
+  </article>
+
+  <section class="wpc-episode__more">
+    <p class="wpc-section__tag" data-accent="workshops">More Workshops</p>
+    <div class="wpc-episode__row">
+{{OTHER_WORKSHOPS}}
+    </div>
+  </section>
+</div>
+
+<footer class="wpc-footer">
+  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
+  <div>Good people should meet good people.</div>
+  <div style="margin-top:.5rem">&copy; West Peek</div>
+</footer>
+<script src="/assets/community.js"></script>
+</body>
+</html>

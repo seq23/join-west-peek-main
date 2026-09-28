@@ -30,6 +30,11 @@
  *           {"ok":true}. This one is a behavioural test, not a pattern match.
  *   FORM-8  type="url" fields get https:// prefixed for the visitor, so native
  *           validation cannot refuse a whole submission over a bare domain.
+ *   FORM-12 Every page that opts a form into the shared handler with
+ *           data-westpeek-form actually loads shared/assets/js/forms.js. Without
+ *           the script the browser submits natively and shows the visitor raw
+ *           JSON from /api/lead - which is exactly what /update did on the
+ *           28 Sep 2026 preview (it loaded community.js and nothing else).
  *   FORM-10 Every transmitting form is in shared/forms-register.json with a
  *           destination, and every registered form whose destination is the
  *           master network sheet is ACTUALLY WIRED to it - the markup posts to
@@ -300,10 +305,52 @@ function checkForm(file, html, formHtml, formIndex, hp) {
   if (!optedOut) {
     const identity = formIdentity(file, formHtml);
     observedForms.push({ ...identity, where, action, sharedHandler });
+
+    // FORM-11 - the ventures deck forms (Scooter, 27 Sep 2026) ask for the deck
+    // last, right before Submit, so a founder fills in everything else first.
+    if (identity.site === 'ventures' && (identity.form === 'founder_apply' || identity.form === 'founder_pitch')) {
+      const dataControls = controls
+        .map((c) => attrsOf(c[0]))
+        .filter((a) => (a.type || 'text').toLowerCase() !== 'hidden')
+        .filter((a) => !hp.includes(a.name));
+      const last = dataControls[dataControls.length - 1];
+      pass();
+      if (!last || (last.name !== 'deck_file' && last.name !== 'deck')) {
+        fail(
+          'FORM-11',
+          where,
+          `ventures form "${identity.form}" must end with the deck field (link or PDF) right before ` +
+            `Submit; last data-bearing field was "${last && last.name}".`
+        );
+      }
+    }
   }
 
   pass(); // FORM-2/FORM-3 held for this form
   return { optedOut, sharedHandler, hasAction };
+}
+
+/**
+ * FORM-12 - a page that opts into the shared handler must load it.
+ *
+ * data-westpeek-form is only a promise that forms.js will take the submit. If
+ * the page never loads the script, the browser POSTs natively and renders the
+ * JSON body of /api/lead as the whole page. That is a silent-looking success
+ * to the visitor (the request went through) and an unreadable one.
+ */
+function checkSharedHandlerLoaded(file, html, usesSharedHandler) {
+  if (!usesSharedHandler) return;
+  pass();
+  const loads = /<script\b[^>]*\bsrc\s*=\s*["'](?:\/|\.\.?\/)?(?:[^"']*\/)?assets\/js\/forms\.js["']/i.test(html);
+  if (!loads) {
+    fail(
+      'FORM-12',
+      rel(file),
+      'page carries a data-westpeek-form but never loads assets/js/forms.js, so the form ' +
+        'submits natively and the visitor is shown raw JSON. Add ' +
+        '<script src="/assets/js/forms.js"></script>.'
+    );
+  }
 }
 
 /** FORM-6 - an inline script that celebrates without calling anything. */
@@ -432,7 +479,7 @@ function makeUrlInputStub() {
   return input;
 }
 
-function makeFormStub(successCopy) {
+function makeFormStub(successCopy, panel) {
   const status = makeEl('p');
   const button = makeEl('button');
   button.textContent = 'Submit →';
@@ -440,6 +487,20 @@ function makeFormStub(successCopy) {
   const form = makeEl('form');
   form.attrs = { action: '/api/lead' };
   if (successCopy) form.attrs['data-success'] = successCopy;
+  if (panel) {
+    // A parent the handler can insert the thank-you panel into, and the opt-in.
+    form.attrs['data-success-panel'] = 'true';
+    form.attrs['data-success-title'] = panel.title;
+    const parent = makeEl('div');
+    parent.insertBefore = (node, before) => {
+      const i = parent.children.indexOf(before);
+      parent.children.splice(i >= 0 ? i : parent.children.length, 0, node);
+      return node;
+    };
+    parent.children.push(form);
+    form.parentNode = parent;
+    form.hidden = false;
+  }
   form.listeners = {};
   form.wasReset = false;
   form.urlInput = urlInput;
@@ -594,6 +655,39 @@ async function checkSharedHandlerBehaviour() {
 
   pass(cases.length);
   notes.push(`FORM-7: shared handler driven through ${cases.length} stubbed responses`);
+
+  // The thank-you panel (28 Sep 2026): a form that opts in with
+  // data-success-panel is REPLACED by a visible panel carrying its title and
+  // success copy - after a confirmed success only. On a failure nothing is
+  // replaced and no panel appears, so a visitor whose submission did not
+  // arrive is never shown a thank-you.
+  const PANEL_TITLE = 'Validator panel title';
+  const findPanel = (parent) => parent.children.find((c) => c.className === 'wp-form-thanks');
+  for (const c of cases) {
+    const api = loadSharedHandler(() => c.fetch());
+    if (!api) return;
+    const form = makeFormStub(SUCCESS_COPY, { title: PANEL_TITLE });
+    api.wire(form);
+    form.submit();
+    await tick();
+    await tick();
+    const panel = findPanel(form.parentNode);
+    if (c.expect === 'ok') {
+      if (!panel) fail('FORM-7', where, `[panel: ${c.name}] no thank-you panel was inserted after a confirmed success`);
+      else {
+        const panelText = panel.text();
+        if (!panelText.includes(PANEL_TITLE)) fail('FORM-7', where, `[panel: ${c.name}] panel lacks its data-success-title: "${panelText}"`);
+        if (!panelText.includes(SUCCESS_COPY)) fail('FORM-7', where, `[panel: ${c.name}] panel lacks the data-success copy: "${panelText}"`);
+        if (panel.attrs.role !== 'status') fail('FORM-7', where, `[panel: ${c.name}] panel is not role="status", so assistive tech is not told`);
+      }
+      if (form.hidden !== true || form.getAttribute('hidden') === null) fail('FORM-7', where, `[panel: ${c.name}] the form was not hidden behind the thank-you panel`);
+    } else {
+      if (panel) fail('FORM-7', where, `[panel: ${c.name}] a thank-you panel appeared on a failure: "${panel.text()}"`);
+      if (form.hidden) fail('FORM-7', where, `[panel: ${c.name}] the form was hidden on a failure`);
+    }
+  }
+  pass(cases.length);
+  notes.push(`FORM-7: thank-you panel checked through ${cases.length} stubbed responses`);
 }
 
 /**
@@ -832,6 +926,23 @@ async function checkFormsRegister() {
       }
     }
 
+    // Each site's real *.pages.dev preview host resolves to its site, so a
+    // preview submission proves the same path production takes. The community
+    // project is named join-west-peek-main but serves from
+    // west-peek-community.pages.dev - a preview POST on 28 Sep 2026 answered
+    // sheet:"not_applicable" because only the project name was listed.
+    for (const [previewHost, expectSite] of [
+      ['work-x.west-peek-community.pages.dev', 'community'],
+      ['work-x.west-peek-ventures.pages.dev', 'ventures'],
+      ['work-x.west-peek-productions.pages.dev', 'productions'],
+    ]) {
+      if (leadGate.siteForHost(previewHost) !== expectSite) {
+        fail('FORM-10', rel(LEAD_HANDLER), `preview host ${previewHost} resolves to "${leadGate.siteForHost(previewHost)}", expected "${expectSite}" - a preview would not prove the production path.`);
+      } else {
+        pass();
+      }
+    }
+
     // An unrecognised host must never write. Fail closed.
     if (leadGate.writesToSheet('some-host-nobody-registered.example')) {
       fail('FORM-10', rel(LEAD_HANDLER), 'an unrecognised host writes to the sheet. The default must be no write: wrongly storing a client is worse than a missing row a log will show.');
@@ -910,12 +1021,15 @@ async function main() {
       const html = fs.readFileSync(file, 'utf8');
       fileCount += 1;
       let anyTransmitting = false;
+      let anyShared = false;
       for (const m of html.matchAll(/<form\b[\s\S]*?<\/form>/gi)) {
         formCount += 1;
         const r = checkForm(file, html, m[0], m.index, hp);
         if (!r.optedOut) anyTransmitting = true;
+        if (!r.optedOut && r.sharedHandler) anyShared = true;
       }
       checkInlineScripts(file, html, anyTransmitting);
+      checkSharedHandlerLoaded(file, html, anyShared);
     }
   }
 

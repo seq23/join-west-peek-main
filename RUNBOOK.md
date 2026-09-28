@@ -63,6 +63,58 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 - **Decisions an employee must ask, not make**: brand or colourway, copy meaning, legal or
   regulatory wording, removing a public claim, image rights, anything about money. Structure, CSS,
   validators, redirects, asset handling: decide, record on the card, keep going.
+- **Community visual system (23 Sep 2026 redesign; brightened 27 Sep 2026)**: white background,
+  body ink `#343F49`, one orange token for buttons/links (`--wp-orange: #e0632f`, lifted from the
+  original `#c45a3c` per Scooter's 27 Sep 2026 note that black read too dark), and the deeper
+  tones from "website design thoughts.pdf" (page 3) as section accents
+  (`--wp-accent-red/amber/gold/teal/plum/violet/olive`). Maax self-hosted from
+  `sites/community/assets/fonts/`, no script/cursive type and no italics as a stylistic device
+  anywhere on the site. Its own stylesheet is `sites/community/assets/community.css` —
+  `shared/assets/base.css` is untouched by this and still serves the other two sites. Scroll
+  motion on the homepage and about page (`[data-parallax-speed]` elements, transform-only, JS in
+  `assets/community.js`) is off under `prefers-reduced-motion`.
+- **Community nav is one list, same on every page**: Podcast &middot; Update &middot; Pitch &middot;
+  Workshops &rarr; `/episodes`, `/update`, `/pitch`, `/workshops`. Dinners was removed from the
+  nav and the homepage 27 Sep 2026 (Scooter: no photos yet); the copy and code are not deleted,
+  only unlinked, so it can come back with a nav row and a homepage section when there are photos.
+  No navigation from joinwestpeek.com to westpeek.ventures, westpeekproductions.com or
+  westpeek.live (Scooter's 20 Sep 2026 rule, same as ventures isolation) — the JSON-LD entity
+  graph on the homepage is exempt, since structured data is not navigation. `/join` carries the
+  same nav and the community's sheet-writing join form, reachable from the hero Join button and
+  the footer. **Footer carries no LinkedIn link** (27 Sep 2026). Guard: `npm run validate:community-site`.
+- **Community homepage order is fixed**: Hero (the brief's exact line, a Join button, and a photo
+  slot that stays hidden until `assets/data/hero.json` names a photo) &middot; Origin/History
+  &middot; Podcast &middot; The Update &middot; Pitch Competition &middot; Workshops. `/podcast`
+  and `/history` are retired and 301 to `/episodes` and `/about` respectively, in
+  `sites/community/_redirects`.
+- **The hero is live** (Scooter, 28 Sep 2026): "West Peek" stays fixed while the phrases in the
+  h1's `data-phrases` type out, backspace and rotate (`assets/community.js`, `heroTyping`). The
+  brief's exact line remains the h1's real shipped text (`#hero-line`) - what no-JS and
+  `prefers-reduced-motion` visitors see and what screen readers hear; the typed copy is
+  `aria-hidden`. Change the phrases in `sites/community/index.html` AND in
+  `scripts/validate_community_site.mjs` (`HERO_PHRASES`) together.
+- **Pitch competition naming** (Scooter, 28 Sep 2026): it is "the pitch competition" or the
+  "Sango pitch competition", never "West Peek pitch competition"; the partner is spelled Sango.
+  `/pitch` carries one winners heading, not a tag plus an h2. Guard: `npm run validate:community-site`.
+- **No personal address on the community site** (28 Sep 2026): the "if the form fails, email
+  scooter@…" line is gone; every community form carries
+  `data-fallback-email="os@joinwestpeek.com"` (the West Peek OS inbox, routed) and must load
+  `shared/assets/js/forms.js` (rule FORM-12 in `scripts/validate_forms.mjs`). A confirmed
+  submission is answered with a thank-you panel that replaces the form (`data-success-panel`),
+  never a one-line status.
+- **`/welcome` is the friends-testing link** (Scooter, 28 Sep 2026): `sites/community/welcome.html`,
+  noindex (so `scripts/build.mjs` keeps it out of the sitemap), his note verbatim, one button
+  into the site, same nav as every page.
+- **Episode, winner, and history-event records live in one data file each**
+  (`sites/community/assets/data/episodes.json`, `winners.json`, `history-events.json`), read at
+  runtime by `assets/community.js`. No invented YouTube id, headshot, winner, or event may ship —
+  a missing record is a structured placeholder, never a guess. Each history-event record carries a
+  `photos` array (`{src, name}`, `name` null when neither the source filename nor the flyer
+  itself carries one - a name printed on the flyer counts and is recorded with `nameSource`)
+  rendered as a flyer carousel; `flyer` stays as the first photo for the collapsed-row thumbnail. Each episode
+  gets its own page at `/episodes/<slug>`, generated at build time by `scripts/build.mjs` from
+  `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
+  is a JSON row, not a new page to remember to write.
 
 ## How to make a change
 1. Branch `work/<slug>` off `main` (CI runs on `work/**` pushes and on the PR).
@@ -80,10 +132,11 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 ## Guards, and what each pins
 | Script | Pins |
 |---|---|
-| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10) |
+| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10) |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_viability.mjs` | the Community assessment route and gates |
+| `scripts/validate_community_site.mjs` | the community redesign: shared four-item nav on every page, exact homepage order, hero with the brief's line as `#hero-line` plus the three typed phrases and no shipped photo until hero.json names one, the Sango naming, one winners heading on `/pitch`, no personal address and the OS-inbox fallback on every form, The Update's questions in Scooter's words, `/welcome` noindex with his note verbatim, the scroller edge fade kept soft, no italic/script markup, no sister-property or LinkedIn links, no Dinners, no "Who built it", no Airtable embed, podcast intro present, Update form actually gated (markers + functions/update.js), `/podcast` and `/history` redirect, every episode's YouTube id, headshot and generated /episodes/<slug> page real |
 | `.github/workflows/entity-validation.yml` | the JSON-LD entity graph on the three index pages; Organization schema on every built page; dated sitemaps |
 | `scripts/validate_runbook.mjs` | this file names real paths and scripts |
 

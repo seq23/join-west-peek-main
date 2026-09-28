@@ -1,0 +1,52 @@
+[
+  {
+    "number": 1,
+    "guest": "Carlos Barksdale",
+    "title": "From Memphis to Glory: Carlos Barksdale's Grooming and Business Evolution",
+    "synopsis": "Carlos Barksdale shares how weekly childhood visits to his Memphis barber shaped his ideas about consistency, care, and confidence, lessons he later brought to Glory By Us. He explains why he built a grooming line for Black men around recognizable, natural ingredients and products designed for waves, short cuts, and longer hair.",
+    "headshot": "assets/img/episodes/ep1-carlos-barksdale-2026.jpg",
+    "headshotAlt": "Carlos Barksdale, founder of Glory By Us",
+    "youtube": "iFOoa-1K1cQ",
+    "slug": "carlos-barksdale"
+  },
+  {
+    "number": 2,
+    "guest": "Bartholomew Jones",
+    "title": "From -$700 to Million Dollar Coffee Brand: The Cxffeeblack Story",
+    "synopsis": "Scooter talks with Bartholomew Jones about growing Cxffeeblack from a negative $700 starting point into a community-backed coffee business that raised $1 million. Their conversation explores cultural authenticity, Black ownership, and how recurring customer support funds jobs, training, and neighborhood outreach in Memphis.",
+    "headshot": "assets/img/episodes/ep2-bartholomew-jones.jpg",
+    "headshotAlt": "Bartholomew Jones, co-founder of Cxffeeblack",
+    "youtube": "s1l4ajMcDpI",
+    "slug": "bartholomew-jones"
+  },
+  {
+    "number": 3,
+    "guest": "Shanna Pearre and Darean Rhodes",
+    "title": "Three Best Friends Launch A Non-Alcoholic Alternative, Sensori",
+    "synopsis": "Scooter sits down with Sensori co-founders Shanna Pearre and Darean Rhodes to trace the friendship behind their functional non-alcoholic beverage brand, from seventh grade to launching a company together. They unpack the chaos and magic of building with close friends, while acknowledging fellow co-founder and CMO Ashlyn Knox, who could not join the recording.",
+    "headshot": "assets/img/episodes/ep3-sensori-founders.jpg",
+    "headshotAlt": "Sensori co-founders Shanna Pearre and Darean Rhodes",
+    "youtube": "FkNItHr7DJg",
+    "slug": "shanna-pearre"
+  },
+  {
+    "number": 4,
+    "guest": "Meka Egwuekwe",
+    "title": "CodeCrew: Computer Science and AI Education as an Access Pathway",
+    "synopsis": "Meka Egwuekwe explains how CodeCrew uses computer science and AI education to connect Memphis kids and adults with access, opportunity, and lasting career pathways. The conversation covers CodeCrew's founding, student success stories, its role in Tennessee computer science policy, and the organization's economic impact and plans for an AI-driven future.",
+    "headshot": "assets/img/episodes/ep4-meka-egwuekwe.webp",
+    "headshotAlt": "Meka Egwuekwe, Executive Director of CodeCrew",
+    "youtube": null,
+    "slug": "meka-egwuekwe"
+  },
+  {
+    "number": 5,
+    "guest": "Kimberly Gant",
+    "title": "One More Bridge: Helping Older Adults Build Digital Confidence",
+    "synopsis": "Kimberly Gant shares why she started One More Bridge to help older adults build digital confidence through practical education, patience, and relationships across generations. The conversation looks at online safety, scams, AI and misinformation, independence, loneliness, and what families and communities can do so older adults are not left behind as everyday life moves online.",
+    "headshot": "assets/img/episodes/ep5-kimberly-gant.webp",
+    "headshotAlt": "Kimberly Gant, founder of One More Bridge",
+    "youtube": null,
+    "slug": "kimberly-gant"
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "title": "Bootstrapping vs. Raising Funding",
+    "guest": "Sheena Allen",
+    "youtube": "WMPkvtoe3CM",
+    "flyer": "assets/img/workshops/bootstrapping-sheena-allen.webp",
+    "flyerAlt": "Bootstrapping vs. Raising Funding, with Sheena Allen",
+    "slug": "bootstrapping-sheena-allen"
+  },
+  {
+    "title": "Inside Black Ambition",
+    "guest": "Jermeen Shermen",
+    "youtube": "gvKl8t4bmeg",
+    "flyer": "assets/img/workshops/black-ambition-jermeen-shermen.webp",
+    "flyerAlt": "Inside Black Ambition: How Pharrell's Black Ambition Prize Is Helping Founders, with Jermeen Shermen, moderated by Bria Hardin Boyer",
+    "slug": "inside-black-ambition"
+  },
+  {
+    "title": "Grow with Google: Make AI Work for You",
+    "guest": "Yulkendy Valdez",
+    "youtube": "yrlj3TxeyXY",
+    "flyer": "assets/img/workshops/grow-with-google.webp",
+    "flyerAlt": "Grow with Google, Make AI Work for You, with Yulkendy Valdez and Scooter Taylor",
+    "slug": "grow-with-google"
+  }
+]

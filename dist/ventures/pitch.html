@@ -132,15 +132,15 @@
 
 <label for="pitch-name">Name</label><input id="pitch-name" name="name" autocomplete="name" required>
 <label for="pitch-email">Email</label><input id="pitch-email" name="email" type="email" autocomplete="email" required>
-<label for="pitch-company">Company name</label><input id="pitch-company" name="company" autocomplete="organization" required>
-<label for="pitch-company-website">Website (optional)</label><input id="pitch-company-website" name="company_website" type="url" inputmode="url" autocomplete="url" placeholder="https://yourcompany.com">
-<label for="pitch-stage">Stage</label>
-<select id="pitch-stage" name="stage" required>
-  <option value="">Select…</option>
-  <option>Idea</option><option>MVP</option><option>Early revenue</option><option>Seed</option><option>Series A+</option>
-</select>
-<label for="pitch-description">What are you building?</label><textarea id="pitch-description" name="description" required></textarea>
-<label for="pitch-deck">Deck link (optional)</label><input id="pitch-deck" name="deck" type="url" inputmode="url" placeholder="DocSend, Drive, Notion or Dropbox link">
+<label for="pitch-company">Company</label><input id="pitch-company" name="company" autocomplete="organization" required>
+<label for="pitch-city">City</label><input id="pitch-city" name="city" autocomplete="address-level2">
+<label for="pitch-company-website">Company website</label><input id="pitch-company-website" name="company_website" type="url" inputmode="url" autocomplete="url" placeholder="https://yourcompany.com">
+<label for="pitch-description">What does your company do in 2-3 sentences?</label><textarea id="pitch-description" name="description" required></textarea>
+<label for="pitch-customer">Who is your primary customer?</label><textarea id="pitch-customer" name="primary_customer"></textarea>
+<label for="pitch-community">How are you leveraging the power of community?</label><textarea id="pitch-community" name="community_leverage"></textarea>
+<label for="pitch-deck">Your deck &mdash; link it, or attach a PDF below</label><input id="pitch-deck" name="deck" type="url" inputmode="url" placeholder="DocSend, Drive, Notion or Dropbox link">
+<input id="pitch-deck-file" name="deck_file" type="file" accept="application/pdf,.pdf" data-file-transport="multipart:/api/lead">
+<p class="small" style="color:#9a9a9a">PDF only, up to 10 MB. Neither field is required &mdash; one is enough.</p>
 
       <button type="submit">Send</button>
       <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "npm run build && npm run validate:forms && npm run validate:disclosure && npm run validate:ventures-isolation && npm run validate:runbook && npm run validate:community-viability && npm run validate:productions-seo",
+    "validate": "npm run build && npm run validate:forms && npm run validate:disclosure && npm run validate:ventures-isolation && npm run validate:runbook && npm run validate:community-viability && npm run validate:community-site && npm run validate:productions-seo",
     "validate:forms": "node scripts/validate_forms.mjs",
     "validate:disclosure": "node scripts/validate_disclosure.mjs",
     "validate:ventures-isolation": "node scripts/validate_ventures_isolation.mjs",
@@ -18,6 +18,7 @@
     "validate:operator-doc-currency": "node scripts/validate_operator_doc_currency.mjs docs",
     "portfolio:status": "node scripts/portfolio_status.mjs --write",
     "validate:community-viability": "node scripts/validate_community_viability.mjs",
-    "validate:productions-seo": "node scripts/validate_productions_seo.mjs"
+    "validate:productions-seo": "node scripts/validate_productions_seo.mjs",
+    "validate:community-site": "node scripts/validate_community_site.mjs"
   }
 }

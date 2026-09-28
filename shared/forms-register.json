@@ -46,22 +46,23 @@
     {
       "repo": "join-west-peek-main",
       "site": "community",
-      "file": "sites/community/index.html",
-      "form": "newsletter_events",
-      "host": "joinwestpeek.com",
-      "description": "Newsletter and events signup on the community homepage",
-      "destination": "sheet",
-      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
-    },
-    {
-      "repo": "join-west-peek-main",
-      "site": "community",
       "file": "sites/community/join.html",
       "form": "community_join",
       "host": "joinwestpeek.com",
       "description": "Community join form",
       "destination": "sheet",
       "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form"
+    },
+    {
+      "repo": "join-west-peek-main",
+      "site": "community",
+      "file": "sites/community/update.html",
+      "form": "the_update",
+      "host": "joinwestpeek.com",
+      "description": "The Update — quarterly wins/asks form, rebuilt in the ventures form style (steps, progress bar) and gated to its window by functions/update.js. The Airtable embed named_stop this row used to carry is closed: this form now posts to /api/lead directly, like every other West Peek form.",
+      "destination": "sheet",
+      "via": "functions/api/lead.js -> west-peek-network-os /api/intake/site-form",
+      "note": "Replaces the 23 Sep 2026 named_stop row (the_update was on Airtable, unreachable from this repo). The Airtable base and its existing data are untouched — only the live form on joinwestpeek.com changed. Sequoia, 27 Sep 2026."
     },
     {
       "repo": "join-west-peek-main",

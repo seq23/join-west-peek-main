@@ -3,9 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>West Peek Community</title>
-  <meta name="description" content="Good people should meet good people. A community for founders and builders.">
+  <title>West Peek Community | Good People Should Meet Good People</title>
+  <meta name="description" content="West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.">
   <link rel="canonical" href="https://joinwestpeek.com/"/>
+  <meta property="og:title" content="West Peek Community | Good People Should Meet Good People">
+  <meta property="og:description" content="West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.">
+  <meta property="og:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
+  <meta property="og:url" content="https://joinwestpeek.com/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
   <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -15,7 +22,7 @@
       "@id": "https://joinwestpeek.com/#webpage",
       "url": "https://joinwestpeek.com/",
       "name": "West Peek Community",
-      "description": "Good people should meet good people. A community for founders and builders.",
+      "description": "West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.",
       "mainEntity": {
         "@id": "https://joinwestpeek.com/#organization"
       }
@@ -79,83 +86,79 @@
   ]
 }
 </script>
-  <link rel="stylesheet" href="assets/base.css">
+  <link rel="stylesheet" href="/assets/community.css">
 </head>
-<body>
-<header>
-  <div class="nav global-nav">
-    <div class="brand"><img src="assets/img/community-logo.jpg" alt="West Peek logo"><span>West Peek</span></div>
-    <nav class="navlinks global-navlinks" aria-label="Main navigation">
-      <span class="nav-group nav-group-primary"><a class="active" href="https://joinwestpeek.com/">Community</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a></span>
-      <span class="nav-divider" aria-hidden="true"></span>
-      <span class="nav-group nav-group-secondary"><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a></span>
-    </nav>
+<body class="wpc-body">
+<nav class="wpc-nav" aria-label="Main navigation">
+  <div class="wpc-nav__inner">
+    <a class="wpc-nav__logo" href="/"><img src="/assets/img/community-monogram.png" alt="West Peek"><span>West Peek</span></a>
+    <button class="wpc-nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div class="wpc-nav__links">
+      <a href="/episodes">Podcast</a>
+      <a href="/update">Update</a>
+      <a href="/pitch">Pitch</a>
+      <a href="/workshops">Workshops</a>    </div>
   </div>
+</nav>
+
+<header class="wpc-hero" id="top">
+  <!-- Live hero (Scooter, 28 Sep 2026): "West Peek" stays fixed while the
+       phrases in data-phrases type out, backspace and rotate (community.js,
+       heroTyping). The brief's exact line is the h1's real text: it is what
+       ships in the HTML, what a visitor with JavaScript off or
+       prefers-reduced-motion sees, and what screen readers hear - once typing
+       starts it is only moved off-screen, never removed. -->
+  <h1 class="wpc-hero__title" id="hero-title" data-phrases='["is a community","is a space for entrepreneurs, creatives and professionals","helps you feel less lonely building companies"]'>
+    <span class="wpc-hero__line" id="hero-line">West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.</span>
+    <span class="wpc-hero__live" id="hero-live" aria-hidden="true" hidden><span class="wpc-hero__fixed">West Peek</span> <span class="wpc-hero__rotor" id="hero-rotor"></span><span class="wpc-hero__caret"></span></span>
+  </h1>
+  <a class="wpc-btn wpc-hero__cta" href="/join">Join the community</a>
+  <a class="wpc-hero__scroll" href="#origin">Scroll to Origin</a>
+  <!-- Hidden until assets/data/hero.json names a photo (Scooter, 27 Sep 2026:
+       an event/dinner photo, not in hand yet). No empty placeholder ships. -->
+  <img class="wpc-hero__photo" id="hero-photo" alt="" loading="lazy">
 </header>
-<div class="subnav">
-  <div class="subnav-inner">
-    <span class="subnav-label">West Peek Community</span>
-    <nav class="subnav-links" aria-label="West Peek Community sections">
-      <a href="/about">What West Peek is</a>
-      <a href="/join">Join</a>
-      <a href="/podcast">Podcast</a>
-    </nav>
-  </div>
-</div>
-<div class="container">
-  <div class="hero">
-    <div class="img" style="background-image:url('assets/img/community-hero.jpg')"></div>
-    <div class="copy">
-      <div class="kicker">West Peek Community</div>
-      <h1>A community for builders.</h1>
-      <p>West Peek is the umbrella community behind West Peek Ventures and West Peek Productions. We connect founders, operators, and investors before things are obvious — and we keep it human.</p>
-      <div class="one-liner">Good people should meet good people.</div>
-      <p style="margin-top:14px"><a href="/about">What West Peek is →</a></p>
-    </div>
-  </div>
 
-  <section class="section">
-    <h2>Podcast</h2>
-    <p>Conversations with founders, operators and builders about the parts of the work that usually get left out of the retelling. Episodes are published on Scooter’s YouTube channel.</p>
-    <p><a href="/podcast">About the podcast →</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">Watch on YouTube →</a></p>
-  </section>
+<section class="wpc-section" id="origin" data-parallax-speed="0.04">
+  <p class="wpc-section__tag" data-accent="origin">Origin</p>
+  <p>Started in 2020, during the global pandemic. West Peek began when 5,000 people virtually gathered on Sunday, March 22, 2020, to come together, learn, partner, and connect with one another. We saw then the power of community while building your dreams. West Peek is the continuation of that.</p>
+  <p><a href="/about">Read more &rarr;</a></p>
+</section>
 
-  <section class="section">
-    <h2>Events & newsletter</h2>
-    <p>Small events and a newsletter are in progress. If you want early access and updates, <a href="/join">join the list</a> — it is free, and we only send when there is something real to say.</p>
-  </section>
-<section class="section">
-  <h2>Join the list</h2>
-  <p>We’ll only email you for real updates: events, newsletter, and podcast drops.</p>
-  <div class="form">
-    <form data-westpeek-form action="/api/lead" method="POST">
-      <input type="hidden" name="site" value="community">
-      <input type="hidden" name="lead_type" value="newsletter_events">
-      <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
-      <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+<section class="wpc-section" id="podcast-home" data-parallax-speed="0.03">
+  <p class="wpc-section__tag" data-accent="podcast">Podcast</p>
+  <h2>Good People Should Meet Good People</h2>
+  <p>Each episode is an introduction: someone worth knowing, and the world they open up.</p>
+  <a class="wpc-btn" href="/episodes">View Episodes</a>
+</section>
 
-<label for="community-name">Name</label><input id="community-name" name="name" autocomplete="name">
-<label for="community-email">Email</label><input id="community-email" name="email" type="email" autocomplete="email" required>
-<label for="community-interest">What are you interested in?</label>
-<select id="community-interest" name="interest" required>
-  <option value="">Select…</option>
-  <option>Newsletter</option><option>Events</option><option>Podcast updates</option><option>Partnerships</option>
-</select>
-<label for="community-note">Optional note</label><textarea id="community-note" name="description" placeholder="Anything we should know?"></textarea>
+<section class="wpc-section" id="update-home" data-parallax-speed="0.04">
+  <p class="wpc-section__tag" data-accent="update">The Update &middot; Quarterly</p>
+  <h2>The Update</h2>
+  <p>The Update is the lifeblood of West Peek &mdash; a safe space to share wins, big or small, ask for help, and talk through what's actually going on with what you're building. From what you share, we make the introductions, curate the workshops, and extend the dinner invites that fit where you are right now. We want you to feel less lonely as you build. It is not our independence but our interconnectedness that gets us there.</p>
+  <a class="wpc-btn" href="/update">Submit Update</a>
+</section>
 
-      <button type="submit">Join</button>
-      <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
-      <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
-    </form>
-  </div>
-</section></div><footer>
-  <div><a href="https://www.linkedin.com/company/west-peek-group/about/" target="_blank" rel="noopener">LinkedIn</a> · <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> · <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> · <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
-  <div style="margin-top:10px">Contact: <a href="mailto:scooter@westpeek.ventures">scooter@westpeek.ventures</a></div>
-  <div class="network-footer" aria-label="West Peek network"><a href="https://joinwestpeek.com/">Community</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a></div>
-  <div class="network-footer" aria-label="West Peek Community pages"><a href="/about">What West Peek is</a><a href="/join">Join</a><a href="/podcast">Podcast</a></div>
-  <div class="one-liner" style="margin-top:10px">Good people should meet good people.</div>
-  <div class="small" style="margin-top:10px">© West Peek · New York · Atlanta · Memphis</div>
+<section class="wpc-section" id="pitch-home" data-parallax-speed="0.03">
+  <p class="wpc-section__tag" data-accent="pitch">Pitch Competition &middot; with Sango</p>
+  <h2>Pitch Competition</h2>
+  <p>We host pitch competitions in partnership with Sango, so you can get access to non-dilutive capital. This is a great way to practice your pitch &mdash; pitch in front of real investors to get real feedback, and in front of a live audience, which can lead to more opportunities and more awareness.</p>
+  <p><strong>Prize: a $1,000 cash prize, along with a $500 Audience Choice Award.</strong></p>
+  <a class="wpc-btn" href="/pitch">See Pitch Competition</a>
+</section>
+
+<section class="wpc-section" id="workshops-home" data-parallax-speed="0.04">
+  <p class="wpc-section__tag" data-accent="workshops">Workshops</p>
+  <h2>Workshops</h2>
+  <p>Every West Peek workshop is built so you leave with tactical advice, not just inspiration. We invite subject-matter experts into curated &ldquo;rooms&rdquo; where you can ask real questions and work through the actual roadblocks specific to what you're building.</p>
+  <a class="wpc-btn" href="/workshops">See Next Workshops</a>
+</section>
+
+<footer class="wpc-footer">
+  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
+  <div>Good people should meet good people.</div>
+  <div style="margin-top:.5rem">&copy; West Peek</div>
 </footer>
-<script src="assets/js/forms.js"></script>
+<script src="/assets/community.js"></script>
 </body>
 </html>

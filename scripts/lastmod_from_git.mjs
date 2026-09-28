@@ -59,6 +59,52 @@ for (const rel of pages) {
   entries[rel] = iso.slice(0, 10);
 }
 
+/**
+ * Community episode pages are BUILD OUTPUT, not source files under sites/ -
+ * scripts/build.mjs generates dist/community/episodes/<slug>/index.html from
+ * sites/community/episode-template.html + assets/data/episodes.json. Neither
+ * of those is a page the walk above finds, so without this they would ship
+ * with no <lastmod> forever, which CI's entity-graph check treats as a dated
+ * sitemap gap. Date each generated page by whichever of its two real sources
+ * (the template, or the record itself changing in episodes.json) changed most
+ * recently - still a real git date, just attributed to the right two files.
+ */
+const episodesJsonRel = path.join('sites', 'community', 'assets', 'data', 'episodes.json');
+const episodeTemplateRel = path.join('sites', 'community', 'episode-template.html');
+const episodesJsonPath = path.join(ROOT, episodesJsonRel);
+if (fs.existsSync(episodesJsonPath) && fs.existsSync(path.join(ROOT, episodeTemplateRel))) {
+  const templateIso = git(['log', '-1', '--format=%cI', '--', episodeTemplateRel]);
+  let episodes = [];
+  try { episodes = JSON.parse(fs.readFileSync(episodesJsonPath, 'utf8')); } catch { /* validated elsewhere */ }
+  for (const ep of episodes) {
+    if (!ep.slug) continue;
+    const rel = path.join('sites', 'community', 'episodes', ep.slug, 'index.html');
+    const recordIso = git(['log', '-1', '--format=%cI', '-S', `"slug": "${ep.slug}"`, '--', episodesJsonRel]);
+    const dates = [templateIso, recordIso].filter(Boolean);
+    if (!dates.length) { missing.push(rel); continue; }
+    entries[rel] = dates.sort().pop().slice(0, 10);
+  }
+}
+
+// Same treatment for generated /workshops/<slug> pages (build output from
+// workshop-template.html + workshops.json - see the comment above).
+const workshopsJsonRel = path.join('sites', 'community', 'assets', 'data', 'workshops.json');
+const workshopTemplateRel = path.join('sites', 'community', 'workshop-template.html');
+const workshopsJsonPath = path.join(ROOT, workshopsJsonRel);
+if (fs.existsSync(workshopsJsonPath) && fs.existsSync(path.join(ROOT, workshopTemplateRel))) {
+  const templateIso = git(['log', '-1', '--format=%cI', '--', workshopTemplateRel]);
+  let workshops = [];
+  try { workshops = JSON.parse(fs.readFileSync(workshopsJsonPath, 'utf8')); } catch { /* validated elsewhere */ }
+  for (const w of workshops) {
+    if (!w.slug) continue;
+    const rel = path.join('sites', 'community', 'workshops', w.slug, 'index.html');
+    const recordIso = git(['log', '-1', '--format=%cI', '-S', `"slug": "${w.slug}"`, '--', workshopsJsonRel]);
+    const dates = [templateIso, recordIso].filter(Boolean);
+    if (!dates.length) { missing.push(rel); continue; }
+    entries[rel] = dates.sort().pop().slice(0, 10);
+  }
+}
+
 const next = {
   _why:
     'Per-source-file date of the last commit that changed that page, used for sitemap <lastmod>. ' +

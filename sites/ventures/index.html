@@ -732,10 +732,10 @@
     <div class="portfolio-grid">
       <article class="portfolio-card" data-company="sensori">
         <a class="portfolio-logo" href="https://drinksensori.com" target="_blank" rel="noopener noreferrer" aria-label="Sensori website"><img src="assets/img/portfolio/sensori-logo.svg" alt="Sensori"></a>
-        <a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"><img class="portfolio-photo" src="assets/img/portfolio/sensori-founders.jpg" alt="Sensori founders Shanna Pearre and Darean Rhodes" loading="lazy"></a>
+        <a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"><img class="portfolio-photo" src="assets/img/portfolio/sensori-founders.jpg" alt="Sensori founders Darean Rhodes and Shanna Pearre" loading="lazy"></a>
         <div>
           <div class="portfolio-name"><a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer">Sensori</a></div>
-          <div class="portfolio-founders">Shanna Pearre, Darean Rhodes</div>
+          <div class="portfolio-founders">Darean Rhodes, Shanna Pearre</div>
         </div>
         <div class="portfolio-links">
           <a href="https://drinksensori.com" target="_blank" rel="noopener noreferrer">Website</a>
@@ -844,7 +844,7 @@
       <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
       <div class="form-row">
         <div class="form-group">
-          <label for="apply-name">Your Name</label>
+          <label for="apply-name">Name</label>
           <input id="apply-name" name="name" type="text" autocomplete="name" placeholder="Full name" required>
         </div>
         <div class="form-group">
@@ -854,26 +854,36 @@
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label for="apply-company">Company</label>
+          <input id="apply-company" name="company" type="text" autocomplete="organization" placeholder="Your company" required>
+        </div>
+        <div class="form-group">
           <label for="apply-city">City</label>
           <input id="apply-city" name="city" type="text" placeholder="Where are you based?">
         </div>
-        <div class="form-group">
-          <label for="apply-company">Company Name</label>
-          <input id="apply-company" name="company" type="text" autocomplete="organization" placeholder="Your company" required>
-        </div>
       </div>
       <div class="form-group">
-        <label for="apply-company-website">Company Website</label>
+        <label for="apply-company-website">Company website</label>
         <input id="apply-company-website" name="company_website" type="url" inputmode="url" autocomplete="url" placeholder="https://yourcompany.com">
       </div>
       <div class="form-group">
-        <label for="apply-deck">Link to your deck (Google Drive, Notion, DocSend, etc.)</label>
-        <input id="apply-deck" name="deck" type="url" inputmode="url" placeholder="https://docsend.com/view/…">
-        <p class="form-hint">A link works better than an attachment — you keep control of it, and you can see when we open it. A bare domain is fine — we add the https:// for you.</p>
+        <label for="apply-description">What does your company do in 2-3 sentences?</label>
+        <textarea id="apply-description" name="description" rows="3" placeholder="A plain-language summary of what you're building." required></textarea>
       </div>
       <div class="form-group">
-        <label for="apply-community">How are you leveraging community?</label>
-        <textarea id="apply-community" name="description" rows="4" placeholder="Tell us how community plays a role in what you're building..."></textarea>
+        <label for="apply-customer">Who is your primary customer?</label>
+        <textarea id="apply-customer" name="primary_customer" rows="2" placeholder="Who pays, or who uses it, today?"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="apply-community">How are you leveraging the power of community?</label>
+        <textarea id="apply-community" name="community_leverage" rows="3" placeholder="Tell us how community plays a role in what you're building."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="apply-deck">Your deck</label>
+        <input id="apply-deck" name="deck" type="url" inputmode="url" placeholder="Link: https://docsend.com/view/…">
+        <p class="form-hint">Link it above, or attach a PDF below. Not everyone has DocSend — one of the two is enough.</p>
+        <input id="apply-deck-file" name="deck_file" type="file" accept="application/pdf,.pdf" data-file-transport="multipart:/api/lead" style="margin-top:.6rem">
+        <p class="form-hint">PDF only, up to 10 MB.</p>
       </div>
       <button type="submit" class="btn-submit" id="formSubmitBtn">Submit →</button>
       <p class="form-status" data-form-status role="status" aria-live="polite"></p>

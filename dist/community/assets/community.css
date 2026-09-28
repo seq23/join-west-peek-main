@@ -1,0 +1,337 @@
+/* West Peek Community — visual system for joinwestpeek.com.
+ *
+ * Rebuilt from the Site Architecture & Design Brief (23 Sep 2026): Maax
+ * throughout, no script or italics anywhere. This file is scoped to
+ * sites/community/ only — shared/assets/base.css is untouched so ventures
+ * and productions are unaffected.
+ *
+ * 27 Sep 2026 (Scooter): the black background read too dark. Brightened to
+ * white with the deeper palette from "website design thoughts.pdf" (page 3)
+ * as section accents; orange lifted from #c45a3c to #e0632f, approved by
+ * Sequoia the same day. Kept as custom properties so either is a one-line
+ * change again.
+ */
+
+@font-face {
+  font-family: 'Maax';
+  src: url('fonts/Maax-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Maax';
+  src: url('fonts/Maax-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Maax';
+  src: url('fonts/Maax-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --wp-orange: #e0632f;
+  --wp-orange-hover: #c8501f;
+  --wp-black: #ffffff;
+  --wp-panel: #f7f5f2;
+  --wp-line: rgba(52,63,73,0.14);
+  --wp-text: #343f49;
+  --wp-text-dim: #6b7480;
+  --wp-body: #4b5560;
+
+  /* Deep tones from the design PDF, used as section accents only —
+     background, text and the orange button/link stay fixed above. */
+  --wp-accent-red: #97233b;
+  --wp-accent-amber: #a16201;
+  --wp-accent-gold: #c09328;
+  --wp-accent-teal: #019e88;
+  --wp-accent-plum: #43263d;
+  --wp-accent-violet: #915793;
+  --wp-accent-olive: #6d6614;
+}
+
+html { overflow-x: hidden; }
+*, *::before, *::after { box-sizing: border-box; }
+.wpc-body { background: var(--wp-black); color: var(--wp-text); font-family: 'Maax', -apple-system, sans-serif; font-weight: 400; margin: 0; overflow-x: hidden; width: 100%; }
+.wpc-body h1, .wpc-body h2, .wpc-body h3, .wpc-body h4, .wpc-body nav, .wpc-body button { font-family: 'Maax', -apple-system, sans-serif; font-weight: 700; letter-spacing: -0.01em; color: var(--wp-text); }
+.wpc-body em, .wpc-body i, .wpc-body .italic { font-style: normal; } /* No italics as a stylistic device, anywhere on this site. */
+.wpc-body a { color: var(--wp-orange); text-decoration: none; }
+.wpc-body a:hover, .wpc-body a:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.wpc-body img { max-width: 100%; display: block; }
+/* The browser's own [hidden] { display: none } is a user-agent rule, so ANY
+   author rule that sets display on the same element beats it regardless of
+   specificity (origin outranks specificity in the cascade) - the hero-photo
+   slot above hit exactly this against ".wpc-body img", and the wizard's
+   Back/Submit buttons hit it against .wpc-btn's display:inline-flex. One
+   rule here, scoped to this stylesheet's own components, is cheaper than
+   chasing every future case individually. */
+.wpc-body [hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------- Nav */
+.wpc-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--wp-line);
+}
+.wpc-nav__inner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.1rem 3rem; }
+.wpc-body a.wpc-nav__logo, .wpc-nav__logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--wp-text); font-weight: 700; font-size: 1rem; white-space: nowrap; }
+.wpc-body a.wpc-nav__logo:hover, .wpc-nav__logo:hover { text-decoration: none; }
+/* The monogram is black ink on transparent. On the white background (27 Sep
+   2026) it needs no filter — the invert(1) that made it legible on black
+   would erase it here. */
+.wpc-nav__logo img { width: 28px; height: 28px; object-fit: contain; display: block; }
+.wpc-nav__toggle { display: none; flex-direction: column; gap: 4px; background: none; border: 1px solid var(--wp-line); border-radius: 4px; padding: .55rem .6rem; cursor: pointer; color: var(--wp-text); }
+.wpc-nav__toggle:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 2px; }
+.wpc-nav__toggle span { display: block; width: 18px; height: 2px; background: currentColor; border-radius: 2px; transition: transform .25s, opacity .25s; }
+.wpc-nav[data-open] .wpc-nav__toggle span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.wpc-nav[data-open] .wpc-nav__toggle span:nth-child(2) { opacity: 0; }
+.wpc-nav[data-open] .wpc-nav__toggle span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+.wpc-nav__links { display: flex; align-items: center; gap: 1.6rem; list-style: none; margin: 0; padding: 0; }
+.wpc-nav__links a { color: var(--wp-text-dim); font-size: .85rem; font-weight: 600; transition: color .2s; }
+.wpc-nav__links a:hover, .wpc-nav__links a:focus-visible, .wpc-nav__links a[aria-current="page"] { color: var(--wp-text); text-decoration: none; }
+.wpc-nav__links a:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 3px; border-radius: 2px; }
+@media (max-width: 860px) {
+  .wpc-nav__inner { padding: .9rem 1.25rem; flex-wrap: wrap; }
+  .wpc-nav__toggle { display: flex; }
+  .wpc-nav__links { display: none; width: 100%; flex-direction: column; align-items: stretch; gap: .5rem; padding: .6rem 0 .4rem; }
+  .wpc-nav[data-open] .wpc-nav__links { display: flex; }
+  .wpc-nav__links a { width: 100%; min-height: 44px; display: flex; align-items: center; padding: .6rem .9rem; border: 1px solid var(--wp-line); border-radius: 6px; background: var(--wp-panel); }
+}
+
+/* ---------------------------------------------------------------- Layout */
+.wpc-main { max-width: 1080px; margin: 0 auto; padding: 0 1.5rem; }
+.wpc-section { width: 100%; padding: 5rem 1.5rem; max-width: 1080px; margin: 0 auto; border-top: 1px solid var(--wp-line); }
+.wpc-section:first-of-type { border-top: 0; }
+.wpc-section__tag { color: var(--wp-orange); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .8rem; }
+.wpc-section h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); margin: 0 0 1rem; }
+.wpc-section p { color: var(--wp-body); line-height: 1.65; max-width: 62ch; margin: 0 0 1.25rem; font-size: 1.02rem; overflow-wrap: break-word; }
+
+/* Hero — text, a Join CTA where people land, and a photo slot that stays
+   hidden until assets/data/hero.json names a photo (no empty placeholder
+   ships). */
+.wpc-hero { padding: 7rem 1.5rem 4rem; max-width: 900px; margin: 0 auto; text-align: left; position: relative; overflow: hidden; }
+.wpc-hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.12; margin: 0 0 1.75rem; }
+.wpc-hero__cta { margin-top: .5rem; }
+/* Live hero: the typed copy sits where the static line was. A minimum height
+   keeps the Join button from jumping as phrases grow and shrink; the caret
+   blinks only while typing runs (community.js never starts it under
+   prefers-reduced-motion, and the animation is off there too). */
+.wpc-hero h1[data-typing] { min-height: 2.3em; }
+@media (max-width: 640px) { .wpc-hero h1[data-typing] { min-height: 4.5em; } }
+.wpc-hero__rotor { color: var(--wp-text); }
+.wpc-hero__caret { display: inline-block; width: .06em; height: .9em; background: var(--wp-orange); margin-left: .1em; vertical-align: -.06em; animation: wpc-caret 1s steps(1) infinite; }
+@keyframes wpc-caret { 50% { opacity: 0; } }
+.wpc-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* The scroll leads into Origin: a quiet cue under the Join button. */
+.wpc-body a.wpc-hero__scroll, .wpc-hero__scroll { display: flex; width: max-content; align-items: center; gap: .55rem; margin: 2.75rem 0 0; font-size: .82rem; font-weight: 600; color: var(--wp-text-dim); }
+.wpc-hero__scroll::after { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-top: -4px; animation: wpc-scroll-nudge 1.8s ease-in-out infinite; }
+@keyframes wpc-scroll-nudge { 0%, 100% { transform: translateY(0) rotate(45deg); } 50% { transform: translateY(3px) rotate(45deg); } }
+.wpc-body a.wpc-hero__scroll:hover, .wpc-hero__scroll:hover { color: var(--wp-text); text-decoration: none; }
+/* .wpc-hero .wpc-hero__photo (two classes), not just .wpc-hero__photo: the
+   general ".wpc-body img { display: block }" rule above is a class+element
+   selector (0,1,1), which otherwise outranks a single-class ".wpc-hero__photo"
+   (0,1,0) and forces the empty slot visible regardless of source order -
+   caught on the homepage screenshot, 27 Sep 2026: an empty bordered box sat
+   in the hero on every load, photo or not. */
+.wpc-hero .wpc-hero__photo { display: none; width: 100%; max-width: 560px; height: 320px; object-fit: cover; border-radius: 12px; margin-top: 2.5rem; }
+.wpc-hero .wpc-hero__photo[data-loaded] { display: block; }
+
+/* Section accents: each of the deep PDF-palette tones assigned to one
+   section tag via data-accent="<name>" in the markup, so the page reads with
+   variety rather than one orange used everywhere. The orange itself stays
+   reserved for buttons and links (Sequoia, 27 Sep 2026). */
+.wpc-section__tag[data-accent="origin"], .wpc-section h2[data-accent="origin"] { color: var(--wp-accent-plum); }
+.wpc-section__tag[data-accent="podcast"], .wpc-section h2[data-accent="podcast"] { color: var(--wp-accent-teal); }
+.wpc-section__tag[data-accent="update"], .wpc-section h2[data-accent="update"] { color: var(--wp-accent-amber); }
+.wpc-section__tag[data-accent="pitch"], .wpc-section h2[data-accent="pitch"] { color: var(--wp-accent-red); }
+.wpc-section__tag[data-accent="workshops"], .wpc-section h2[data-accent="workshops"] { color: var(--wp-accent-gold); }
+.wpc-section__tag[data-accent="about"], .wpc-section h2[data-accent="about"] { color: var(--wp-accent-violet); }
+/* A section whose only heading is a full sentence (the pitch winners, 28 Sep
+   2026: one heading instead of a tag + h2 that both said "Past Winners")
+   takes the accent on the h2 itself and sits a step below the h2 scale. */
+.wpc-section h2.wpc-section__heading { font-size: clamp(1.35rem, 2.6vw, 1.8rem); line-height: 1.3; max-width: 36ch; margin-bottom: .5rem; }
+
+/* a.wpc-btn, not just .wpc-btn: a class+element selector is more specific than
+   a single class, so ".wpc-body a { color: var(--wp-orange) }" above would
+   otherwise win regardless of source order and print orange text on an
+   orange button - invisible. Caught on the preview screenshot, 23 Sep 2026. */
+.wpc-body a.wpc-btn, .wpc-btn { display: inline-flex; align-items: center; gap: .5rem; background: var(--wp-orange); color: #fff; padding: .85rem 1.6rem; border-radius: 6px; font-weight: 700; font-size: .92rem; border: 0; cursor: pointer; transition: background .2s; }
+.wpc-body a.wpc-btn:hover, .wpc-body a.wpc-btn:focus-visible, .wpc-btn:hover, .wpc-btn:focus-visible { background: var(--wp-orange-hover); text-decoration: none; color: #fff; }
+.wpc-body a.wpc-btn--ghost, .wpc-btn--ghost { background: transparent; border: 1px solid var(--wp-line); color: var(--wp-text); }
+.wpc-body a.wpc-btn--ghost:hover, .wpc-btn--ghost:hover { border-color: var(--wp-orange); color: var(--wp-text); }
+
+.wpc-page-head { width: 100%; padding: 3.5rem 1.5rem 1rem; max-width: 1080px; margin: 0 auto; }
+.wpc-page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); margin: 0 0 .75rem; }
+.wpc-page-head p { color: var(--wp-body); max-width: 62ch; line-height: 1.6; overflow-wrap: break-word; }
+.wpc-breadcrumb { color: var(--wp-text-dim); font-size: .8rem; margin: 0 0 1rem; }
+.wpc-breadcrumb a { color: var(--wp-text-dim); }
+
+.wpc-series-intro { font-size: 1.05rem; color: var(--wp-text); max-width: 62ch; line-height: 1.6; margin: .5rem 0 1.25rem; }
+
+/* ---------------------------------------------------------------- Episode page (Carlos reference):
+   guest photo on the left, video on the right taking that space; other
+   episodes line up in one row underneath rather than jumbling down. */
+.wpc-episode { display: grid; grid-template-columns: 300px 1fr; gap: 2rem; align-items: start; margin: 2rem 0 3.5rem; }
+.wpc-episode__photo img { width: 100%; border-radius: 10px; aspect-ratio: 1/1; object-fit: cover; }
+.wpc-episode__photo .wpc-card__number { margin-bottom: .5rem; }
+.wpc-episode__title { color: var(--wp-text-dim); font-size: .95rem; margin: .25rem 0 1rem; }
+.wpc-episode__player p { color: var(--wp-body); line-height: 1.65; margin-top: 1.25rem; }
+.wpc-episode__more { margin-bottom: 3rem; }
+.wpc-episode__row { display: flex; gap: 1rem; overflow-x: auto; padding-bottom: .5rem; margin-top: 1.5rem; }
+.wpc-episode__row .wpc-card { flex: none; width: 200px; }
+@media (max-width: 760px) {
+  .wpc-episode { grid-template-columns: 1fr; }
+  .wpc-episode__photo { max-width: 220px; }
+}
+
+/* ---------------------------------------------------------------- Grid cards (episodes + winners) */
+.wpc-grid { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.25rem; margin-top: 2rem; }
+.wpc-card {
+  display: block; background: var(--wp-panel); border: 1px solid var(--wp-line); border-radius: 10px; overflow: hidden;
+  cursor: pointer; text-align: left; width: 100%; color: inherit; font: inherit; padding: 0; text-decoration: none;
+}
+.wpc-card:hover, .wpc-card:focus-visible { text-decoration: none; border-color: var(--wp-orange); }
+.wpc-card:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 2px; }
+.wpc-card__photo { width: 100%; aspect-ratio: 1/1; object-fit: cover; filter: grayscale(1); transition: filter .3s; }
+.wpc-card[aria-expanded="true"] .wpc-card__photo { filter: grayscale(0); }
+.wpc-card__body { padding: 1rem 1.1rem 1.25rem; }
+.wpc-card__number { color: var(--wp-orange); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .35rem; }
+.wpc-card__name { font-size: 1rem; font-weight: 700; margin: 0; }
+.wpc-card__detail { display: none; padding: 0 1.1rem 1.25rem; }
+.wpc-card[aria-expanded="true"] .wpc-card__detail { display: block; }
+.wpc-card__detail p { color: var(--wp-body); font-size: .92rem; line-height: 1.55; margin: 0 0 1rem; }
+.wpc-card__player { position: relative; width: 100%; aspect-ratio: 16/9; margin-bottom: 1rem; background: #000; border-radius: 6px; overflow: hidden; }
+.wpc-card__player iframe { width: 100%; height: 100%; border: 0; }
+.wpc-card__soon { padding: 1rem; border: 1px dashed var(--wp-line); border-radius: 6px; color: var(--wp-text-dim); font-size: .85rem; text-align: center; margin-bottom: 1rem; }
+
+/* ---------------------------------------------------------------- Structured placeholders */
+.wpc-placeholder { border: 1px dashed var(--wp-orange); border-radius: 8px; padding: 1.5rem; background: rgba(224,99,47,0.07); }
+.wpc-placeholder__tag { color: var(--wp-orange); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .6rem; }
+.wpc-placeholder p { margin: 0 0 .5rem; }
+.wpc-placeholder--empty { text-align: center; color: var(--wp-text-dim); padding: 3rem 1.5rem; border: 1px dashed var(--wp-line); border-radius: 8px; }
+
+/* ---------------------------------------------------------------- Embeds (Airtable, Luma) */
+.wpc-embed { border: 1px solid var(--wp-line); border-radius: 10px; overflow: hidden; background: var(--wp-panel); margin: 1.5rem 0; }
+.wpc-embed iframe { width: 100%; border: 0; display: block; }
+
+/* ---------------------------------------------------------------- History gallery */
+.wpc-history-list { display: flex; flex-direction: column; gap: 0; margin-top: 2rem; border-top: 1px solid var(--wp-line); }
+.wpc-history-item { border-bottom: 1px solid var(--wp-line); }
+.wpc-history-item__toggle { width: 100%; display: flex; align-items: center; gap: 1.25rem; padding: 1.1rem 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.wpc-history-item__toggle:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 2px; }
+.wpc-history-item__thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; flex: none; }
+/* .wpc-history-item__name and __dates are <span>s inside one label <span>; a
+   vertical margin on an inline element is ignored, so they used to render
+   with NO space between the title and the date ("QuarantineConMarch 20,
+   2020"). display:block fixes it and gives the date its own line. */
+.wpc-history-item__name { display: block; font-weight: 700; margin: 0; }
+.wpc-history-item__dates { display: block; color: var(--wp-text-dim); font-size: .82rem; margin: .2rem 0 0; }
+.wpc-history-item__chevron { margin-left: auto; width: 10px; height: 10px; border-right: 2px solid var(--wp-text-dim); border-bottom: 2px solid var(--wp-text-dim); transform: rotate(45deg); transition: transform .2s; flex: none; }
+.wpc-history-item[data-open] .wpc-history-item__chevron { transform: rotate(-135deg); }
+.wpc-history-item__body { display: none; padding: 0 0 1.5rem 88px; }
+.wpc-history-item[data-open] .wpc-history-item__body { display: block; }
+.wpc-history-item__body p { color: var(--wp-body); max-width: 60ch; line-height: 1.6; margin: 0 0 1.25rem; }
+
+/* Flyer carousel: horizontal scroll, name caption under any flyer that has one. */
+.wpc-flyer-carousel { display: flex; gap: 1rem; overflow-x: auto; padding: 0 0 .5rem; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.wpc-flyer-carousel__item { flex: none; width: 180px; scroll-snap-align: start; margin: 0; }
+.wpc-flyer-carousel__item img { width: 180px; height: 180px; object-fit: cover; border-radius: 8px; }
+.wpc-flyer-carousel__item figcaption { font-size: .8rem; font-weight: 600; color: var(--wp-text); margin-top: .5rem; }
+
+/* Scroll cue (Scooter, 27 Sep 2026: "I don't know if people know they can scroll on
+   the flyers"). Every sideways scroller - the event-history flyer carousels and the
+   More Episodes / workshops rows - is wrapped by community.js in a .wpc-scroller: a
+   hint line, previous/next arrows, and a fade on whichever edge still has more behind
+   it. The cue removes itself (data-fits) when everything already fits on screen. */
+/* The edge fade is a hint that more is behind it, not a curtain: a soft
+   half-transparent 28px strip. The first version (56px, solid white to clear)
+   washed out the side flyers so far that faces were hard to see (Scooter,
+   28 Sep 2026: Jason Geter's). Validated: width <= 32px, alpha <= 0.6. */
+.wpc-scroller { --wp-scroller-bg: var(--wp-black); --wp-scroller-fade: rgba(255,255,255,0.5); }
+.wpc-scroller__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 .6rem; }
+.wpc-scroller__hint { font-size: .82rem; font-weight: 600; color: var(--wp-text-dim); margin: 0; }
+.wpc-scroller__arrows { display: flex; gap: .4rem; flex: none; }
+.wpc-scroller__btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--wp-line); background: none; color: var(--wp-text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; font: inherit; }
+.wpc-scroller__btn::before { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); margin-left: -3px; }
+.wpc-scroller__btn[data-dir="-1"]::before { transform: rotate(135deg); margin-left: 3px; }
+.wpc-scroller__btn:hover, .wpc-scroller__btn:focus-visible { border-color: var(--wp-orange); color: var(--wp-orange); outline: none; }
+.wpc-scroller__btn[disabled] { opacity: .35; cursor: default; border-color: var(--wp-line); color: var(--wp-text); }
+.wpc-scroller__track { position: relative; }
+.wpc-scroller__track > [tabindex]:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 4px; }
+.wpc-scroller__edge { position: absolute; top: 0; bottom: 0; width: 28px; pointer-events: none; opacity: 1; transition: opacity .2s; }
+.wpc-scroller__edge--start { left: 0; background: linear-gradient(to right, var(--wp-scroller-fade), transparent); }
+.wpc-scroller__edge--end { right: 0; background: linear-gradient(to left, var(--wp-scroller-fade), transparent); }
+.wpc-scroller[data-at-start] .wpc-scroller__edge--start, .wpc-scroller[data-at-end] .wpc-scroller__edge--end { opacity: 0; }
+.wpc-scroller[data-fits] .wpc-scroller__bar, .wpc-scroller[data-fits] .wpc-scroller__edge { display: none; }
+
+/* ---------------------------------------------------------------- Welcome note (/welcome, friends testing) */
+.wpc-note { background: var(--wp-panel); border: 1px solid var(--wp-line); border-left: 4px solid var(--wp-accent-plum); border-radius: 10px; padding: 2rem 2rem 1.75rem; margin: 1rem 0 2rem; max-width: 640px; }
+.wpc-note__tag { color: var(--wp-accent-plum); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .9rem; }
+.wpc-note p { color: var(--wp-text); font-size: 1.08rem; line-height: 1.65; margin: 0 0 1rem; }
+.wpc-note__sig { font-weight: 700; margin: 0; }
+.wpc-note p.wpc-note__sig { margin: 0; }
+
+/* ---------------------------------------------------------------- Founding team */
+.wpc-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+.wpc-team__card { background: var(--wp-panel); border: 1px solid var(--wp-line); border-radius: 10px; padding: 1.5rem; }
+.wpc-team__card h3 { margin: 0 0 .6rem; }
+.wpc-team__card p { color: var(--wp-body); font-size: .92rem; line-height: 1.55; margin: 0; }
+
+/* ---------------------------------------------------------------- Forms (Join, mirrors base.css structure) */
+.wpc-form label { display: block; font-size: .8rem; color: var(--wp-text-dim); margin: 1rem 0 .3rem; }
+.wpc-form input, .wpc-form select, .wpc-form textarea {
+  width: 100%; box-sizing: border-box; background: var(--wp-panel); border: 1px solid var(--wp-line);
+  border-radius: 6px; padding: .7rem .85rem; color: var(--wp-text); font: inherit; font-size: .92rem;
+}
+.wpc-form input:focus-visible, .wpc-form select:focus-visible, .wpc-form textarea:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 1px; }
+.wpc-form button[type="submit"] { margin-top: 1.5rem; }
+/* A helper line under a label (the Update's "Your city"), and a yes/no radio
+   choice rendered as options in a row rather than the block-level label +
+   full-width input every other field uses. */
+.wpc-form .wpc-form__help { margin: 0 0 .5rem; line-height: 1.5; max-width: 56ch; }
+.wpc-form .wpc-choice { margin-top: 1rem; }
+.wpc-form .wpc-choice__label { font-size: .8rem; color: var(--wp-text-dim); margin: 0 0 .5rem; }
+.wpc-form .wpc-choice__option { display: inline-flex; align-items: center; gap: .5rem; margin: 0 1.5rem .25rem 0; font-size: .95rem; color: var(--wp-text); cursor: pointer; }
+.wpc-form .wpc-choice__option input[type="radio"] { width: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--wp-orange); background: none; border: 0; }
+.wpc-form .small { color: var(--wp-text-dim); font-size: .82rem; }
+
+/* Thank-you panel: what forms.js puts in place of a form (or the whole Update
+   wizard) once the server has confirmed the submission - a heading and the
+   success copy, not a one-line status under the button (28 Sep 2026). */
+.wp-form-thanks { background: var(--wp-panel); border: 1px solid var(--wp-line); border-left: 4px solid var(--wp-accent-amber); border-radius: 10px; padding: 2rem 2rem 2.25rem; margin: 1.5rem 0 3rem; outline: none; }
+.wp-form-thanks__tag { color: var(--wp-accent-amber); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .6rem; }
+.wp-form-thanks h2 { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 .75rem; }
+.wp-form-thanks p { color: var(--wp-body); line-height: 1.6; max-width: 56ch; margin: 0 0 1.25rem; }
+.wp-form-thanks p:last-child { margin-bottom: 0; }
+
+/* ---------------------------------------------------------------- Multi-step form (The Update) */
+.wpc-steps__progress { height: 6px; background: var(--wp-line); border-radius: 3px; overflow: hidden; margin: 1.5rem 0 .5rem; }
+.wpc-steps__bar { height: 100%; width: 0; background: var(--wp-orange); transition: width .3s ease; }
+.wpc-steps__step { border: 0; padding: 0; margin: 1.5rem 0 0; }
+.wpc-steps__step legend { font-weight: 700; padding: 0 0 .5rem; font-size: 1.05rem; }
+.wpc-steps__nav { display: flex; gap: .75rem; margin-top: 1.5rem; }
+
+/* ---------------------------------------------------------------- Footer */
+.wpc-footer { padding: 2.5rem 1.5rem; border-top: 1px solid var(--wp-line); text-align: center; color: var(--wp-text-dim); font-size: .8rem; }
+.wpc-footer a { color: var(--wp-text-dim); }
+.wpc-footer a:hover { color: var(--wp-text); }
+.wpc-footer__links { margin-bottom: .75rem; }
+.wpc-footer__links a { margin: 0 .5rem; }
+
+/* ---------------------------------------------------------------- Parallax
+   Transform-only layered scroll motion (community.js). Each element carries
+   data-parallax-speed (fraction of scroll delta it moves at); JS sets
+   transform: translateY() on scroll via requestAnimationFrame, never touches
+   layout properties. Disabled entirely under prefers-reduced-motion — see
+   the JS guard, which is the one that actually matters since this is a JS
+   effect, not a CSS one. */
+[data-parallax-speed] { will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wpc-body * { transition: none !important; animation: none !important; }
+}

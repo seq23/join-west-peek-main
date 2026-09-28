@@ -6,7 +6,14 @@
   <title>Join the West Peek Community | West Peek</title>
   <meta name="description" content="Join a community of more than 5,000 founders, operators, investors, creatives and builders. Free. Newsletter, event invitations and podcast updates — no other email.">
   <link rel="canonical" href="https://joinwestpeek.com/join"/>
-  <link rel="stylesheet" href="/assets/base.css">
+  <meta property="og:title" content="Join the West Peek Community | West Peek">
+  <meta property="og:description" content="Join a community of more than 5,000 founders, operators, investors, creatives and builders.">
+  <meta property="og:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
+  <meta property="og:url" content="https://joinwestpeek.com/join">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
+  <link rel="stylesheet" href="/assets/community.css">
 <script type="application/ld+json" data-wp-identity>
 {
   "@context": "https://schema.org",
@@ -93,146 +100,75 @@
 }
 </script>
 </head>
-<body>
-<header>
-  <div class="nav global-nav">
-    <div class="brand"><img src="/assets/img/community-logo.jpg" alt="West Peek logo"><span>West Peek</span></div>
-    <nav class="navlinks global-navlinks" aria-label="Main navigation">
-      <span class="nav-group nav-group-primary"><a class="active" href="https://joinwestpeek.com/">Community</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a></span>
-      <span class="nav-divider" aria-hidden="true"></span>
-      <span class="nav-group nav-group-secondary"><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a></span>
-    </nav>
+<body class="wpc-body">
+<nav class="wpc-nav" aria-label="Main navigation">
+  <div class="wpc-nav__inner">
+    <a class="wpc-nav__logo" href="/"><img src="/assets/img/community-monogram.png" alt="West Peek"><span>West Peek</span></a>
+    <button class="wpc-nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div class="wpc-nav__links">
+      <a href="/episodes">Podcast</a>
+      <a href="/update">Update</a>
+      <a href="/pitch">Pitch</a>
+      <a href="/workshops">Workshops</a>    </div>
   </div>
-</header>
-<div class="subnav">
-  <div class="subnav-inner">
-    <span class="subnav-label">West Peek Community</span>
-    <nav class="subnav-links" aria-label="West Peek Community sections">
-      <a href="/about">What West Peek is</a>
-      <a href="/join" aria-current="page">Join</a>
-      <a href="/podcast">Podcast</a>
-    </nav>
-  </div>
+</nav>
+
+<div class="wpc-page-head">
+  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / Join</p>
+  <h1>Join the West Peek community</h1>
+  <p>More than 5,000 founders, operators, investors, creatives and builders. Free to join, and we only email when there is something real to say.</p>
 </div>
 
-<main>
-  <div class="page-head">
-    <p class="breadcrumb"><a href="/">West Peek Community</a><span>/</span>Join</p>
-    <h1>Join the West Peek community</h1>
-    <p class="page-standfirst">More than 5,000 founders, operators, investors, creatives and builders. Free to join, and we only email when there is something real to say.</p>
-  </div>
+<div class="wpc-main wpc-form">
+  <form data-westpeek-form action="/api/lead" method="POST"
+        data-fallback-email="os@joinwestpeek.com"
+        data-success-panel="true"
+        data-success-title="You're on the list."
+        data-success="We'll be in touch when there's something real to share."
+        data-success-link="/" data-success-link-label="Back to West Peek">
+    <input type="hidden" name="site" value="community">
+    <input type="hidden" name="lead_type" value="community_join">
+    <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
+    <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
 
-  <div class="prose">
-    <div class="answer-box">
-      <p class="answer-label">The short answer</p>
-      <p><strong>Joining is free.</strong> You get the newsletter, invitations to events, and podcast updates. Nothing else, and no third party gets your address.</p>
-    </div>
+    <label for="join-name">Name</label>
+    <input id="join-name" name="name" autocomplete="name">
 
-    <h2>Who this is for</h2>
-    <ul class="checklist">
-      <li><strong>Founders</strong>At any stage, including the stage before it is obvious there is a company.</li>
-      <li><strong>Operators</strong>The people who actually build and run things inside companies.</li>
-      <li><strong>Investors</strong>Particularly ones who like meeting founders before a round is a round.</li>
-      <li><strong>Creatives and builders</strong>Because the interesting introductions are rarely between two people with the same job title.</li>
-    </ul>
+    <label for="join-email">Email</label>
+    <input id="join-email" name="email" type="email" autocomplete="email" required>
 
-    <h2>What you actually get</h2>
-    <ul class="checklist">
-      <li><strong>The newsletter</strong>Real updates, not a content schedule.</li>
-      <li><strong>Event invitations</strong>Small events, which is the point. A room where you can meet everybody beats a room where you can meet nobody.</li>
-      <li><strong>Podcast drops</strong>Currently published on <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">Scooter Taylor's YouTube channel</a>. More on the <a href="/podcast">podcast page</a>.</li>
-    </ul>
+    <label for="join-city">City</label>
+    <input id="join-city" name="city" autocomplete="address-level2">
 
-    <h2>What you will not get</h2>
-    <div class="callout">
-      <p>A daily send. A drip sequence. Your email address handed to anyone else. If we have nothing worth saying, we do not send anything — which is why the list moves slowly and why the open rates are worth having.</p>
-    </div>
+    <label for="join-role">What best describes you?</label>
+    <select id="join-role" name="role" required>
+      <option value="">Select&hellip;</option>
+      <option>Entrepreneur</option>
+      <option>Creative</option>
+      <option>Professional</option>
+      <option>Investor</option>
+    </select>
 
-    <h2>Join the list</h2>
-    <div class="form">
-      <form data-westpeek-form action="/api/lead" method="POST"
-            data-success="You're on the list. We'll be in touch when there's something real to share.">
-        <input type="hidden" name="site" value="community">
-        <input type="hidden" name="lead_type" value="community_join">
-        <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
-        <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+    <label for="join-company">Company</label>
+    <input id="join-company" name="company" autocomplete="organization">
 
-        <label for="join-name">Name</label>
-        <input id="join-name" name="name" autocomplete="name">
+    <label for="join-interest">What are you most interested in?</label>
+    <input id="join-interest" name="interest">
 
-        <label for="join-email">Email</label>
-        <input id="join-email" name="email" type="email" autocomplete="email" required>
+    <label for="join-goal">What are you looking to accomplish in the next 12 months?</label>
+    <textarea id="join-goal" name="description" placeholder="One or two lines is plenty."></textarea>
 
-        <label for="join-role">What best describes you?</label>
-        <select id="join-role" name="role" required>
-          <option value="">Select&hellip;</option>
-          <option>Founder</option>
-          <option>Operator</option>
-          <option>Investor</option>
-          <option>Creative</option>
-          <option>Builder</option>
-          <option>Something else</option>
-        </select>
+    <button type="submit" class="wpc-btn">Join the community</button>
+    <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
+  </form>
+</div>
 
-        <label for="join-interest">What are you most interested in?</label>
-        <select id="join-interest" name="interest" required>
-          <option value="">Select&hellip;</option>
-          <option>Newsletter</option>
-          <option>Events</option>
-          <option>Podcast updates</option>
-          <option>Meeting other founders</option>
-          <option>Partnerships</option>
-        </select>
-
-        <label for="join-note">What are you working on? (optional)</label>
-        <textarea id="join-note" name="description" placeholder="One line is plenty."></textarea>
-
-        <button type="submit">Join the community</button>
-        <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
-        <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
-      </form>
-    </div>
-
-    <h2>Common questions</h2>
-    <div class="faq-list">
-      <div class="faq-item">
-        <h3>Does it cost anything?</h3>
-        <p>No. There is no membership fee and no paid tier.</p>
-      </div>
-      <div class="faq-item">
-        <h3>How often will you email me?</h3>
-        <p>Only when there is a real update: an event, a newsletter issue, or a podcast episode. There is no scheduled send.</p>
-      </div>
-      <div class="faq-item">
-        <h3>Do I have to be a founder?</h3>
-        <p>No. Operators, investors, creatives and builders are all part of it, and the mix is deliberate — the useful introductions usually cross roles.</p>
-      </div>
-      <div class="faq-item">
-        <h3>Is this how I pitch the fund?</h3>
-        <p>No, that is separate. West Peek Ventures takes submissions through its own <a href="https://westpeek.ventures/pitch">pitch page</a>.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="related">
-    <h2>Related</h2>
-    <div class="related-grid">
-      <a href="/about">What West Peek is<span>The fund, the agency and the community, and how they connect.</span></a>
-      <a href="/podcast">The podcast<span>Published on Scooter Taylor's YouTube channel.</span></a>
-      <a href="https://westpeek.ventures/pitch">Pitch West Peek Ventures<span>Raising at pre-seed? This is the separate path for that.</span></a>
-      <a href="https://westpeekproductions.com/services/">Hire the agency<span>Production, community strategy, storytelling and audience growth.</span></a>
-    </div>
-  </div>
-</main>
-
-<footer>
-  <div><a href="https://www.linkedin.com/company/west-peek-group/about/" target="_blank" rel="noopener">LinkedIn</a> · <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> · <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> · <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
-  <div style="margin-top:10px">Contact: <a href="mailto:scooter@westpeek.ventures">scooter@westpeek.ventures</a></div>
-  <div class="network-footer" aria-label="West Peek network"><a href="https://joinwestpeek.com/">Community</a><a href="https://westpeek.ventures/">Ventures</a><a href="https://westpeekproductions.com/">Agency</a><a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a><a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a></div>
-  <div class="network-footer" aria-label="West Peek Community pages"><a href="/about">What West Peek is</a><a href="/join">Join</a><a href="/podcast">Podcast</a></div>
-  <div class="one-liner" style="margin-top:10px">Good people should meet good people.</div>
-  <div class="small" style="margin-top:10px">© West Peek · New York · Atlanta · Memphis</div>
+<footer class="wpc-footer">
+  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a></div>
+  <div>Good people should meet good people.</div>
+  <div style="margin-top:.5rem">&copy; West Peek</div>
 </footer>
+<script src="/assets/community.js"></script>
 <script src="/assets/js/forms.js"></script>
 </body>
 </html>
