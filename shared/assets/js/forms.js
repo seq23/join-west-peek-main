@@ -30,9 +30,10 @@
   var DEFAULT_ACTION = '/api/lead';
   var DEFAULT_SUCCESS = 'Received. We’ll reply soon.';
   // Ventures forms override this with data-fallback-email="info@westpeek.ventures"
-  // (Scooter, 22 Sep 2026: no personal address as the public backup line). This
-  // default still covers community and productions, which were not part of
-  // that request.
+  // (Scooter, 22 Sep 2026: no personal address as the public backup line), and
+  // community forms with data-fallback-email="os@joinwestpeek.com" (the West
+  // Peek OS inbox, 28 Sep 2026 - scripts/validate_community_site.mjs pins it).
+  // This default still covers productions, whose enquiries go to Scooter.
   var DEFAULT_FALLBACK_EMAIL = 'scooter@westpeek.ventures';
 
   function status(form) {

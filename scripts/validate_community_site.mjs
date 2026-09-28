@@ -166,6 +166,19 @@ function checkTree(label, dir, isBuilt) {
       }
     }
 
+    // No personal address on the community site (28 Sep 2026): the "if the
+    // form fails, email scooter@..." line is gone, and every form names a firm
+    // inbox for its failure fallback - os@joinwestpeek.com, the West Peek OS
+    // inbox, which is routed - so forms.js's default (a personal address) can
+    // never be what a visitor sees here.
+    check();
+    if (/scooter@westpeek\.ventures/i.test(withoutScripts)) errors.push(`${r}: shows scooter@westpeek.ventures. No personal address on the community site; forms fall back to os@joinwestpeek.com.`);
+    for (const m of withoutScripts.matchAll(/<form\b[^>]*data-westpeek-form[^>]*>/gi)) {
+      check();
+      const fb = /data-fallback-email="([^"]*)"/.exec(m[0])?.[1] || "";
+      if (fb !== "os@joinwestpeek.com") errors.push(`${r}: a data-westpeek-form has data-fallback-email="${fb}", expected os@joinwestpeek.com (the routed OS inbox) so a failed send never shows a personal address.`);
+    }
+
     // Naming: never "West Peek pitch competition", never "Sengo" - on any page.
     check();
     for (const [re, what] of FORBIDDEN_PHRASES) if (re.test(html)) errors.push(`${r}: ${what}`);

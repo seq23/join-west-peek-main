@@ -36,6 +36,7 @@
 
 <div class="wpc-main wpc-form">
   <form data-westpeek-form action="/api/lead" method="POST"
+        data-fallback-email="os@joinwestpeek.com"
         data-success="You're on the list. We'll be in touch when there's something real to share.">
     <input type="hidden" name="site" value="community">
     <input type="hidden" name="lead_type" value="community_join">
@@ -71,7 +72,6 @@
 
     <button type="submit" class="wpc-btn">Join the community</button>
     <div class="small" data-form-status role="status" aria-live="polite" style="margin-top:10px"></div>
-    <div class="small" style="margin-top:10px">If the form fails to send, email <strong>scooter@westpeek.ventures</strong>.</div>
   </form>
 </div>
 
