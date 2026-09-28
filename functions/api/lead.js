@@ -113,12 +113,15 @@ const COMMUNITY_HOSTS = [
   'joinwestpeek.com',
   'www.joinwestpeek.com',
   'westpeek.co',
-  // The Pages project is named join-west-peek-main but its subdomain is
-  // west-peek-community.pages.dev (every preview is <branch>.west-peek-community.pages.dev).
-  // Measured 28 Sep 2026: a preview POST answered sheet:"not_applicable" because
-  // only the project name was listed here. Both kept; FORM-10 pins the real one.
-  'west-peek-community.pages.dev',
-  'join-west-peek-main.pages.dev'
+  // The Pages project is named join-west-peek-main but its pages.dev alias is
+  // west-peek-community.pages.dev (the name it had first; every preview is
+  // <branch>.west-peek-community.pages.dev). The old entry named a host that
+  // does not exist, so a real person submitting through the alias skipped the
+  // sheet - measured 28 Sep 2026: a preview POST answered sheet:"not_applicable".
+  // FORM-10 pins the real one. Preview deployments share this suffix but carry
+  // no intake variables (the preview environment is empty on purpose), so a
+  // test submission on a preview never reaches the sheet.
+  'west-peek-community.pages.dev'
 ];
 
 /** Only these properties' visitors are West Peek's own network contacts. */
