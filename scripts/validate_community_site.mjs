@@ -387,6 +387,21 @@ function checkTree(label, dir, isBuilt) {
       check();
       if (!css.includes(needle)) errors.push(`${label}: assets/community.css lost ${what} (${needle}).`);
     }
+    // The edge fade must stay a hint, not a curtain (Scooter, 28 Sep 2026:
+    // the side flyers faded so far into white that Jason Geter's face was
+    // hard to see): at most 32px wide, and starting from a colour that is at
+    // most 60% opaque.
+    check();
+    const edgeRule = /\.wpc-scroller__edge\s*\{([^}]*)\}/.exec(css)?.[1] || "";
+    const edgeWidth = parseFloat(/width\s*:\s*([\d.]+)px/.exec(edgeRule)?.[1] || "NaN");
+    if (!(edgeWidth <= 32)) errors.push(`${label}: .wpc-scroller__edge width is ${edgeWidth}px, must be <= 32px so side flyers stay visible.`);
+    const fadeAlpha = parseFloat(/--wp-scroller-fade\s*:\s*rgba?\([^)]*?,\s*([\d.]+)\s*\)/.exec(css)?.[1] || "NaN");
+    if (!(fadeAlpha <= 0.6)) errors.push(`${label}: --wp-scroller-fade alpha is ${fadeAlpha}, must be <= 0.6 (a solid fade hid the side flyers).`);
+    for (const edge of ["--start", "--end"]) {
+      check();
+      const rule = new RegExp(`\\.wpc-scroller__edge${edge}\\s*\\{([^}]*)\\}`).exec(css)?.[1] || "";
+      if (!/var\(--wp-scroller-fade\)/.test(rule)) errors.push(`${label}: .wpc-scroller__edge${edge} does not fade from var(--wp-scroller-fade).`);
+    }
   }
 
   // The naming rule applies to the data files the pages render from, too.

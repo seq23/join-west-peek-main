@@ -233,7 +233,11 @@ html { overflow-x: hidden; }
    More Episodes / workshops rows - is wrapped by community.js in a .wpc-scroller: a
    hint line, previous/next arrows, and a fade on whichever edge still has more behind
    it. The cue removes itself (data-fits) when everything already fits on screen. */
-.wpc-scroller { --wp-scroller-bg: var(--wp-black); }
+/* The edge fade is a hint that more is behind it, not a curtain: a soft
+   half-transparent 28px strip. The first version (56px, solid white to clear)
+   washed out the side flyers so far that faces were hard to see (Scooter,
+   28 Sep 2026: Jason Geter's). Validated: width <= 32px, alpha <= 0.6. */
+.wpc-scroller { --wp-scroller-bg: var(--wp-black); --wp-scroller-fade: rgba(255,255,255,0.5); }
 .wpc-scroller__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 .6rem; }
 .wpc-scroller__hint { font-size: .82rem; font-weight: 600; color: var(--wp-text-dim); margin: 0; }
 .wpc-scroller__arrows { display: flex; gap: .4rem; flex: none; }
@@ -244,9 +248,9 @@ html { overflow-x: hidden; }
 .wpc-scroller__btn[disabled] { opacity: .35; cursor: default; border-color: var(--wp-line); color: var(--wp-text); }
 .wpc-scroller__track { position: relative; }
 .wpc-scroller__track > [tabindex]:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 4px; }
-.wpc-scroller__edge { position: absolute; top: 0; bottom: 0; width: 56px; pointer-events: none; opacity: 1; transition: opacity .2s; }
-.wpc-scroller__edge--start { left: 0; background: linear-gradient(to right, var(--wp-scroller-bg), transparent); }
-.wpc-scroller__edge--end { right: 0; background: linear-gradient(to left, var(--wp-scroller-bg), transparent); }
+.wpc-scroller__edge { position: absolute; top: 0; bottom: 0; width: 28px; pointer-events: none; opacity: 1; transition: opacity .2s; }
+.wpc-scroller__edge--start { left: 0; background: linear-gradient(to right, var(--wp-scroller-fade), transparent); }
+.wpc-scroller__edge--end { right: 0; background: linear-gradient(to left, var(--wp-scroller-fade), transparent); }
 .wpc-scroller[data-at-start] .wpc-scroller__edge--start, .wpc-scroller[data-at-end] .wpc-scroller__edge--end { opacity: 0; }
 .wpc-scroller[data-fits] .wpc-scroller__bar, .wpc-scroller[data-fits] .wpc-scroller__edge { display: none; }
 
