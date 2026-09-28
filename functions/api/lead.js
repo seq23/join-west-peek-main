@@ -113,6 +113,11 @@ const COMMUNITY_HOSTS = [
   'joinwestpeek.com',
   'www.joinwestpeek.com',
   'westpeek.co',
+  // The Pages project is named join-west-peek-main but its subdomain is
+  // west-peek-community.pages.dev (every preview is <branch>.west-peek-community.pages.dev).
+  // Measured 28 Sep 2026: a preview POST answered sheet:"not_applicable" because
+  // only the project name was listed here. Both kept; FORM-10 pins the real one.
+  'west-peek-community.pages.dev',
   'join-west-peek-main.pages.dev'
 ];
 

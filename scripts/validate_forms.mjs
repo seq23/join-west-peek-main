@@ -926,6 +926,23 @@ async function checkFormsRegister() {
       }
     }
 
+    // Each site's real *.pages.dev preview host resolves to its site, so a
+    // preview submission proves the same path production takes. The community
+    // project is named join-west-peek-main but serves from
+    // west-peek-community.pages.dev - a preview POST on 28 Sep 2026 answered
+    // sheet:"not_applicable" because only the project name was listed.
+    for (const [previewHost, expectSite] of [
+      ['work-x.west-peek-community.pages.dev', 'community'],
+      ['work-x.west-peek-ventures.pages.dev', 'ventures'],
+      ['work-x.west-peek-productions.pages.dev', 'productions'],
+    ]) {
+      if (leadGate.siteForHost(previewHost) !== expectSite) {
+        fail('FORM-10', rel(LEAD_HANDLER), `preview host ${previewHost} resolves to "${leadGate.siteForHost(previewHost)}", expected "${expectSite}" - a preview would not prove the production path.`);
+      } else {
+        pass();
+      }
+    }
+
     // An unrecognised host must never write. Fail closed.
     if (leadGate.writesToSheet('some-host-nobody-registered.example')) {
       fail('FORM-10', rel(LEAD_HANDLER), 'an unrecognised host writes to the sheet. The default must be no write: wrongly storing a client is worse than a missing row a log will show.');
