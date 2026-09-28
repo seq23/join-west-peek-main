@@ -254,6 +254,13 @@ html { overflow-x: hidden; }
 .wpc-scroller[data-at-start] .wpc-scroller__edge--start, .wpc-scroller[data-at-end] .wpc-scroller__edge--end { opacity: 0; }
 .wpc-scroller[data-fits] .wpc-scroller__bar, .wpc-scroller[data-fits] .wpc-scroller__edge { display: none; }
 
+/* ---------------------------------------------------------------- Welcome note (/welcome, friends testing) */
+.wpc-note { background: var(--wp-panel); border: 1px solid var(--wp-line); border-left: 4px solid var(--wp-accent-plum); border-radius: 10px; padding: 2rem 2rem 1.75rem; margin: 1rem 0 2rem; max-width: 640px; }
+.wpc-note__tag { color: var(--wp-accent-plum); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .9rem; }
+.wpc-note p { color: var(--wp-text); font-size: 1.08rem; line-height: 1.65; margin: 0 0 1rem; }
+.wpc-note__sig { font-weight: 700; margin: 0; }
+.wpc-note p.wpc-note__sig { margin: 0; }
+
 /* ---------------------------------------------------------------- Founding team */
 .wpc-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
 .wpc-team__card { background: var(--wp-panel); border: 1px solid var(--wp-line); border-radius: 10px; padding: 1.5rem; }

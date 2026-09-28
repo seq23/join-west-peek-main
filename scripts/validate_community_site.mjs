@@ -32,7 +32,11 @@ const NAV_ITEMS = [
   ["Pitch", "/pitch"],
   ["Workshops", "/workshops"],
 ];
-const REQUIRED_PAGES = ["index.html", "episodes.html", "about.html", "update.html", "pitch.html", "workshops.html", "join.html"];
+const REQUIRED_PAGES = ["index.html", "episodes.html", "about.html", "update.html", "pitch.html", "workshops.html", "join.html", "welcome.html"];
+// /welcome - the friends-testing link (Scooter, 28 Sep 2026). Carries the same
+// four-item nav as every page, is noindex (so the build keeps it out of the
+// sitemap), shows his note VERBATIM, and gives one clear button into the site.
+const WELCOME_NOTE = "hey y'all. as you remember in 2020 i hosted a virtual event and 5,000 entrepreneurs, creatives and professionals showed up. Six years later I'm continuing to build community amongst them in a way that makes building a business feel less lonely. This website is the first step.";
 const FORBIDDEN_HOSTS = new Set(["westpeek.ventures", "www.westpeek.ventures", "westpeekproductions.com", "www.westpeekproductions.com", "westpeek.live", "www.westpeek.live"]);
 const HERO_LINE = "West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.";
 const SERIES_INTRO = "What happens when you meet the right person at the right time under the right context?";
@@ -199,6 +203,15 @@ function checkTree(label, dir, isBuilt) {
       }
     }
 
+    // /welcome: noindex, the note verbatim, signed, one button into the site.
+    if (path.basename(abs) === "welcome.html") {
+      check();
+      if (!/<meta name="robots" content="noindex[^"]*">/.test(html)) errors.push(`${r}: /welcome must be noindex (a testing link, not a public page).`);
+      if (!html.includes(WELCOME_NOTE)) errors.push(`${r}: Scooter's note is not present verbatim.`);
+      if (!/<p class="wpc-note__sig">- scooter<\/p>/.test(html)) errors.push(`${r}: the note is not signed "- scooter".`);
+      if (!/<a class="wpc-btn" href="\/"[^>]*>/.test(html)) errors.push(`${r}: no wpc-btn button into the site (href="/").`);
+      if (!/Thank you for testing/i.test(html)) errors.push(`${r}: does not thank the tester.`);
+    }
     // /about: no "Who built it" founding-team section.
     if (path.basename(abs) === "about.html") {
       check();
@@ -216,6 +229,15 @@ function checkTree(label, dir, isBuilt) {
     if (!sawEpisodePage) errors.push(`${label}: no generated /episodes/<slug> page found.`);
     check();
     if (sawSeriesIntro < 2) errors.push(`${label}: podcast series intro found on fewer than 2 pages (episodes.html + at least one episode page).`);
+  }
+
+  // The built sitemap never lists the noindex testing page.
+  if (isBuilt) {
+    check();
+    const sm = path.join(dir, "sitemap.xml");
+    const smTxt = fs.existsSync(sm) ? fs.readFileSync(sm, "utf8") : "";
+    if (!smTxt) errors.push(`${label}: no sitemap.xml was built.`);
+    else if (/\/welcome</.test(smTxt)) errors.push(`${label}: sitemap.xml lists /welcome, which is noindex.`);
   }
 
   // /podcast and /history: retired, must redirect, never 404.
