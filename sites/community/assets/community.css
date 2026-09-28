@@ -117,6 +117,21 @@ html { overflow-x: hidden; }
 .wpc-hero { padding: 7rem 1.5rem 4rem; max-width: 900px; margin: 0 auto; text-align: left; position: relative; overflow: hidden; }
 .wpc-hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.12; margin: 0 0 1.75rem; }
 .wpc-hero__cta { margin-top: .5rem; }
+/* Live hero: the typed copy sits where the static line was. A minimum height
+   keeps the Join button from jumping as phrases grow and shrink; the caret
+   blinks only while typing runs (community.js never starts it under
+   prefers-reduced-motion, and the animation is off there too). */
+.wpc-hero h1[data-typing] { min-height: 2.3em; }
+@media (max-width: 640px) { .wpc-hero h1[data-typing] { min-height: 4.5em; } }
+.wpc-hero__rotor { color: var(--wp-text); }
+.wpc-hero__caret { display: inline-block; width: .06em; height: .9em; background: var(--wp-orange); margin-left: .1em; vertical-align: -.06em; animation: wpc-caret 1s steps(1) infinite; }
+@keyframes wpc-caret { 50% { opacity: 0; } }
+.wpc-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* The scroll leads into Origin: a quiet cue under the Join button. */
+.wpc-body a.wpc-hero__scroll, .wpc-hero__scroll { display: flex; width: max-content; align-items: center; gap: .55rem; margin: 2.75rem 0 0; font-size: .82rem; font-weight: 600; color: var(--wp-text-dim); }
+.wpc-hero__scroll::after { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-top: -4px; animation: wpc-scroll-nudge 1.8s ease-in-out infinite; }
+@keyframes wpc-scroll-nudge { 0%, 100% { transform: translateY(0) rotate(45deg); } 50% { transform: translateY(3px) rotate(45deg); } }
+.wpc-body a.wpc-hero__scroll:hover, .wpc-hero__scroll:hover { color: var(--wp-text); text-decoration: none; }
 /* .wpc-hero .wpc-hero__photo (two classes), not just .wpc-hero__photo: the
    general ".wpc-body img { display: block }" rule above is a class+element
    selector (0,1,1), which otherwise outranks a single-class ".wpc-hero__photo"
@@ -318,5 +333,5 @@ html { overflow-x: hidden; }
 [data-parallax-speed] { will-change: transform; }
 
 @media (prefers-reduced-motion: reduce) {
-  .wpc-body * { transition: none !important; }
+  .wpc-body * { transition: none !important; animation: none !important; }
 }

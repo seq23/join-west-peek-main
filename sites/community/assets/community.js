@@ -108,6 +108,50 @@
     scrollCue(row, 'Scroll sideways for more, or use the arrows');
   });
 
+  // ---------------------------------------------------------------- Live hero
+  // Scooter, 28 Sep 2026: keep "West Peek" fixed while the rest types out,
+  // backspaces and rotates through the phrases the h1 carries in
+  // data-phrases. The brief's exact line is the h1's real text and stays in
+  // the DOM (moved off-screen with .wpc-visually-hidden) so screen readers,
+  // no-JS visitors and prefers-reduced-motion visitors all get the full
+  // sentence; the typed copy is aria-hidden decoration.
+  (function heroTyping() {
+    var title = document.getElementById('hero-title');
+    var line = document.getElementById('hero-line');
+    var live = document.getElementById('hero-live');
+    var rotor = document.getElementById('hero-rotor');
+    if (!title || !line || !live || !rotor) return;
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return; // static line, no typing
+    var phrases;
+    try { phrases = JSON.parse(title.getAttribute('data-phrases') || '[]'); } catch (e) { phrases = []; }
+    phrases = phrases.filter(function (s) { return typeof s === 'string' && s.length; });
+    if (!phrases.length) return;
+
+    var TYPE_MS = 55, ERASE_MS = 26, HOLD_MS = 2000, GAP_MS = 350;
+    var i = 0, pos = 0, erasing = false;
+    title.setAttribute('data-typing', '');
+    line.classList.add('wpc-visually-hidden');
+    live.hidden = false;
+
+    function tick() {
+      if (document.hidden) { setTimeout(tick, 500); return; } // idle in a background tab
+      var phrase = phrases[i];
+      if (!erasing) {
+        pos += 1;
+        rotor.textContent = phrase.slice(0, pos);
+        if (pos >= phrase.length) { erasing = true; setTimeout(tick, HOLD_MS); return; }
+        setTimeout(tick, TYPE_MS);
+      } else {
+        pos -= 1;
+        rotor.textContent = phrase.slice(0, pos);
+        if (pos <= 0) { erasing = false; i = (i + 1) % phrases.length; setTimeout(tick, GAP_MS); return; }
+        setTimeout(tick, ERASE_MS);
+      }
+    }
+    tick();
+  })();
+
   // ---------------------------------------------------------------- Parallax
   // Transform-only layered scroll motion on any [data-parallax-speed]
   // element, desktop and mobile alike (the scroll event fires on touch

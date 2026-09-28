@@ -41,6 +41,10 @@ const FORBIDDEN_HOSTS = new Set(["westpeek.ventures", "www.westpeek.ventures", "
 const HERO_LINE = "West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.";
 const SERIES_INTRO = "What happens when you meet the right person at the right time under the right context?";
 const HOMEPAGE_ORDER = ["top", "origin", "podcast-home", "update-home", "pitch-home", "workshops-home"];
+// The live hero (Scooter, 28 Sep 2026): "West Peek" fixed, these phrases typed
+// out, backspaced and rotated by community.js. The brief's exact line
+// (HERO_LINE) stays the h1's real, shipped text underneath.
+const HERO_PHRASES = ["is a community", "is a space for entrepreneurs, creatives and professionals", "helps you feel less lonely building companies"];
 // Scooter, 28 Sep 2026: "It's the Sango pitch competition, in partnership with
 // Sango ... 'Sango pitch competition' or simply 'the pitch competition' - not
 // 'West Peek pitch competition.'" The partner was spelled Sengo before that.
@@ -161,6 +165,23 @@ function checkTree(label, dir, isBuilt) {
         errors.push(`${r}: no <header class="wpc-hero"> found.`);
       } else {
         if (!text(hero).includes(HERO_LINE)) errors.push(`${r}: hero text does not match the brief's exact line.`);
+        // The exact line must be the h1's own shipped text - the element the
+        // no-JS / reduced-motion visitor reads - not merely somewhere in the
+        // hero, and the typed copy must be decoration (aria-hidden, hidden
+        // until community.js starts it) so readers never hear both.
+        const lineSpan = /<span class="wpc-hero__line" id="hero-line">([^<]*)<\/span>/.exec(hero)?.[1] || "";
+        if (text(lineSpan) !== HERO_LINE) errors.push(`${r}: #hero-line is not exactly the brief's line.`);
+        if (!/<h1 class="wpc-hero__title" id="hero-title" data-phrases='(\[[^']*\])'>/.test(hero)) {
+          errors.push(`${r}: hero h1 lost its data-phrases attribute, so nothing can type.`);
+        } else {
+          let phrases = null;
+          try { phrases = JSON.parse(/data-phrases='(\[[^']*\])'/.exec(hero)[1]); } catch { /* reported below */ }
+          if (JSON.stringify(phrases) !== JSON.stringify(HERO_PHRASES)) errors.push(`${r}: hero data-phrases are ${JSON.stringify(phrases)}, expected ${JSON.stringify(HERO_PHRASES)}.`);
+        }
+        if (!/<span class="wpc-hero__live" id="hero-live" aria-hidden="true" hidden>/.test(hero)) errors.push(`${r}: the typed copy (#hero-live) must ship aria-hidden and hidden.`);
+        if (!/<span class="wpc-hero__fixed">West Peek<\/span>/.test(hero)) errors.push(`${r}: the fixed "West Peek" span is missing from the typed copy.`);
+        if (!/id="hero-rotor"/.test(hero)) errors.push(`${r}: no #hero-rotor for the typed phrases.`);
+        if (!/href="#origin"/.test(hero)) errors.push(`${r}: the hero does not lead into Origin (no href="#origin").`);
         if (!/href="\/join"/.test(hero)) errors.push(`${r}: hero carries no Join button.`);
         const heroImgs = [...hero.matchAll(/<img\b[^>]*>/gi)];
         for (const m of heroImgs) {
@@ -384,6 +405,10 @@ function checkTree(label, dir, isBuilt) {
     const js = fs.readFileSync(jsPath, "utf8");
     const css = fs.readFileSync(cssPath, "utf8");
     const jsNeeds = [
+      ["function heroTyping(", "the live-hero typing loop"],
+      ["'data-phrases'", "the hero reading its phrases from the markup"],
+      ["prefers-reduced-motion", "the reduced-motion guard on the hero typing"],
+      ["'wpc-visually-hidden'", "keeping the brief's line in the DOM for readers while typing runs"],
       ["function scrollCue(", "the scrollCue enhancer"],
       ["wpc-scroller__hint", "the hint line"],
       ["'Scroll back'", "the labelled previous arrow"],
@@ -398,6 +423,10 @@ function checkTree(label, dir, isBuilt) {
       if (!js.includes(needle)) errors.push(`${label}: assets/community.js lost ${what} (${needle}) - people would not know the flyers scroll.`);
     }
     const cssNeeds = [
+      [".wpc-hero__caret", "the hero caret"],
+      ["@keyframes wpc-caret", "the caret blink"],
+      [".wpc-visually-hidden", "the off-screen class the hero line moves to"],
+      [".wpc-hero__scroll", "the scroll-to-Origin cue"],
       ['.wpc-section h2[data-accent="pitch"]', "the accent colour on a sentence heading (the /pitch winners heading)"],
       [".wp-form-thanks", "the thank-you panel forms.js shows after a confirmed submission"],
       [".wpc-scroller__edge--end", "the end-edge fade"],
@@ -409,6 +438,10 @@ function checkTree(label, dir, isBuilt) {
       check();
       if (!css.includes(needle)) errors.push(`${label}: assets/community.css lost ${what} (${needle}).`);
     }
+    // Under prefers-reduced-motion the caret and scroll nudge must not run.
+    check();
+    const rm = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] || "";
+    if (!/animation:\s*none\s*!important/.test(rm)) errors.push(`${label}: the prefers-reduced-motion block no longer switches animations off.`);
     // The edge fade must stay a hint, not a curtain (Scooter, 28 Sep 2026:
     // the side flyers faded so far into white that Jason Geter's face was
     // hard to see): at most 32px wide, and starting from a colour that is at
