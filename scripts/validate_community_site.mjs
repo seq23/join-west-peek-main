@@ -233,6 +233,47 @@ function checkTree(label, dir, isBuilt) {
     }
   }
 
+  // Workshop records: same treatment as episodes - no missing flyer, every
+  // workshop has a usable slug, and (built tree only) a generated
+  // /workshops/<slug>/ page actually exists. Scooter asked for workshops to
+  // be listed "the same way as the podcast episodes."
+  const workshopsPath = path.join(dir, "assets", "data", "workshops.json");
+  check();
+  if (!fs.existsSync(workshopsPath)) {
+    errors.push(`${label}: assets/data/workshops.json is missing.`);
+  } else {
+    let workshops;
+    try { workshops = JSON.parse(fs.readFileSync(workshopsPath, "utf8")); }
+    catch (err) { errors.push(`${label}: workshops.json is not valid JSON: ${err.message}`); workshops = []; }
+    if (!Array.isArray(workshops) || !workshops.length) errors.push(`${label}: workshops.json lists zero workshops.`);
+    for (const w of workshops) {
+      check();
+      const flyerAbs = path.join(dir, w.flyer || "");
+      if (!w.flyer || !fs.existsSync(flyerAbs)) {
+        errors.push(`${label}: workshop "${w.title}" flyer "${w.flyer}" does not exist.`);
+      }
+      check();
+      if (!w.slug || !/^[a-z0-9-]+$/.test(w.slug)) {
+        errors.push(`${label}: workshop "${w.title}" has no usable slug for /workshops/<slug>.`);
+      } else if (isBuilt && !fs.existsSync(path.join(dir, "workshops", w.slug, "index.html"))) {
+        errors.push(`${label}: workshop "${w.title}" slug "${w.slug}" has no generated /workshops/${w.slug}/ page.`);
+      }
+    }
+  }
+
+  // The iMessage/social preview: every page carries the branded card image,
+  // never a guest photo scraped by the browser's own fallback (Scooter:
+  // "Change the iMessage preview image to a 'Good People Should Meet Good
+  // People' card instead of showing Shanna and Darean").
+  for (const abs of files) {
+    const r = rel(abs);
+    const html = fs.readFileSync(abs, "utf8");
+    check();
+    if (!/<meta property="og:image" content="https:\/\/joinwestpeek\.com\/assets\/img\/og-good-people\.jpg"/.test(html)) {
+      errors.push(`${r}: missing the branded og:image (og-good-people.jpg) - the social preview would fall back to whatever photo the browser scrapes.`);
+    }
+  }
+
   // History-event photos: every declared photo file must actually exist on
   // disk. A missing file is worse than no carousel at all.
   const historyPath = path.join(dir, "assets", "data", "history-events.json");

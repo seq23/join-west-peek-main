@@ -86,6 +86,25 @@ if (fs.existsSync(episodesJsonPath) && fs.existsSync(path.join(ROOT, episodeTemp
   }
 }
 
+// Same treatment for generated /workshops/<slug> pages (build output from
+// workshop-template.html + workshops.json - see the comment above).
+const workshopsJsonRel = path.join('sites', 'community', 'assets', 'data', 'workshops.json');
+const workshopTemplateRel = path.join('sites', 'community', 'workshop-template.html');
+const workshopsJsonPath = path.join(ROOT, workshopsJsonRel);
+if (fs.existsSync(workshopsJsonPath) && fs.existsSync(path.join(ROOT, workshopTemplateRel))) {
+  const templateIso = git(['log', '-1', '--format=%cI', '--', workshopTemplateRel]);
+  let workshops = [];
+  try { workshops = JSON.parse(fs.readFileSync(workshopsJsonPath, 'utf8')); } catch { /* validated elsewhere */ }
+  for (const w of workshops) {
+    if (!w.slug) continue;
+    const rel = path.join('sites', 'community', 'workshops', w.slug, 'index.html');
+    const recordIso = git(['log', '-1', '--format=%cI', '-S', `"slug": "${w.slug}"`, '--', workshopsJsonRel]);
+    const dates = [templateIso, recordIso].filter(Boolean);
+    if (!dates.length) { missing.push(rel); continue; }
+    entries[rel] = dates.sort().pop().slice(0, 10);
+  }
+}
+
 const next = {
   _why:
     'Per-source-file date of the last commit that changed that page, used for sitemap <lastmod>. ' +

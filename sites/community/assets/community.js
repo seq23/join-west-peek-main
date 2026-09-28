@@ -183,42 +183,34 @@
     }).catch(function () {});
   }
 
-  var pastWorkshops = document.getElementById('workshops-past');
-  if (pastWorkshops) {
+  // Past workshops link out to their own generated /workshops/<slug> page,
+  // same pattern as the episode grid below - flyer left, recording right,
+  // the rest of the workshops in a row underneath (Scooter: "list the
+  // workshops the same way as the podcast episodes").
+  var workshopGrid = document.getElementById('workshop-grid');
+  if (workshopGrid) {
     fetch('assets/data/workshops.json').then(function (r) { return r.json(); }).then(function (workshops) {
       workshops.forEach(function (w) {
-        var card = document.createElement('div');
+        var card = document.createElement('a');
         card.className = 'wpc-card';
-        card.style.cursor = 'default';
-        if (w.flyer) {
-          var img = document.createElement('img');
-          img.className = 'wpc-card__photo';
-          img.src = w.flyer;
-          img.alt = w.flyerAlt || w.title;
-          img.loading = 'lazy';
-          card.appendChild(img);
-        }
+        card.href = '/workshops/' + w.slug + '/';
+
+        var photo = document.createElement('img');
+        photo.className = 'wpc-card__photo';
+        photo.src = w.flyer;
+        photo.alt = w.flyerAlt || w.title;
+        photo.loading = 'lazy';
+        card.appendChild(photo);
+
         var body = document.createElement('div');
         body.className = 'wpc-card__body';
         var name = document.createElement('h3');
         name.className = 'wpc-card__name';
         name.textContent = w.title;
         body.appendChild(name);
-        if (w.youtube) {
-          var link = document.createElement('a');
-          link.href = 'https://youtu.be/' + w.youtube;
-          link.target = '_blank';
-          link.rel = 'noopener';
-          link.textContent = 'Watch →';
-          body.appendChild(link);
-        } else {
-          var soon = document.createElement('p');
-          soon.className = 'small';
-          soon.textContent = 'Recording coming soon';
-          body.appendChild(soon);
-        }
         card.appendChild(body);
-        pastWorkshops.appendChild(card);
+
+        workshopGrid.appendChild(card);
       });
     });
   }

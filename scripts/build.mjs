@@ -63,6 +63,41 @@ if (target === "community") {
     fs.rmSync(path.join(out, "episode-template.html"), { force: true });
     console.log(`episodes: generated ${episodes.length} page(s) under /episodes/<slug>`);
   }
+
+  // Past workshops get the same treatment as episodes: one template, not one
+  // hand-written file per workshop, and the same reorienting layout (flyer
+  // left, recording right, the rest in a row underneath) Scooter asked for
+  // ("list the workshops the same way as the podcast episodes").
+  const workshopTemplatePath = path.join(src, "workshop-template.html");
+  const workshopsPath = path.join(src, "assets", "data", "workshops.json");
+  if (exists(workshopTemplatePath) && exists(workshopsPath)) {
+    const template = fs.readFileSync(workshopTemplatePath, "utf8");
+    const workshops = JSON.parse(fs.readFileSync(workshopsPath, "utf8"));
+    const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const videoBlock = (w) => w.youtube
+      ? `      <div class="wpc-card__player"><iframe src="https://www.youtube-nocookie.com/embed/${esc(w.youtube)}" title="${esc(w.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
+      : `      <div class="wpc-card__soon">Recording coming soon</div>`;
+    const otherWorkshopCard = (w) =>
+      `      <a class="wpc-card" href="/workshops/${esc(w.slug)}/"><img class="wpc-card__photo" src="/${esc(w.flyer)}" alt="${esc(w.flyerAlt || w.title)}" loading="lazy"><div class="wpc-card__body"><h3 class="wpc-card__name">${esc(w.title)}</h3></div></a>`;
+
+    for (const w of workshops) {
+      if (!w.slug) fail(`community workshop "${w.title}" has no slug; cannot generate /workshops/${"<slug>"}`);
+      const others = workshops.filter((o) => o.slug !== w.slug).map(otherWorkshopCard).join("\n");
+      const page = template
+        .replaceAll("{{SLUG}}", esc(w.slug))
+        .replaceAll("{{TITLE}}", esc(w.title))
+        .replaceAll("{{GUEST}}", esc(w.guest))
+        .replaceAll("{{FLYER}}", esc(w.flyer))
+        .replaceAll("{{FLYER_ALT}}", esc(w.flyerAlt || w.title))
+        .replace("{{VIDEO_BLOCK}}", videoBlock(w))
+        .replace("{{OTHER_WORKSHOPS}}", others);
+      const outDir = path.join(out, "workshops", w.slug);
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(path.join(outDir, "index.html"), page);
+    }
+    fs.rmSync(path.join(out, "workshop-template.html"), { force: true });
+    console.log(`workshops: generated ${workshops.length} page(s) under /workshops/<slug>`);
+  }
 }
 
 // A real 404. Without a 404.html in the output, Cloudflare Pages answers 200 with

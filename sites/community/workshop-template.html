@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{{GUEST}} | Good People Should Meet Good People | West Peek Community</title>
-  <meta name="description" content="{{TITLE}}">
-  <link rel="canonical" href="https://joinwestpeek.com/episodes/{{SLUG}}/"/>
-  <meta property="og:title" content="{{GUEST}} | Good People Should Meet Good People">
-  <meta property="og:description" content="Good People Should Meet Good People — the West Peek Community podcast.">
+  <title>{{TITLE}} | Workshops | West Peek Community</title>
+  <meta name="description" content="{{TITLE}}, with {{GUEST}} — a West Peek Community workshop.">
+  <link rel="canonical" href="https://joinwestpeek.com/workshops/{{SLUG}}/"/>
+  <meta property="og:title" content="{{TITLE}} | West Peek Community Workshops">
+  <meta property="og:description" content="Good People Should Meet Good People — the West Peek Community podcast and workshops.">
   <meta property="og:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
-  <meta property="og:url" content="https://joinwestpeek.com/episodes/{{SLUG}}/">
+  <meta property="og:url" content="https://joinwestpeek.com/workshops/{{SLUG}}/">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
@@ -21,38 +21,35 @@
     <a class="wpc-nav__logo" href="/"><img src="/assets/img/community-monogram.png" alt="West Peek"><span>West Peek</span></a>
     <button class="wpc-nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <div class="wpc-nav__links">
-      <a href="/episodes" aria-current="page">Podcast</a>
+      <a href="/episodes">Podcast</a>
       <a href="/update">Update</a>
       <a href="/pitch">Pitch</a>
-      <a href="/workshops">Workshops</a>
+      <a href="/workshops" aria-current="page">Workshops</a>
     </div>
   </div>
 </nav>
 
 <div class="wpc-page-head">
-  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / <a href="/episodes">Podcast</a> / {{GUEST}}</p>
-  <p class="wpc-section__tag" data-accent="podcast">Good People Should Meet Good People</p>
-  <p class="wpc-series-intro">What happens when you meet the right person at the right time under the right context? We interview entrepreneurs, creatives, and professionals doing great work in their fields and communities who have something to teach us. Every good person should meet the people below.</p>
+  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / <a href="/workshops">Workshops</a> / {{TITLE}}</p>
+  <p class="wpc-section__tag" data-accent="workshops">Past Workshops</p>
 </div>
 
 <div class="wpc-main">
   <article class="wpc-episode">
     <div class="wpc-episode__photo">
-      <p class="wpc-card__number">Episode {{NUMBER}}</p>
-      <img src="/{{HEADSHOT}}" alt="{{HEADSHOT_ALT}}" loading="lazy">
+      <img src="/{{FLYER}}" alt="{{FLYER_ALT}}" loading="lazy">
     </div>
     <div class="wpc-episode__player">
-      <h1>{{GUEST}}</h1>
-      <p class="wpc-episode__title">{{TITLE}}</p>
+      <h1>{{TITLE}}</h1>
+      <p class="wpc-episode__title">{{GUEST}}</p>
 {{VIDEO_BLOCK}}
-      <p>{{SYNOPSIS}}</p>
     </div>
   </article>
 
   <section class="wpc-episode__more">
-    <p class="wpc-section__tag" data-accent="podcast">More Episodes</p>
+    <p class="wpc-section__tag" data-accent="workshops">More Workshops</p>
     <div class="wpc-episode__row">
-{{OTHER_EPISODES}}
+{{OTHER_WORKSHOPS}}
     </div>
   </section>
 </div>
