@@ -30,6 +30,11 @@
  *           {"ok":true}. This one is a behavioural test, not a pattern match.
  *   FORM-8  type="url" fields get https:// prefixed for the visitor, so native
  *           validation cannot refuse a whole submission over a bare domain.
+ *   FORM-12 Every page that opts a form into the shared handler with
+ *           data-westpeek-form actually loads shared/assets/js/forms.js. Without
+ *           the script the browser submits natively and shows the visitor raw
+ *           JSON from /api/lead - which is exactly what /update did on the
+ *           28 Sep 2026 preview (it loaded community.js and nothing else).
  *   FORM-10 Every transmitting form is in shared/forms-register.json with a
  *           destination, and every registered form whose destination is the
  *           master network sheet is ACTUALLY WIRED to it - the markup posts to
@@ -323,6 +328,29 @@ function checkForm(file, html, formHtml, formIndex, hp) {
 
   pass(); // FORM-2/FORM-3 held for this form
   return { optedOut, sharedHandler, hasAction };
+}
+
+/**
+ * FORM-12 - a page that opts into the shared handler must load it.
+ *
+ * data-westpeek-form is only a promise that forms.js will take the submit. If
+ * the page never loads the script, the browser POSTs natively and renders the
+ * JSON body of /api/lead as the whole page. That is a silent-looking success
+ * to the visitor (the request went through) and an unreadable one.
+ */
+function checkSharedHandlerLoaded(file, html, usesSharedHandler) {
+  if (!usesSharedHandler) return;
+  pass();
+  const loads = /<script\b[^>]*\bsrc\s*=\s*["'](?:\/|\.\.?\/)?(?:[^"']*\/)?assets\/js\/forms\.js["']/i.test(html);
+  if (!loads) {
+    fail(
+      'FORM-12',
+      rel(file),
+      'page carries a data-westpeek-form but never loads assets/js/forms.js, so the form ' +
+        'submits natively and the visitor is shown raw JSON. Add ' +
+        '<script src="/assets/js/forms.js"></script>.'
+    );
+  }
 }
 
 /** FORM-6 - an inline script that celebrates without calling anything. */
@@ -914,12 +942,15 @@ async function main() {
       const html = fs.readFileSync(file, 'utf8');
       fileCount += 1;
       let anyTransmitting = false;
+      let anyShared = false;
       for (const m of html.matchAll(/<form\b[\s\S]*?<\/form>/gi)) {
         formCount += 1;
         const r = checkForm(file, html, m[0], m.index, hp);
         if (!r.optedOut) anyTransmitting = true;
+        if (!r.optedOut && r.sharedHandler) anyShared = true;
       }
       checkInlineScripts(file, html, anyTransmitting);
+      checkSharedHandlerLoaded(file, html, anyShared);
     }
   }
 
