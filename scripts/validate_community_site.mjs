@@ -37,6 +37,14 @@ const FORBIDDEN_HOSTS = new Set(["westpeek.ventures", "www.westpeek.ventures", "
 const HERO_LINE = "West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.";
 const SERIES_INTRO = "What happens when you meet the right person at the right time under the right context?";
 const HOMEPAGE_ORDER = ["top", "origin", "podcast-home", "update-home", "pitch-home", "workshops-home"];
+// Scooter, 28 Sep 2026: "It's the Sango pitch competition, in partnership with
+// Sango ... 'Sango pitch competition' or simply 'the pitch competition' - not
+// 'West Peek pitch competition.'" The partner was spelled Sengo before that.
+const WINNERS_HEADING = "Congratulations to the companies below - 1st place winners of the Sango pitch competition.";
+const FORBIDDEN_PHRASES = [
+  [/West Peek pitch competition/i, 'says "West Peek pitch competition" - it is the Sango pitch competition (Scooter, 28 Sep 2026).'],
+  [/\bSengo\b/, 'spells the pitch partner "Sengo" - the site spells it Sango (Scooter, 28 Sep 2026).'],
+];
 
 function htmlFiles(dir, acc = []) {
   if (!fs.existsSync(dir)) return acc;
@@ -155,6 +163,26 @@ function checkTree(label, dir, isBuilt) {
           if (!/id="hero-photo"/.test(m[0])) errors.push(`${r}: hero carries an <img> other than the hero-photo slot.`);
           else if (/\ssrc="/.test(m[0])) errors.push(`${r}: hero-photo slot ships with a src baked in — it must stay empty until community.js sets it from hero.json.`);
         }
+      }
+    }
+
+    // Naming: never "West Peek pitch competition", never "Sengo" - on any page.
+    check();
+    for (const [re, what] of FORBIDDEN_PHRASES) if (re.test(html)) errors.push(`${r}: ${what}`);
+
+    // /pitch: the winners section carries ONE heading - the congratulations
+    // sentence, accent-coloured - not a tag and an h2 both saying "Past
+    // Winners" (Scooter, 28 Sep 2026).
+    if (path.basename(abs) === "pitch.html") {
+      const section = /<section\b[^>]*>(?:(?!<\/section>)[\s\S])*id="winner-grid"[\s\S]*?<\/section>/.exec(html)?.[0];
+      check();
+      if (!section) {
+        errors.push(`${r}: no <section> wrapping id="winner-grid".`);
+      } else {
+        const headings = [...section.matchAll(/<(h2|h3|p class="wpc-section__tag")(?=[\s>])[^>]*>([\s\S]*?)<\/(?:h2|h3|p)>/g)].map((m) => text(m[2]));
+        if (headings.length !== 1) errors.push(`${r}: winners section carries ${headings.length} heading(s) [${headings.join(" | ")}], expected exactly one.`);
+        if (!headings.includes(WINNERS_HEADING)) errors.push(`${r}: winners heading is not the exact sentence "${WINNERS_HEADING}".`);
+        if (!/<h2 class="wpc-section__heading" data-accent="pitch">/.test(section)) errors.push(`${r}: winners heading lost its pitch accent (h2.wpc-section__heading[data-accent="pitch"]).`);
       }
     }
 
@@ -303,6 +331,7 @@ function checkTree(label, dir, isBuilt) {
       if (!js.includes(needle)) errors.push(`${label}: assets/community.js lost ${what} (${needle}) - people would not know the flyers scroll.`);
     }
     const cssNeeds = [
+      ['.wpc-section h2[data-accent="pitch"]', "the accent colour on a sentence heading (the /pitch winners heading)"],
       [".wpc-scroller__edge--end", "the end-edge fade"],
       ["[data-at-end] .wpc-scroller__edge--end", "hiding the end fade at the end of the track"],
       ["[data-fits] .wpc-scroller__bar", "hiding the cue when everything fits"],
@@ -312,6 +341,15 @@ function checkTree(label, dir, isBuilt) {
       check();
       if (!css.includes(needle)) errors.push(`${label}: assets/community.css lost ${what} (${needle}).`);
     }
+  }
+
+  // The naming rule applies to the data files the pages render from, too.
+  for (const dataFile of ["winners.json", "episodes.json", "history-events.json", "workshops.json"]) {
+    const dp = path.join(dir, "assets", "data", dataFile);
+    if (!fs.existsSync(dp)) continue;
+    const txt = fs.readFileSync(dp, "utf8");
+    check();
+    for (const [re, what] of FORBIDDEN_PHRASES) if (re.test(txt)) errors.push(`${label}: assets/data/${dataFile} ${what}`);
   }
 
   // History-event photos: every declared photo file must actually exist on
