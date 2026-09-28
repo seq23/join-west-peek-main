@@ -117,6 +117,21 @@ html { overflow-x: hidden; }
 .wpc-hero { padding: 7rem 1.5rem 4rem; max-width: 900px; margin: 0 auto; text-align: left; position: relative; overflow: hidden; }
 .wpc-hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.12; margin: 0 0 1.75rem; }
 .wpc-hero__cta { margin-top: .5rem; }
+/* Live hero: the typed copy sits where the static line was. A minimum height
+   keeps the Join button from jumping as phrases grow and shrink; the caret
+   blinks only while typing runs (community.js never starts it under
+   prefers-reduced-motion, and the animation is off there too). */
+.wpc-hero h1[data-typing] { min-height: 2.3em; }
+@media (max-width: 640px) { .wpc-hero h1[data-typing] { min-height: 4.5em; } }
+.wpc-hero__rotor { color: var(--wp-text); }
+.wpc-hero__caret { display: inline-block; width: .06em; height: .9em; background: var(--wp-orange); margin-left: .1em; vertical-align: -.06em; animation: wpc-caret 1s steps(1) infinite; }
+@keyframes wpc-caret { 50% { opacity: 0; } }
+.wpc-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* The scroll leads into Origin: a quiet cue under the Join button. */
+.wpc-body a.wpc-hero__scroll, .wpc-hero__scroll { display: flex; width: max-content; align-items: center; gap: .55rem; margin: 2.75rem 0 0; font-size: .82rem; font-weight: 600; color: var(--wp-text-dim); }
+.wpc-hero__scroll::after { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-top: -4px; animation: wpc-scroll-nudge 1.8s ease-in-out infinite; }
+@keyframes wpc-scroll-nudge { 0%, 100% { transform: translateY(0) rotate(45deg); } 50% { transform: translateY(3px) rotate(45deg); } }
+.wpc-body a.wpc-hero__scroll:hover, .wpc-hero__scroll:hover { color: var(--wp-text); text-decoration: none; }
 /* .wpc-hero .wpc-hero__photo (two classes), not just .wpc-hero__photo: the
    general ".wpc-body img { display: block }" rule above is a class+element
    selector (0,1,1), which otherwise outranks a single-class ".wpc-hero__photo"
@@ -130,12 +145,16 @@ html { overflow-x: hidden; }
    section tag via data-accent="<name>" in the markup, so the page reads with
    variety rather than one orange used everywhere. The orange itself stays
    reserved for buttons and links (Sequoia, 27 Sep 2026). */
-.wpc-section__tag[data-accent="origin"] { color: var(--wp-accent-plum); }
-.wpc-section__tag[data-accent="podcast"] { color: var(--wp-accent-teal); }
-.wpc-section__tag[data-accent="update"] { color: var(--wp-accent-amber); }
-.wpc-section__tag[data-accent="pitch"] { color: var(--wp-accent-red); }
-.wpc-section__tag[data-accent="workshops"] { color: var(--wp-accent-gold); }
-.wpc-section__tag[data-accent="about"] { color: var(--wp-accent-violet); }
+.wpc-section__tag[data-accent="origin"], .wpc-section h2[data-accent="origin"] { color: var(--wp-accent-plum); }
+.wpc-section__tag[data-accent="podcast"], .wpc-section h2[data-accent="podcast"] { color: var(--wp-accent-teal); }
+.wpc-section__tag[data-accent="update"], .wpc-section h2[data-accent="update"] { color: var(--wp-accent-amber); }
+.wpc-section__tag[data-accent="pitch"], .wpc-section h2[data-accent="pitch"] { color: var(--wp-accent-red); }
+.wpc-section__tag[data-accent="workshops"], .wpc-section h2[data-accent="workshops"] { color: var(--wp-accent-gold); }
+.wpc-section__tag[data-accent="about"], .wpc-section h2[data-accent="about"] { color: var(--wp-accent-violet); }
+/* A section whose only heading is a full sentence (the pitch winners, 28 Sep
+   2026: one heading instead of a tag + h2 that both said "Past Winners")
+   takes the accent on the h2 itself and sits a step below the h2 scale. */
+.wpc-section h2.wpc-section__heading { font-size: clamp(1.35rem, 2.6vw, 1.8rem); line-height: 1.3; max-width: 36ch; margin-bottom: .5rem; }
 
 /* a.wpc-btn, not just .wpc-btn: a class+element selector is more specific than
    a single class, so ".wpc-body a { color: var(--wp-orange) }" above would
@@ -229,7 +248,11 @@ html { overflow-x: hidden; }
    More Episodes / workshops rows - is wrapped by community.js in a .wpc-scroller: a
    hint line, previous/next arrows, and a fade on whichever edge still has more behind
    it. The cue removes itself (data-fits) when everything already fits on screen. */
-.wpc-scroller { --wp-scroller-bg: var(--wp-black); }
+/* The edge fade is a hint that more is behind it, not a curtain: a soft
+   half-transparent 28px strip. The first version (56px, solid white to clear)
+   washed out the side flyers so far that faces were hard to see (Scooter,
+   28 Sep 2026: Jason Geter's). Validated: width <= 32px, alpha <= 0.6. */
+.wpc-scroller { --wp-scroller-bg: var(--wp-black); --wp-scroller-fade: rgba(255,255,255,0.5); }
 .wpc-scroller__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 .6rem; }
 .wpc-scroller__hint { font-size: .82rem; font-weight: 600; color: var(--wp-text-dim); margin: 0; }
 .wpc-scroller__arrows { display: flex; gap: .4rem; flex: none; }
@@ -240,11 +263,18 @@ html { overflow-x: hidden; }
 .wpc-scroller__btn[disabled] { opacity: .35; cursor: default; border-color: var(--wp-line); color: var(--wp-text); }
 .wpc-scroller__track { position: relative; }
 .wpc-scroller__track > [tabindex]:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 4px; }
-.wpc-scroller__edge { position: absolute; top: 0; bottom: 0; width: 56px; pointer-events: none; opacity: 1; transition: opacity .2s; }
-.wpc-scroller__edge--start { left: 0; background: linear-gradient(to right, var(--wp-scroller-bg), transparent); }
-.wpc-scroller__edge--end { right: 0; background: linear-gradient(to left, var(--wp-scroller-bg), transparent); }
+.wpc-scroller__edge { position: absolute; top: 0; bottom: 0; width: 28px; pointer-events: none; opacity: 1; transition: opacity .2s; }
+.wpc-scroller__edge--start { left: 0; background: linear-gradient(to right, var(--wp-scroller-fade), transparent); }
+.wpc-scroller__edge--end { right: 0; background: linear-gradient(to left, var(--wp-scroller-fade), transparent); }
 .wpc-scroller[data-at-start] .wpc-scroller__edge--start, .wpc-scroller[data-at-end] .wpc-scroller__edge--end { opacity: 0; }
 .wpc-scroller[data-fits] .wpc-scroller__bar, .wpc-scroller[data-fits] .wpc-scroller__edge { display: none; }
+
+/* ---------------------------------------------------------------- Welcome note (/welcome, friends testing) */
+.wpc-note { background: var(--wp-panel); border: 1px solid var(--wp-line); border-left: 4px solid var(--wp-accent-plum); border-radius: 10px; padding: 2rem 2rem 1.75rem; margin: 1rem 0 2rem; max-width: 640px; }
+.wpc-note__tag { color: var(--wp-accent-plum); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .9rem; }
+.wpc-note p { color: var(--wp-text); font-size: 1.08rem; line-height: 1.65; margin: 0 0 1rem; }
+.wpc-note__sig { font-weight: 700; margin: 0; }
+.wpc-note p.wpc-note__sig { margin: 0; }
 
 /* ---------------------------------------------------------------- Founding team */
 .wpc-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
@@ -260,7 +290,24 @@ html { overflow-x: hidden; }
 }
 .wpc-form input:focus-visible, .wpc-form select:focus-visible, .wpc-form textarea:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 1px; }
 .wpc-form button[type="submit"] { margin-top: 1.5rem; }
+/* A helper line under a label (the Update's "Your city"), and a yes/no radio
+   choice rendered as options in a row rather than the block-level label +
+   full-width input every other field uses. */
+.wpc-form .wpc-form__help { margin: 0 0 .5rem; line-height: 1.5; max-width: 56ch; }
+.wpc-form .wpc-choice { margin-top: 1rem; }
+.wpc-form .wpc-choice__label { font-size: .8rem; color: var(--wp-text-dim); margin: 0 0 .5rem; }
+.wpc-form .wpc-choice__option { display: inline-flex; align-items: center; gap: .5rem; margin: 0 1.5rem .25rem 0; font-size: .95rem; color: var(--wp-text); cursor: pointer; }
+.wpc-form .wpc-choice__option input[type="radio"] { width: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--wp-orange); background: none; border: 0; }
 .wpc-form .small { color: var(--wp-text-dim); font-size: .82rem; }
+
+/* Thank-you panel: what forms.js puts in place of a form (or the whole Update
+   wizard) once the server has confirmed the submission - a heading and the
+   success copy, not a one-line status under the button (28 Sep 2026). */
+.wp-form-thanks { background: var(--wp-panel); border: 1px solid var(--wp-line); border-left: 4px solid var(--wp-accent-amber); border-radius: 10px; padding: 2rem 2rem 2.25rem; margin: 1.5rem 0 3rem; outline: none; }
+.wp-form-thanks__tag { color: var(--wp-accent-amber); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .6rem; }
+.wp-form-thanks h2 { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 .75rem; }
+.wp-form-thanks p { color: var(--wp-body); line-height: 1.6; max-width: 56ch; margin: 0 0 1.25rem; }
+.wp-form-thanks p:last-child { margin-bottom: 0; }
 
 /* ---------------------------------------------------------------- Multi-step form (The Update) */
 .wpc-steps__progress { height: 6px; background: var(--wp-line); border-radius: 3px; overflow: hidden; margin: 1.5rem 0 .5rem; }
@@ -286,5 +333,5 @@ html { overflow-x: hidden; }
 [data-parallax-speed] { will-change: transform; }
 
 @media (prefers-reduced-motion: reduce) {
-  .wpc-body * { transition: none !important; }
+  .wpc-body * { transition: none !important; animation: none !important; }
 }

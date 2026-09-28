@@ -23,6 +23,13 @@
  *   action              POST target (default /api/lead)
  *   data-success        success copy (default below)
  *   data-fallback-email address shown on failure (default below)
+ *   data-success-panel  present: on success, replace the form with a visible
+ *                       thank-you panel instead of a one-line status. Empty or
+ *                       "true" replaces the <form> itself; a selector replaces
+ *                       that container (e.g. the whole multi-step wizard).
+ *   data-success-title  the panel's heading (default "Thank you")
+ *   data-success-link / data-success-link-label
+ *                       an optional button under the panel copy
  */
 (function () {
   'use strict';
@@ -30,9 +37,10 @@
   var DEFAULT_ACTION = '/api/lead';
   var DEFAULT_SUCCESS = 'Received. We’ll reply soon.';
   // Ventures forms override this with data-fallback-email="info@westpeek.ventures"
-  // (Scooter, 22 Sep 2026: no personal address as the public backup line). This
-  // default still covers community and productions, which were not part of
-  // that request.
+  // (Scooter, 22 Sep 2026: no personal address as the public backup line), and
+  // community forms with data-fallback-email="os@joinwestpeek.com" (the West
+  // Peek OS inbox, 28 Sep 2026 - scripts/validate_community_site.mjs pins it).
+  // This default still covers productions, whose enquiries go to Scooter.
   var DEFAULT_FALLBACK_EMAIL = 'scooter@westpeek.ventures';
 
   function status(form) {
@@ -59,6 +67,55 @@
     el.appendChild(
       document.createTextNode(form.getAttribute('data-success') || DEFAULT_SUCCESS)
     );
+    showSuccessPanel(form);
+  }
+
+  /**
+   * The Update on joinwestpeek.com answered a submission with one small grey
+   * line under the Submit button (28 Sep 2026). A form that took three minutes
+   * to fill in deserves a panel the visitor cannot miss: the form (or the
+   * whole wizard around it) goes away and a heading, the success copy and an
+   * optional button take its place. Only runs when the server confirmed the
+   * submission - this is called from setSuccess and nowhere else - and only
+   * for forms that opt in with data-success-panel. DOM nodes, never innerHTML.
+   */
+  function showSuccessPanel(form) {
+    var target = form.getAttribute('data-success-panel');
+    if (target === null) return;
+    var container = form;
+    if (target && target !== 'true' && typeof document.querySelector === 'function') {
+      container = document.querySelector(target) || form;
+    }
+    var parent = container.parentNode;
+    if (!parent || typeof parent.insertBefore !== 'function') return;
+
+    var panel = document.createElement('div');
+    panel.className = 'wp-form-thanks';
+    panel.setAttribute('role', 'status');
+    panel.setAttribute('aria-live', 'polite');
+    panel.setAttribute('tabindex', '-1');
+    var tag = document.createElement('p');
+    tag.className = 'wp-form-thanks__tag';
+    tag.appendChild(document.createTextNode('Received'));
+    var heading = document.createElement('h2');
+    heading.appendChild(document.createTextNode(form.getAttribute('data-success-title') || 'Thank you'));
+    var copy = document.createElement('p');
+    copy.appendChild(document.createTextNode(form.getAttribute('data-success') || DEFAULT_SUCCESS));
+    panel.appendChild(tag);
+    panel.appendChild(heading);
+    panel.appendChild(copy);
+    var href = form.getAttribute('data-success-link');
+    if (href) {
+      var link = document.createElement('a');
+      link.className = 'wpc-btn';
+      link.setAttribute('href', href);
+      link.appendChild(document.createTextNode(form.getAttribute('data-success-link-label') || 'Back to West Peek'));
+      panel.appendChild(link);
+    }
+    parent.insertBefore(panel, container);
+    container.hidden = true;
+    container.setAttribute('hidden', '');
+    if (typeof panel.focus === 'function') panel.focus();
   }
 
   /**

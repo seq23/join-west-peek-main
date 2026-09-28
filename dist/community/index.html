@@ -102,8 +102,18 @@
 </nav>
 
 <header class="wpc-hero" id="top">
-  <h1>West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.</h1>
+  <!-- Live hero (Scooter, 28 Sep 2026): "West Peek" stays fixed while the
+       phrases in data-phrases type out, backspace and rotate (community.js,
+       heroTyping). The brief's exact line is the h1's real text: it is what
+       ships in the HTML, what a visitor with JavaScript off or
+       prefers-reduced-motion sees, and what screen readers hear - once typing
+       starts it is only moved off-screen, never removed. -->
+  <h1 class="wpc-hero__title" id="hero-title" data-phrases='["is a community","is a space for entrepreneurs, creatives and professionals","helps you feel less lonely building companies"]'>
+    <span class="wpc-hero__line" id="hero-line">West Peek is a community for the world's top professionals, creatives, and entrepreneurs to learn, partner, and connect.</span>
+    <span class="wpc-hero__live" id="hero-live" aria-hidden="true" hidden><span class="wpc-hero__fixed">West Peek</span> <span class="wpc-hero__rotor" id="hero-rotor"></span><span class="wpc-hero__caret"></span></span>
+  </h1>
   <a class="wpc-btn wpc-hero__cta" href="/join">Join the community</a>
+  <a class="wpc-hero__scroll" href="#origin">Scroll to Origin</a>
   <!-- Hidden until assets/data/hero.json names a photo (Scooter, 27 Sep 2026:
        an event/dinner photo, not in hand yet). No empty placeholder ships. -->
   <img class="wpc-hero__photo" id="hero-photo" alt="" loading="lazy">
@@ -130,9 +140,9 @@
 </section>
 
 <section class="wpc-section" id="pitch-home" data-parallax-speed="0.03">
-  <p class="wpc-section__tag" data-accent="pitch">Pitch Competition &middot; with Sengo</p>
+  <p class="wpc-section__tag" data-accent="pitch">Pitch Competition &middot; with Sango</p>
   <h2>Pitch Competition</h2>
-  <p>We host pitch competitions in partnership with Sengo, so you can get access to non-dilutive capital. This is a great way to practice your pitch &mdash; pitch in front of real investors to get real feedback, and in front of a live audience, which can lead to more opportunities and more awareness.</p>
+  <p>We host pitch competitions in partnership with Sango, so you can get access to non-dilutive capital. This is a great way to practice your pitch &mdash; pitch in front of real investors to get real feedback, and in front of a live audience, which can lead to more opportunities and more awareness.</p>
   <p><strong>Prize: a $1,000 cash prize, along with a $500 Audience Choice Award.</strong></p>
   <a class="wpc-btn" href="/pitch">See Pitch Competition</a>
 </section>
