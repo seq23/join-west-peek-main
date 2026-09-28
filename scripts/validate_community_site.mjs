@@ -235,6 +235,11 @@ function checkTree(label, dir, isBuilt) {
     if (!updateHtml.includes("<!-- UPDATE_FORM_START -->") || !updateHtml.includes("<!-- UPDATE_FORM_END -->")) {
       errors.push(`${label}: update.html is missing the UPDATE_FORM_START/END markers functions/update.js needs to gate the form server-side.`);
     }
+    // A confirmed Update is answered with a visible thank-you panel that
+    // replaces the whole wizard, not a one-line status (28 Sep 2026).
+    check();
+    if (!/data-success-panel="#update-form-wrap"/.test(updateHtml)) errors.push(`${label}: update.html's form no longer opts into the thank-you panel (data-success-panel="#update-form-wrap").`);
+    if (!/data-success-title="[^"]+"/.test(updateHtml)) errors.push(`${label}: update.html's form has no data-success-title for the thank-you panel.`);
   }
   check();
   const updateFn = path.join(root, "functions", "update.js");
@@ -345,6 +350,7 @@ function checkTree(label, dir, isBuilt) {
     }
     const cssNeeds = [
       ['.wpc-section h2[data-accent="pitch"]', "the accent colour on a sentence heading (the /pitch winners heading)"],
+      [".wp-form-thanks", "the thank-you panel forms.js shows after a confirmed submission"],
       [".wpc-scroller__edge--end", "the end-edge fade"],
       ["[data-at-end] .wpc-scroller__edge--end", "hiding the end fade at the end of the track"],
       ["[data-fits] .wpc-scroller__bar", "hiding the cue when everything fits"],

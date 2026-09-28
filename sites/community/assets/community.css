@@ -266,6 +266,15 @@ html { overflow-x: hidden; }
 .wpc-form button[type="submit"] { margin-top: 1.5rem; }
 .wpc-form .small { color: var(--wp-text-dim); font-size: .82rem; }
 
+/* Thank-you panel: what forms.js puts in place of a form (or the whole Update
+   wizard) once the server has confirmed the submission - a heading and the
+   success copy, not a one-line status under the button (28 Sep 2026). */
+.wp-form-thanks { background: var(--wp-panel); border: 1px solid var(--wp-line); border-left: 4px solid var(--wp-accent-amber); border-radius: 10px; padding: 2rem 2rem 2.25rem; margin: 1.5rem 0 3rem; outline: none; }
+.wp-form-thanks__tag { color: var(--wp-accent-amber); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 .6rem; }
+.wp-form-thanks h2 { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 .75rem; }
+.wp-form-thanks p { color: var(--wp-body); line-height: 1.6; max-width: 56ch; margin: 0 0 1.25rem; }
+.wp-form-thanks p:last-child { margin-bottom: 0; }
+
 /* ---------------------------------------------------------------- Multi-step form (The Update) */
 .wpc-steps__progress { height: 6px; background: var(--wp-line); border-radius: 3px; overflow: hidden; margin: 1.5rem 0 .5rem; }
 .wpc-steps__bar { height: 100%; width: 0; background: var(--wp-orange); transition: width .3s ease; }

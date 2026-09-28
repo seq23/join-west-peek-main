@@ -37,7 +37,10 @@
 <div class="wpc-main wpc-form">
   <form data-westpeek-form action="/api/lead" method="POST"
         data-fallback-email="os@joinwestpeek.com"
-        data-success="You're on the list. We'll be in touch when there's something real to share.">
+        data-success-panel="true"
+        data-success-title="You're on the list."
+        data-success="We'll be in touch when there's something real to share."
+        data-success-link="/" data-success-link-label="Back to West Peek">
     <input type="hidden" name="site" value="community">
     <input type="hidden" name="lead_type" value="community_join">
     <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->

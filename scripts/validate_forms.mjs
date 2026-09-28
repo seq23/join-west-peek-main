@@ -479,7 +479,7 @@ function makeUrlInputStub() {
   return input;
 }
 
-function makeFormStub(successCopy) {
+function makeFormStub(successCopy, panel) {
   const status = makeEl('p');
   const button = makeEl('button');
   button.textContent = 'Submit →';
@@ -487,6 +487,20 @@ function makeFormStub(successCopy) {
   const form = makeEl('form');
   form.attrs = { action: '/api/lead' };
   if (successCopy) form.attrs['data-success'] = successCopy;
+  if (panel) {
+    // A parent the handler can insert the thank-you panel into, and the opt-in.
+    form.attrs['data-success-panel'] = 'true';
+    form.attrs['data-success-title'] = panel.title;
+    const parent = makeEl('div');
+    parent.insertBefore = (node, before) => {
+      const i = parent.children.indexOf(before);
+      parent.children.splice(i >= 0 ? i : parent.children.length, 0, node);
+      return node;
+    };
+    parent.children.push(form);
+    form.parentNode = parent;
+    form.hidden = false;
+  }
   form.listeners = {};
   form.wasReset = false;
   form.urlInput = urlInput;
@@ -641,6 +655,39 @@ async function checkSharedHandlerBehaviour() {
 
   pass(cases.length);
   notes.push(`FORM-7: shared handler driven through ${cases.length} stubbed responses`);
+
+  // The thank-you panel (28 Sep 2026): a form that opts in with
+  // data-success-panel is REPLACED by a visible panel carrying its title and
+  // success copy - after a confirmed success only. On a failure nothing is
+  // replaced and no panel appears, so a visitor whose submission did not
+  // arrive is never shown a thank-you.
+  const PANEL_TITLE = 'Validator panel title';
+  const findPanel = (parent) => parent.children.find((c) => c.className === 'wp-form-thanks');
+  for (const c of cases) {
+    const api = loadSharedHandler(() => c.fetch());
+    if (!api) return;
+    const form = makeFormStub(SUCCESS_COPY, { title: PANEL_TITLE });
+    api.wire(form);
+    form.submit();
+    await tick();
+    await tick();
+    const panel = findPanel(form.parentNode);
+    if (c.expect === 'ok') {
+      if (!panel) fail('FORM-7', where, `[panel: ${c.name}] no thank-you panel was inserted after a confirmed success`);
+      else {
+        const panelText = panel.text();
+        if (!panelText.includes(PANEL_TITLE)) fail('FORM-7', where, `[panel: ${c.name}] panel lacks its data-success-title: "${panelText}"`);
+        if (!panelText.includes(SUCCESS_COPY)) fail('FORM-7', where, `[panel: ${c.name}] panel lacks the data-success copy: "${panelText}"`);
+        if (panel.attrs.role !== 'status') fail('FORM-7', where, `[panel: ${c.name}] panel is not role="status", so assistive tech is not told`);
+      }
+      if (form.hidden !== true || form.getAttribute('hidden') === null) fail('FORM-7', where, `[panel: ${c.name}] the form was not hidden behind the thank-you panel`);
+    } else {
+      if (panel) fail('FORM-7', where, `[panel: ${c.name}] a thank-you panel appeared on a failure: "${panel.text()}"`);
+      if (form.hidden) fail('FORM-7', where, `[panel: ${c.name}] the form was hidden on a failure`);
+    }
+  }
+  pass(cases.length);
+  notes.push(`FORM-7: thank-you panel checked through ${cases.length} stubbed responses`);
 }
 
 /**

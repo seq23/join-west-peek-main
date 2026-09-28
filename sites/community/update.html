@@ -59,7 +59,10 @@
 
     <form data-westpeek-form action="/api/lead" method="POST" id="update-form"
           data-fallback-email="os@joinwestpeek.com"
-          data-success="Received. Thank you for sharing &mdash; we read every Update.">
+          data-success-panel="#update-form-wrap"
+          data-success-title="Thank you for sharing."
+          data-success="We read every Update. From what you share, we make the introductions, curate the workshops, and extend the dinner invites that fit where you are right now."
+          data-success-link="/" data-success-link-label="Back to West Peek">
       <input type="hidden" name="site" value="community">
       <input type="hidden" name="lead_type" value="the_update">
       <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
