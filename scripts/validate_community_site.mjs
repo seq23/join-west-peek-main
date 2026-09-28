@@ -274,6 +274,46 @@ function checkTree(label, dir, isBuilt) {
     }
   }
 
+  // The scroll cue (Scooter, 27 Sep 2026: "I don't know if people know they can
+  // scroll on the flyers"). Every sideways scroller - the event-history flyer
+  // carousels and the More Episodes / workshops rows - must be wrapped by
+  // community.js with a hint line, labelled previous/next arrows and edge fades
+  // that community.css actually styles; the cue must remove itself when the
+  // track fits. A scroller with no cue is the defect he named.
+  const jsPath = path.join(dir, "assets", "community.js");
+  const cssPath = path.join(dir, "assets", "community.css");
+  check();
+  if (!fs.existsSync(jsPath) || !fs.existsSync(cssPath)) {
+    errors.push(`${label}: assets/community.js or assets/community.css is missing - no scroll cue can run.`);
+  } else {
+    const js = fs.readFileSync(jsPath, "utf8");
+    const css = fs.readFileSync(cssPath, "utf8");
+    const jsNeeds = [
+      ["function scrollCue(", "the scrollCue enhancer"],
+      ["wpc-scroller__hint", "the hint line"],
+      ["'Scroll back'", "the labelled previous arrow"],
+      ["'Scroll forward'", "the labelled next arrow"],
+      ["'data-at-end'", "the end-of-track state"],
+      ["'data-fits'", "the everything-fits state that hides the cue"],
+      ["scrollCue(carousel,", "the flyer carousel wired to the cue"],
+      ["scrollCue(row,", "the More Episodes / workshops row wired to the cue"],
+    ];
+    for (const [needle, what] of jsNeeds) {
+      check();
+      if (!js.includes(needle)) errors.push(`${label}: assets/community.js lost ${what} (${needle}) - people would not know the flyers scroll.`);
+    }
+    const cssNeeds = [
+      [".wpc-scroller__edge--end", "the end-edge fade"],
+      ["[data-at-end] .wpc-scroller__edge--end", "hiding the end fade at the end of the track"],
+      ["[data-fits] .wpc-scroller__bar", "hiding the cue when everything fits"],
+      [".wpc-scroller__btn", "the arrow buttons"],
+    ];
+    for (const [needle, what] of cssNeeds) {
+      check();
+      if (!css.includes(needle)) errors.push(`${label}: assets/community.css lost ${what} (${needle}).`);
+    }
+  }
+
   // History-event photos: every declared photo file must actually exist on
   // disk. A missing file is worse than no carousel at all.
   const historyPath = path.join(dir, "assets", "data", "history-events.json");
