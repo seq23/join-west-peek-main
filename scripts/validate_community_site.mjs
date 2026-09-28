@@ -45,13 +45,14 @@ const HOMEPAGE_ORDER = ["top", "origin", "podcast-home", "update-home", "pitch-h
 // out, backspaced and rotated by community.js. The brief's exact line
 // (HERO_LINE) stays the h1's real, shipped text underneath.
 const HERO_PHRASES = ["is a community", "is a space for entrepreneurs, creatives and professionals", "helps you feel less lonely building companies"];
-// Scooter, 28 Sep 2026: "It's the Sango pitch competition, in partnership with
-// Sango ... 'Sango pitch competition' or simply 'the pitch competition' - not
-// 'West Peek pitch competition.'" The partner was spelled Sengo before that.
-const WINNERS_HEADING = "Congratulations to the companies below - 1st place winners of the Sango pitch competition.";
+// Scooter, 28 Sep 2026: it is the "<partner> pitch competition" or simply "the
+// pitch competition" - never "West Peek pitch competition". The partner is
+// spelled Sengo (owner, 28 Sep 2026); "Sango" was a misspelling that shipped
+// briefly and is forbidden below.
+const WINNERS_HEADING = "Congratulations to the companies below - 1st place winners of the Sengo pitch competition.";
 const FORBIDDEN_PHRASES = [
-  [/West Peek pitch competition/i, 'says "West Peek pitch competition" - it is the Sango pitch competition (Scooter, 28 Sep 2026).'],
-  [/\bSengo\b/, 'spells the pitch partner "Sengo" - the site spells it Sango (Scooter, 28 Sep 2026).'],
+  [/West Peek pitch competition/i, 'says "West Peek pitch competition" - it is the Sengo pitch competition (Scooter, 28 Sep 2026).'],
+  [/\bSango\b/, 'spells the pitch partner "Sango" - it is spelled Sengo (owner, 28 Sep 2026).'],
 ];
 
 function htmlFiles(dir, acc = []) {

@@ -94,7 +94,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `aria-hidden`. Change the phrases in `sites/community/index.html` AND in
   `scripts/validate_community_site.mjs` (`HERO_PHRASES`) together.
 - **Pitch competition naming** (Scooter, 28 Sep 2026): it is "the pitch competition" or the
-  "Sango pitch competition", never "West Peek pitch competition"; the partner is spelled Sango.
+  "Sengo pitch competition", never "West Peek pitch competition"; the partner is spelled Sengo (owner, 28 Sep 2026; "Sango" was a misspelling).
   `/pitch` carries one winners heading, not a tag plus an h2. Guard: `npm run validate:community-site`.
 - **No personal address on the community site** (28 Sep 2026): the "if the form fails, email
   scooter@…" line is gone; every community form carries
@@ -136,7 +136,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_viability.mjs` | the Community assessment route and gates |
-| `scripts/validate_community_site.mjs` | the community redesign: shared four-item nav on every page, exact homepage order, hero with the brief's line as `#hero-line` plus the three typed phrases and no shipped photo until hero.json names one, the Sango naming, one winners heading on `/pitch`, no personal address and the OS-inbox fallback on every form, The Update's questions in Scooter's words, `/welcome` noindex with his note verbatim, the scroller edge fade kept soft, no italic/script markup, no sister-property or LinkedIn links, no Dinners, no "Who built it", no Airtable embed, podcast intro present, Update form actually gated (markers + functions/update.js), `/podcast` and `/history` redirect, every episode's YouTube id, headshot and generated /episodes/<slug> page real |
+| `scripts/validate_community_site.mjs` | the community redesign: shared four-item nav on every page, exact homepage order, hero with the brief's line as `#hero-line` plus the three typed phrases and no shipped photo until hero.json names one, the Sengo naming, one winners heading on `/pitch`, no personal address and the OS-inbox fallback on every form, The Update's questions in Scooter's words, `/welcome` noindex with his note verbatim, the scroller edge fade kept soft, no italic/script markup, no sister-property or LinkedIn links, no Dinners, no "Who built it", no Airtable embed, podcast intro present, Update form actually gated (markers + functions/update.js), `/podcast` and `/history` redirect, every episode's YouTube id, headshot and generated /episodes/<slug> page real |
 | `.github/workflows/entity-validation.yml` | the JSON-LD entity graph on the three index pages; Organization schema on every built page; dated sitemaps |
 | `scripts/validate_runbook.mjs` | this file names real paths and scripts |
 
