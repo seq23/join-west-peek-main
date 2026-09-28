@@ -235,6 +235,33 @@ function checkTree(label, dir, isBuilt) {
     if (!updateHtml.includes("<!-- UPDATE_FORM_START -->") || !updateHtml.includes("<!-- UPDATE_FORM_END -->")) {
       errors.push(`${label}: update.html is missing the UPDATE_FORM_START/END markers functions/update.js needs to gate the form server-side.`);
     }
+    // The Update's questions, in Scooter's words (28 Sep 2026): no "Update
+    // Type" field at all; "Your city" with its one-line explanation; the
+    // shout-out and additional-updates labels verbatim; and the newsletter
+    // consent as a yes/no radio choice, never a text box - while the field
+    // names the lead email and the Network OS intake read stay the same.
+    check();
+    if (/name="update_type"/.test(updateHtml)) errors.push(`${label}: update.html still carries the "Update Type" field - removed entirely 28 Sep 2026.`);
+    const UPDATE_COPY = [
+      '<label for="update-dinner-city">Your city</label>',
+      "When enough of us are in the same city - or passing through - we put a table together.",
+      "Shout out someone you're proud of and want to hype up.",
+      "Can we share your wins with the broader community in our newsletter?",
+      '<label for="update-context">Additional updates.</label>',
+    ];
+    for (const needle of UPDATE_COPY) {
+      check();
+      if (!updateHtml.includes(needle)) errors.push(`${label}: update.html lost the line ${JSON.stringify(needle)}.`);
+    }
+    const shareInputs = [...updateHtml.matchAll(/<input\b[^>]*name="okay_to_share_publicly"[^>]*>/g)].map((m) => m[0]);
+    check();
+    if (shareInputs.length !== 2 || !shareInputs.every((t) => /type="radio"/.test(t)) || !shareInputs.some((t) => /value="Yes"/.test(t)) || !shareInputs.some((t) => /value="No"/.test(t))) {
+      errors.push(`${label}: update.html's okay_to_share_publicly must be exactly two radio inputs, Yes and No (found ${shareInputs.length}).`);
+    }
+    for (const name of ["name", "email", "company", "role", "city", "win_or_progress", "help_needed", "current_challenge", "introduction_requested", "workshop_topics", "dinner_city", "community_shoutout", "okay_to_share_publicly", "additional_context"]) {
+      check();
+      if (!new RegExp(`name="${name}"`).test(updateHtml)) errors.push(`${label}: update.html lost the field name "${name}" the lead email and intake row are keyed on.`);
+    }
     // A confirmed Update is answered with a visible thank-you panel that
     // replaces the whole wizard, not a one-line status (28 Sep 2026).
     check();

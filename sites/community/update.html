@@ -84,11 +84,7 @@
 
       <fieldset class="wpc-steps__step" data-step="2" hidden>
         <legend>What's going on</legend>
-        <!-- Airtable's live choice list for this field could not be read with
-             the tools available at build time, so per the build rule this
-             stays free text rather than a guessed set of options. -->
-        <label for="update-type">Update Type</label>
-        <input id="update-type" name="update_type" placeholder="Win, ask for help, shout-out, or just checking in">
+        <!-- "Update Type" was removed entirely (Scooter, 28 Sep 2026). -->
         <label for="update-win">Win or Progress</label>
         <textarea id="update-win" name="win_or_progress" rows="2"></textarea>
         <label for="update-help">Help Needed</label>
@@ -103,18 +99,24 @@
         <input id="update-intro" name="introduction_requested" placeholder="Who would help right now?">
         <label for="update-workshop">Workshop Topics</label>
         <input id="update-workshop" name="workshop_topics" placeholder="What would you want a workshop on?">
-        <label for="update-dinner-city">Dinner City</label>
-        <input id="update-dinner-city" name="dinner_city" autocomplete="address-level2">
+        <label for="update-dinner-city">Your city</label>
+        <p class="small wpc-form__help" id="update-dinner-city-help">When enough of us are in the same city - or passing through - we put a table together.</p>
+        <input id="update-dinner-city" name="dinner_city" autocomplete="address-level2" aria-describedby="update-dinner-city-help">
       </fieldset>
 
       <fieldset class="wpc-steps__step" data-step="4" hidden>
         <legend>Last few things</legend>
-        <label for="update-shoutout">Community Shout-out</label>
+        <label for="update-shoutout">Shout out someone you're proud of and want to hype up.</label>
         <textarea id="update-shoutout" name="community_shoutout" rows="2"></textarea>
-        <!-- Same free-text rule as Update Type above. -->
-        <label for="update-share">Okay to Share Publicly</label>
-        <input id="update-share" name="okay_to_share_publicly" placeholder="Yes, no, or only some of it">
-        <label for="update-context">Additional Context</label>
+        <!-- A yes/no choice, not a text box (Scooter, 28 Sep 2026). The field
+             name stays okay_to_share_publicly so the lead email and the
+             Network OS intake row keep the same column. -->
+        <div class="wpc-choice" role="radiogroup" aria-labelledby="update-share-label">
+          <p class="wpc-choice__label" id="update-share-label">Can we share your wins with the broader community in our newsletter?</p>
+          <label class="wpc-choice__option" for="update-share-yes"><input id="update-share-yes" type="radio" name="okay_to_share_publicly" value="Yes"> Yes</label>
+          <label class="wpc-choice__option" for="update-share-no"><input id="update-share-no" type="radio" name="okay_to_share_publicly" value="No"> No</label>
+        </div>
+        <label for="update-context">Additional updates.</label>
         <textarea id="update-context" name="additional_context" rows="2"></textarea>
       </fieldset>
 

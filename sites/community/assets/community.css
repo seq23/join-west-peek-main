@@ -264,6 +264,14 @@ html { overflow-x: hidden; }
 }
 .wpc-form input:focus-visible, .wpc-form select:focus-visible, .wpc-form textarea:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 1px; }
 .wpc-form button[type="submit"] { margin-top: 1.5rem; }
+/* A helper line under a label (the Update's "Your city"), and a yes/no radio
+   choice rendered as options in a row rather than the block-level label +
+   full-width input every other field uses. */
+.wpc-form .wpc-form__help { margin: 0 0 .5rem; line-height: 1.5; max-width: 56ch; }
+.wpc-form .wpc-choice { margin-top: 1rem; }
+.wpc-form .wpc-choice__label { font-size: .8rem; color: var(--wp-text-dim); margin: 0 0 .5rem; }
+.wpc-form .wpc-choice__option { display: inline-flex; align-items: center; gap: .5rem; margin: 0 1.5rem .25rem 0; font-size: .95rem; color: var(--wp-text); cursor: pointer; }
+.wpc-form .wpc-choice__option input[type="radio"] { width: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--wp-orange); background: none; border: 0; }
 .wpc-form .small { color: var(--wp-text-dim); font-size: .82rem; }
 
 /* Thank-you panel: what forms.js puts in place of a form (or the whole Update
