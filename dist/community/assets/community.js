@@ -23,6 +23,91 @@
     });
   }
 
+  // ---------------------------------------------------------------- Scroll cue
+  // Scooter, 27 Sep 2026: "I don't know if people know they can scroll on the
+  // flyers to kinda make that thing." Every sideways scroller - the event-history
+  // flyer carousels, the More Episodes / workshops rows - gets a hint line,
+  // previous/next arrows, and a fade on whichever edge still has more behind it.
+  // The cue removes itself (data-fits) when everything already fits, so it never
+  // nags on a wide screen. Returns the refresh function so a disclosure that
+  // reveals the track later (the history accordion) can re-measure it.
+  function scrollCue(track, hint) {
+    if (!track || !track.parentNode) return null;
+    if (track.parentNode.classList && track.parentNode.classList.contains('wpc-scroller__track')) return null;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'wpc-scroller';
+    var bar = document.createElement('div');
+    bar.className = 'wpc-scroller__bar';
+    var hintEl = document.createElement('p');
+    hintEl.className = 'wpc-scroller__hint';
+    hintEl.textContent = hint;
+    var arrows = document.createElement('div');
+    arrows.className = 'wpc-scroller__arrows';
+    var prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'wpc-scroller__btn';
+    prev.setAttribute('data-dir', '-1');
+    prev.setAttribute('aria-label', 'Scroll back');
+    var next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'wpc-scroller__btn';
+    next.setAttribute('data-dir', '1');
+    next.setAttribute('aria-label', 'Scroll forward');
+    var trackWrap = document.createElement('div');
+    trackWrap.className = 'wpc-scroller__track';
+    var edgeStart = document.createElement('span');
+    edgeStart.className = 'wpc-scroller__edge wpc-scroller__edge--start';
+    edgeStart.setAttribute('aria-hidden', 'true');
+    var edgeEnd = document.createElement('span');
+    edgeEnd.className = 'wpc-scroller__edge wpc-scroller__edge--end';
+    edgeEnd.setAttribute('aria-hidden', 'true');
+
+    track.parentNode.insertBefore(wrap, track);
+    arrows.appendChild(prev);
+    arrows.appendChild(next);
+    bar.appendChild(hintEl);
+    bar.appendChild(arrows);
+    wrap.appendChild(bar);
+    trackWrap.appendChild(track);
+    trackWrap.appendChild(edgeStart);
+    trackWrap.appendChild(edgeEnd);
+    wrap.appendChild(trackWrap);
+    track.setAttribute('tabindex', '0');
+    track.setAttribute('role', 'region');
+    track.setAttribute('aria-label', hint);
+
+    function update() {
+      var max = track.scrollWidth - track.clientWidth;
+      var atStart = track.scrollLeft <= 2;
+      var atEnd = track.scrollLeft >= max - 2;
+      if (max <= 4) wrap.setAttribute('data-fits', ''); else wrap.removeAttribute('data-fits');
+      if (atStart) wrap.setAttribute('data-at-start', ''); else wrap.removeAttribute('data-at-start');
+      if (atEnd) wrap.setAttribute('data-at-end', ''); else wrap.removeAttribute('data-at-end');
+      prev.disabled = atStart;
+      next.disabled = atEnd;
+    }
+    function step(dir) {
+      var by = Math.max(160, Math.round(track.clientWidth * 0.8)) * dir;
+      if (track.scrollBy) track.scrollBy({ left: by, behavior: 'smooth' }); else track.scrollLeft += by;
+    }
+    prev.addEventListener('click', function () { step(-1); });
+    next.addEventListener('click', function () { step(1); });
+    track.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    if (window.ResizeObserver) new ResizeObserver(update).observe(track);
+    Array.prototype.forEach.call(track.querySelectorAll('img'), function (img) {
+      if (!img.complete) img.addEventListener('load', update);
+    });
+    update();
+    return update;
+  }
+
+  // The More Episodes / More Workshops rows are static HTML, so they are cued now.
+  Array.prototype.forEach.call(document.querySelectorAll('.wpc-episode__row'), function (row) {
+    scrollCue(row, 'Scroll sideways for more, or use the arrows');
+  });
+
   // ---------------------------------------------------------------- Parallax
   // Transform-only layered scroll motion on any [data-parallax-speed]
   // element, desktop and mobile alike (the scroll event fires on touch
@@ -319,10 +404,16 @@
         btn.appendChild(label);
         btn.appendChild(chevron);
 
+        var cue = null;
         btn.addEventListener('click', function () {
           var open = item.hasAttribute('data-open');
           if (open) { item.removeAttribute('data-open'); btn.setAttribute('aria-expanded', 'false'); }
-          else { item.setAttribute('data-open', ''); btn.setAttribute('aria-expanded', 'true'); }
+          else {
+            item.setAttribute('data-open', '');
+            btn.setAttribute('aria-expanded', 'true');
+            // The carousel was display:none until now; measure it once it is visible.
+            if (cue) cue();
+          }
         });
 
         var body = document.createElement('div');
@@ -351,6 +442,8 @@
           carousel.appendChild(fig);
         });
         body.appendChild(carousel);
+        var flyerCount = (ev.photos || [ev.flyer]).length;
+        cue = scrollCue(carousel, flyerCount === 1 ? '1 flyer' : flyerCount + ' flyers - scroll sideways or use the arrows');
 
         item.appendChild(btn);
         item.appendChild(body);

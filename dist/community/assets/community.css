@@ -224,6 +224,28 @@ html { overflow-x: hidden; }
 .wpc-flyer-carousel__item img { width: 180px; height: 180px; object-fit: cover; border-radius: 8px; }
 .wpc-flyer-carousel__item figcaption { font-size: .8rem; font-weight: 600; color: var(--wp-text); margin-top: .5rem; }
 
+/* Scroll cue (Scooter, 27 Sep 2026: "I don't know if people know they can scroll on
+   the flyers"). Every sideways scroller - the event-history flyer carousels and the
+   More Episodes / workshops rows - is wrapped by community.js in a .wpc-scroller: a
+   hint line, previous/next arrows, and a fade on whichever edge still has more behind
+   it. The cue removes itself (data-fits) when everything already fits on screen. */
+.wpc-scroller { --wp-scroller-bg: var(--wp-black); }
+.wpc-scroller__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 .6rem; }
+.wpc-scroller__hint { font-size: .82rem; font-weight: 600; color: var(--wp-text-dim); margin: 0; }
+.wpc-scroller__arrows { display: flex; gap: .4rem; flex: none; }
+.wpc-scroller__btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--wp-line); background: none; color: var(--wp-text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; font: inherit; }
+.wpc-scroller__btn::before { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); margin-left: -3px; }
+.wpc-scroller__btn[data-dir="-1"]::before { transform: rotate(135deg); margin-left: 3px; }
+.wpc-scroller__btn:hover, .wpc-scroller__btn:focus-visible { border-color: var(--wp-orange); color: var(--wp-orange); outline: none; }
+.wpc-scroller__btn[disabled] { opacity: .35; cursor: default; border-color: var(--wp-line); color: var(--wp-text); }
+.wpc-scroller__track { position: relative; }
+.wpc-scroller__track > [tabindex]:focus-visible { outline: 2px solid var(--wp-orange); outline-offset: 4px; }
+.wpc-scroller__edge { position: absolute; top: 0; bottom: 0; width: 56px; pointer-events: none; opacity: 1; transition: opacity .2s; }
+.wpc-scroller__edge--start { left: 0; background: linear-gradient(to right, var(--wp-scroller-bg), transparent); }
+.wpc-scroller__edge--end { right: 0; background: linear-gradient(to left, var(--wp-scroller-bg), transparent); }
+.wpc-scroller[data-at-start] .wpc-scroller__edge--start, .wpc-scroller[data-at-end] .wpc-scroller__edge--end { opacity: 0; }
+.wpc-scroller[data-fits] .wpc-scroller__bar, .wpc-scroller[data-fits] .wpc-scroller__edge { display: none; }
+
 /* ---------------------------------------------------------------- Founding team */
 .wpc-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
 .wpc-team__card { background: var(--wp-panel); border: 1px solid var(--wp-line); border-radius: 10px; padding: 1.5rem; }
