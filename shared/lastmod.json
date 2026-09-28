@@ -9,6 +9,7 @@
     "sites/community/join.html": "2026-09-27",
     "sites/community/pitch.html": "2026-09-27",
     "sites/community/update.html": "2026-09-27",
+    "sites/community/workshop-template.html": "2026-09-27",
     "sites/community/workshops.html": "2026-09-27",
     "sites/productions/community-as-a-service/index.html": "2026-09-25",
     "sites/productions/event-production-cost.html": "2026-09-25",
@@ -34,6 +35,9 @@
     "sites/community/episodes/bartholomew-jones/index.html": "2026-09-27",
     "sites/community/episodes/shanna-pearre/index.html": "2026-09-27",
     "sites/community/episodes/meka-egwuekwe/index.html": "2026-09-27",
-    "sites/community/episodes/kimberly-gant/index.html": "2026-09-27"
+    "sites/community/episodes/kimberly-gant/index.html": "2026-09-27",
+    "sites/community/workshops/bootstrapping-sheena-allen/index.html": "2026-09-27",
+    "sites/community/workshops/inside-black-ambition/index.html": "2026-09-27",
+    "sites/community/workshops/grow-with-google/index.html": "2026-09-27"
   }
 }
