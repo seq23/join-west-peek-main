@@ -28,6 +28,10 @@
  *                       "true" replaces the <form> itself; a selector replaces
  *                       that container (e.g. the whole multi-step wizard).
  *   data-success-title  the panel's heading (default "Thank you")
+ *   data-bot-check      "turnstile": ask GET /api/lead for the public site key
+ *                       and, when there is one, render an interaction-only
+ *                       Cloudflare Turnstile widget whose token rides in the
+ *                       form's FormData. No key, nothing loads.
  *   data-success-link / data-success-link-label
  *                       an optional button under the panel copy
  */
@@ -172,11 +176,53 @@
     }
   }
 
+  var TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  var turnstileLoad = null;
+
+  function loadTurnstile() {
+    if (turnstileLoad) return turnstileLoad;
+    turnstileLoad = new Promise(function (resolve, reject) {
+      if (typeof document === 'undefined' || !document.createElement) return reject(new Error('no document'));
+      var tag = document.createElement('script');
+      tag.src = TURNSTILE_SRC;
+      tag.async = true;
+      tag.onload = function () { resolve(globalThis.turnstile); };
+      tag.onerror = function () { reject(new Error('turnstile failed to load')); };
+      document.head.appendChild(tag);
+    });
+    return turnstileLoad;
+  }
+
+  /** Returns state that holds the widget once it is up; stays empty when there is no key. */
+  function wireBotCheck(form) {
+    var state = { widget: null, api: null };
+    if (form.getAttribute('data-bot-check') !== 'turnstile' || typeof fetch !== 'function') return state;
+    var action = form.getAttribute('action') || DEFAULT_ACTION;
+    fetch(action, { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (body) {
+        if (!body || !body.turnstile_site_key) return null;
+        return loadTurnstile().then(function (api) {
+          var holder = document.createElement('div');
+          holder.setAttribute('data-turnstile-holder', '');
+          form.appendChild(holder);
+          state.api = api;
+          state.widget = api.render(holder, {
+            sitekey: body.turnstile_site_key,
+            appearance: 'interaction-only'
+          });
+        });
+      })
+      .catch(function () { /* no widget: the server decides, the form shows its email fallback */ });
+    return state;
+  }
+
   function wire(form) {
     if (form.getAttribute('data-westpeek-wired') === 'true') return;
     form.setAttribute('data-westpeek-wired', 'true');
     if (typeof form.querySelectorAll === 'function') wireUrlFields(form);
 
+    var botCheck = wireBotCheck(form);
     var button = form.querySelector('button[type="submit"], input[type="submit"]');
     var busy = false;
 
@@ -232,6 +278,11 @@
         })
         .catch(function () {
           setError(form, 'We could not reach the server.');
+        })
+        .then(function () {
+          if (botCheck.api && botCheck.widget !== null) {
+            try { botCheck.api.reset(botCheck.widget); } catch (e) { /* widget gone */ }
+          }
         })
         .then(release, release);
     });

@@ -34,6 +34,14 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   to joinwestpeek.com, westpeekproductions.com or westpeek.live; `dilution.joinwestpeek.com` is the
   one allowed sister host. Structured data (JSON-LD) may still reference the family — it is not
   navigation. Guard: `npm run validate:ventures-isolation`.
+- **Ventures forms are bot-checked on the server** (Scooter, 8 Oct 2026: spam posted straight to
+  `/api/lead`). On ventures hosts only, `functions/api/lead.js` drops a POST with a missing or foreign
+  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and when `TURNSTILE_SITE_KEY` and
+  `TURNSTILE_SECRET_KEY` are both set it requires a valid Cloudflare Turnstile token (400
+  `bot_check_failed`; siteverify unreachable → 503). The hidden `website` honeypot stays. Every drop is
+  logged with its reason; responses carry `bot_check`. Every ventures form carries
+  `data-bot-check="turnstile"`; `forms.js` renders an interaction-only widget when `GET /api/lead` returns
+  a site key. Guard: rule FORM-13 in `npm run validate:forms`.
 - **Ventures visual system is frozen** — colours, fonts, styling stay; changes are structure and
   content. The WP monogram (`sites/ventures/assets/img/wp-monogram.png`, black ink) is rendered
   white with `filter: invert(1)` (approved 20 Sep 2026).
@@ -132,7 +140,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 ## Guards, and what each pins
 | Script | Pins |
 |---|---|
-| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10) |
+| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_viability.mjs` | the Community assessment route and gates |
@@ -141,3 +149,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 | `scripts/validate_runbook.mjs` | this file names real paths and scripts |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
+
+## Secrets
+Per Pages project; set through `pages_env`, never by hand.
+- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Until both are set the Origin check still runs and Turnstile is off (`bot_check: "not_configured"`).

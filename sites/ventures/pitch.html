@@ -37,7 +37,7 @@
   <h2>Submit a pitch</h2>
   <p>We’re founder-facing. We don’t need perfection — we need clarity.</p>
   <div class="form">
-    <form data-westpeek-form action="/api/lead" method="POST" data-fallback-email="info@westpeek.ventures">
+    <form data-westpeek-form data-bot-check="turnstile" action="/api/lead" method="POST" data-fallback-email="info@westpeek.ventures">
       <input type="hidden" name="site" value="ventures">
       <input type="hidden" name="lead_type" value="founder_pitch">
       <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable.
