@@ -87,6 +87,11 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
  */
 const HONEYPOT_FIELDS = ['website', '_gotcha'];
 
+/** Cloudflare Turnstile: the token field the widget adds, and where it is verified. */
+const TURNSTILE_FIELD = 'cf-turnstile-response';
+const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+const TURNSTILE_TIMEOUT_MS = 4000;
+
 /** How long the sheet write may take before the visitor stops waiting for it. */
 const INTAKE_TIMEOUT_MS = 5000;
 
@@ -146,6 +151,52 @@ export function siteForHost(hostname) {
 
 export function writesToSheet(hostname) {
   return SHEET_SITES.includes(siteForHost(hostname));
+}
+
+/** The bot checks apply to ventures only (the 8 Oct 2026 request was about westpeek.ventures). */
+function botChecksApply(hostname) {
+  return siteForHost(hostname) === 'ventures';
+}
+
+/**
+ * Every ventures form submits by same-origin fetch, and browsers always send
+ * Origin on a POST. A missing or foreign Origin (Referer as the fallback) is a
+ * script replaying the endpoint, not a visitor.
+ */
+export function sameOrigin(request, hostname) {
+  const source = request.headers.get('origin') || request.headers.get('referer') || '';
+  if (!source) return false;
+  try {
+    return new URL(source).hostname.toLowerCase() === String(hostname).toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+function turnstileConfigured(env) {
+  return Boolean(clean(env.TURNSTILE_SECRET_KEY) && clean(env.TURNSTILE_SITE_KEY));
+}
+
+/** Returns 'ok', 'failed' (bad or missing token) or 'unavailable' (siteverify unreachable). */
+async function verifyTurnstile(token, env, request) {
+  if (!token) return 'failed';
+  try {
+    const body = new URLSearchParams({ secret: clean(env.TURNSTILE_SECRET_KEY), response: token });
+    const ip = request.headers.get('cf-connecting-ip');
+    if (ip) body.set('remoteip', ip);
+    const res = await fetch(TURNSTILE_VERIFY_URL, {
+      method: 'POST',
+      body,
+      signal: AbortSignal.timeout(TURNSTILE_TIMEOUT_MS)
+    });
+    if (!res.ok) return 'unavailable';
+    const result = await res.json().catch(() => null);
+    if (!result || result.success !== true) return 'failed';
+    if (result.hostname && siteForHost(result.hostname) !== 'ventures') return 'failed';
+    return 'ok';
+  } catch {
+    return 'unavailable';
+  }
 }
 
 function clean(value) {
@@ -211,7 +262,7 @@ async function addToNetworkSheet(fields, env, request, site) {
   const submissionId = `sub_${Date.now()}_${crypto.randomUUID()}`;
   const payload = { submission_id: submissionId, host: site, form };
   for (const [key, value] of Object.entries(fields)) {
-    if (HONEYPOT_FIELDS.includes(key)) continue;
+    if (HONEYPOT_FIELDS.includes(key) || key === TURNSTILE_FIELD) continue;
     payload[key] = clean(value);
   }
 
@@ -276,7 +327,34 @@ export async function onRequestPost({ request, env }) {
   // Answer 200 so it does not learn anything, and drop the message. Only names
   // in HONEYPOT_FIELDS may trigger this: a field a human can see and was asked
   // to fill in must never be able to discard their submission.
-  if (HONEYPOT_FIELDS.some((key) => clean(fields[key]))) return json({ ok: true, sheet: 'skipped' }, 200);
+  const host = new URL(request.url).hostname;
+  const formName = clean(fields.lead_type) || clean(fields.lead_source) || 'unknown';
+  if (HONEYPOT_FIELDS.some((key) => clean(fields[key]))) {
+    console.error('lead dropped', JSON.stringify({ reason: 'honeypot', form: formName, host }));
+    return json({ ok: true, sheet: 'skipped' }, 200);
+  }
+
+  // Bot checks, ventures only, before any email or sheet write. Same-origin
+  // first (free), then Turnstile when both of its keys are set.
+  let botCheck = 'not_applicable';
+  if (botChecksApply(host)) {
+    if (!sameOrigin(request, host)) {
+      console.error('lead dropped', JSON.stringify({ reason: 'origin', form: formName, host }));
+      return json({ ok: true, sheet: 'skipped' }, 200);
+    }
+    if (turnstileConfigured(env)) {
+      const verdict = await verifyTurnstile(clean(fields[TURNSTILE_FIELD]), env, request);
+      if (verdict !== 'ok') {
+        console.error('lead dropped', JSON.stringify({ reason: 'turnstile', verdict, form: formName, host }));
+        return verdict === 'unavailable'
+          ? json({ ok: false, error: 'bot_check_unavailable' }, 503)
+          : json({ ok: false, error: 'bot_check_failed' }, 400);
+      }
+      botCheck = 'ok';
+    } else {
+      botCheck = 'not_configured';
+    }
+  }
 
   const email = clean(fields.email);
   for (const key of REQUIRED) {
@@ -291,7 +369,7 @@ export async function onRequestPost({ request, env }) {
     : clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
   const from = clean(env.EMAIL_FROM);
   const apiKey = clean(env.RESEND_API_KEY);
-  const site = new URL(request.url).hostname;
+  const site = host;
 
   // The sheet write starts now and is awaited at the end, so it runs alongside
   // the email rather than after it. It is started even when Resend is
@@ -302,13 +380,13 @@ export async function onRequestPost({ request, env }) {
 
   if (!apiKey || !from) {
     // Deliberately not 200. The form falls back to a visible email prompt.
-    return json({ ok: false, error: 'delivery_not_configured', sheet: await sheetWrite }, 503);
+    return json({ ok: false, error: 'delivery_not_configured', sheet: await sheetWrite, bot_check: botCheck }, 503);
   }
 
   // Only the traps are stripped from the notification. company_website is real
   // founder-supplied data the fund wants, so it stays in the email body.
   const lines = Object.entries(fields)
-    .filter(([k]) => !HONEYPOT_FIELDS.includes(k))
+    .filter(([k]) => !HONEYPOT_FIELDS.includes(k) && k !== TURNSTILE_FIELD)
     .map(([k, v]) => (k === FILE_FIELD && v ? `${k}: ${clean(v)} (attached to this email)` : `${k}: ${clean(v)}`))
     .concat([`submitted_at: ${new Date().toISOString()}`])
     .join('\n');
@@ -331,20 +409,28 @@ export async function onRequestPost({ request, env }) {
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       console.error('lead delivery failed', res.status, detail.slice(0, 300));
-      return json({ ok: false, error: 'delivery_failed', sheet: await sheetWrite }, 502);
+      return json({ ok: false, error: 'delivery_failed', sheet: await sheetWrite, bot_check: botCheck }, 502);
     }
   } catch (err) {
     console.error('lead delivery threw', String(err).slice(0, 300));
-    return json({ ok: false, error: 'delivery_failed', sheet: await sheetWrite }, 502);
+    return json({ ok: false, error: 'delivery_failed', sheet: await sheetWrite, bot_check: botCheck }, 502);
   }
 
   // The email is delivered, so the visitor succeeded. The sheet result is
   // reported, never allowed to overturn that.
-  return json({ ok: true, sheet: await sheetWrite }, 200);
+  return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck }, 200);
 }
 
 // A GET should say what this endpoint is rather than 404, so the next person
 // checking whether it exists gets an answer.
-export function onRequestGet() {
-  return json({ ok: false, error: 'method_not_allowed', hint: 'POST a contact form here' }, 405);
+export function onRequestGet({ request, env } = {}) {
+  const body = { ok: false, error: 'method_not_allowed', hint: 'POST a contact form here' };
+  let host = '';
+  try { host = new URL(request.url).hostname; } catch { /* no request: bare probe */ }
+  if (host && botChecksApply(host)) {
+    body.bot_check = turnstileConfigured(env || {}) ? 'ok' : 'not_configured';
+    // The site key is public by design; the page needs it to render the widget.
+    if (turnstileConfigured(env || {})) body.turnstile_site_key = clean(env.TURNSTILE_SITE_KEY);
+  }
+  return json(body, 405);
 }
