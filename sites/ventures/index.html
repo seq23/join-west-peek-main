@@ -835,7 +835,7 @@
       field below.
     -->
     <form class="apply-form" id="applyForm"
-          data-westpeek-form action="/api/lead" method="POST"
+          data-westpeek-form data-bot-check="turnstile" action="/api/lead" method="POST"
           data-success="Received. We read every submission and reply to the ones we can help."
           data-fallback-email="info@westpeek.ventures">
       <input type="hidden" name="site" value="ventures">
@@ -906,7 +906,7 @@
       a change for this form to transmit and be proven.
     -->
     <form class="newsletter-form" id="newsletterForm"
-          data-westpeek-form action="/api/lead" method="POST"
+          data-westpeek-form data-bot-check="turnstile" action="/api/lead" method="POST"
           data-success="Subscribed. Watch your inbox for our next issue."
           data-fallback-email="info@westpeek.ventures">
       <input type="hidden" name="site" value="ventures">

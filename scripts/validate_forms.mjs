@@ -1004,6 +1004,85 @@ async function checkFormsRegister() {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// FORM-13 - the ventures bot check (Scooter, 8 Oct 2026). Spam was posting
+// straight to /api/lead; the checks that run on the server are executed here
+// against a stubbed fetch, not pattern-matched.
+// ---------------------------------------------------------------------------
+
+async function checkBotCheck() {
+  const where = rel(LEAD_HANDLER);
+  let mod;
+  try {
+    mod = await import(pathToFileURL(LEAD_HANDLER).href);
+  } catch (err) {
+    fail('FORM-13', where, `lead.js could not be imported: ${err.message}`);
+    return;
+  }
+
+  // Every ventures form carries the attribute that makes forms.js render the widget.
+  let ventureForms = 0;
+  const dir = path.join(root, 'sites', 'ventures');
+  for (const file of htmlFiles(dir)) {
+    const html = fs.readFileSync(file, 'utf8');
+    for (const m of html.matchAll(/<form\b[^>]*data-westpeek-form[^>]*>/gi)) {
+      ventureForms += 1;
+      if (/data-bot-check="turnstile"/.test(m[0])) pass();
+      else fail('FORM-13', rel(file), 'a ventures form lacks data-bot-check="turnstile", so it would never send a Turnstile token.');
+    }
+  }
+  if (ventureForms === 0) {
+    fail('FORM-13', rel(dir), 'no ventures form with data-westpeek-form was found; the bot-check scan proves nothing.');
+    return;
+  }
+  pass();
+
+  const realFetch = globalThis.fetch;
+  async function post({ host, origin, token, keys, verify }) {
+    const calls = { resend: 0, sheet: 0, verify: 0 };
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('api.resend.com')) { calls.resend += 1; return { ok: true, text: async () => '' }; }
+      if (u.includes('siteverify')) { calls.verify += 1; return { ok: true, json: async () => verify }; }
+      calls.sheet += 1;
+      return { ok: true, json: async () => ({ ok: true }), text: async () => '' };
+    };
+    try {
+      const body = new URLSearchParams({ email: 'probe@example.com', lead_type: 'founder_apply' });
+      if (token) body.set('cf-turnstile-response', token);
+      const headers = { 'content-type': 'application/x-www-form-urlencoded' };
+      if (origin) headers.origin = origin;
+      const request = new Request(`https://${host}/api/lead`, { method: 'POST', headers, body });
+      const env = {
+        RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co',
+        WP_NETWORK_OS_INTAKE_URL: 'https://door.invalid/x', WP_NETWORK_OS_INTAKE_SECRET: 's',
+        ...(keys ? { TURNSTILE_SECRET_KEY: 'sec', TURNSTILE_SITE_KEY: 'site' } : {})
+      };
+      const res = await mod.onRequestPost({ request, env });
+      return { status: res.status, body: await res.json(), calls };
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+
+  const V = 'westpeek.ventures';
+  const cases = [
+    ['no Origin is dropped', { host: V }, (r) => r.status === 200 && r.body.sheet === 'skipped' && r.calls.resend === 0 && r.calls.sheet === 0],
+    ['cross-origin Origin is dropped', { host: V, origin: 'https://evil.example' }, (r) => r.status === 200 && r.body.sheet === 'skipped' && r.calls.resend === 0 && r.calls.sheet === 0],
+    ['keys set, no token -> 400 bot_check_failed', { host: V, origin: `https://${V}`, keys: true }, (r) => r.status === 400 && r.body.error === 'bot_check_failed' && r.calls.resend === 0 && r.calls.sheet === 0],
+    ['keys set, siteverify says no -> 400', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: false } }, (r) => r.status === 400 && r.calls.resend === 0 && r.calls.sheet === 0],
+    ['keys set, siteverify says yes -> delivered once', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: true, hostname: V } }, (r) => r.status === 200 && r.body.bot_check === 'ok' && r.calls.resend === 1],
+    ['no keys, same origin -> delivered, bot_check not_configured', { host: V, origin: `https://${V}` }, (r) => r.status === 200 && r.body.bot_check === 'not_configured' && r.calls.resend === 1],
+    ['community host is untouched (no Origin, no token)', { host: 'joinwestpeek.com', keys: true }, (r) => r.status === 200 && r.body.bot_check === 'not_applicable' && r.calls.resend === 1]
+  ];
+  for (const [name, input, ok] of cases) {
+    let r;
+    try { r = await post(input); } catch (err) { fail('FORM-13', where, `${name}: threw ${err.message}`); continue; }
+    if (ok(r)) pass();
+    else fail('FORM-13', where, `${name}: got ${r.status} ${JSON.stringify(r.body)} calls ${JSON.stringify(r.calls)}`);
+  }
+}
+
 async function main() {
   const hp = honeypotNames();
   notes.push(`honeypot names read from ${rel(LEAD_HANDLER)}: ${hp.join(', ') || '(none)'}`);
@@ -1038,6 +1117,7 @@ async function main() {
   await checkSharedHandlerBehaviour();
   await checkUrlNormalisation();
   await checkFormsRegister();
+  await checkBotCheck();
 
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ ok: failures.length === 0, failures, notes, checks_passed: passes }, null, 2));
