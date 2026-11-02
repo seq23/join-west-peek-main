@@ -43,7 +43,7 @@ special configuration and cannot be made to write by editing a page.
 |---|---|---|
 | `RESEND_API_KEY` | secret | Resend delivery |
 | `EMAIL_FROM` | plain var | notification sender |
-| `LEAD_TO` | plain var | notification recipient (defaults to scooter@westpeek.ventures) |
+| `LEAD_TO` | plain var | notification recipient (required; no default in code - set on all three projects) |
 | `COMMUNITY_ASSESSMENT_TO` | plain var | recipient for the community viability assessment |
 | `WP_NETWORK_OS_INTAKE_URL` | plain var | the Network OS intake door, `https://<network-os>/api/intake/site-form` |
 | `WP_NETWORK_OS_INTAKE_SECRET` | **secret** | shared secret the door requires, sent as `x-wp-network-os-intake-secret` |

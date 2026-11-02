@@ -35,6 +35,9 @@
  *           the script the browser submits natively and shows the visitor raw
  *           JSON from /api/lead - which is exactly what /update did on the
  *           28 Sep 2026 preview (it loaded community.js and nothing else).
+ *   FORM-14 The productions inquiry emails LEAD_TO only, carries UTM fields,
+ *           and never calls the network sheet door (executed, with a
+ *           community-host negative control).
  *   FORM-10 Every transmitting form is in shared/forms-register.json with a
  *           destination, and every registered form whose destination is the
  *           master network sheet is ACTUALLY WIRED to it - the markup posts to
@@ -1054,7 +1057,7 @@ async function checkBotCheck() {
       if (origin) headers.origin = origin;
       const request = new Request(`https://${host}/api/lead`, { method: 'POST', headers, body });
       const env = {
-        RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co',
+        RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co', LEAD_TO: 'to@test.invalid',
         WP_NETWORK_OS_INTAKE_URL: 'https://door.invalid/x', WP_NETWORK_OS_INTAKE_SECRET: 's',
         ...(keys ? { TURNSTILE_SECRET_KEY: 'sec', TURNSTILE_SITE_KEY: 'site' } : {})
       };
@@ -1080,6 +1083,86 @@ async function checkBotCheck() {
     try { r = await post(input); } catch (err) { fail('FORM-13', where, `${name}: threw ${err.message}`); continue; }
     if (ok(r)) pass();
     else fail('FORM-13', where, `${name}: got ${r.status} ${JSON.stringify(r.body)} calls ${JSON.stringify(r.calls)}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FORM-14 - the productions inquiry (owner, 2 Nov 2026). The "Start an
+// inquiry" buttons opened a Google Form outside this handler. The on-site
+// form must email the CONFIGURED recipient (LEAD_TO, never an address baked
+// into this public repo), carry the UTM fields into that email, and never
+// call the network sheet door - executed against a stubbed fetch, with the
+// community host as the negative control that proves the sheet counter works.
+// ---------------------------------------------------------------------------
+
+async function checkProductionsInquiry() {
+  const page = path.join(root, 'sites', 'productions', 'inquiry', 'index.html');
+  const where = rel(page);
+  if (!fs.existsSync(page)) { fail('FORM-14', where, 'the productions inquiry page is missing.'); return; }
+  const html = fs.readFileSync(page, 'utf8');
+  const form = (html.match(/<form\b[\s\S]*?<\/form>/i) || [''])[0];
+  if (!/action="\/api\/lead"/.test(form) || !/name="lead_type" value="productions_inquiry"/.test(form)) {
+    fail('FORM-14', where, 'the inquiry form does not post lead_type=productions_inquiry to /api/lead.');
+  } else pass();
+  for (const name of ['utm_source', 'utm_medium', 'utm_campaign', 'referrer']) {
+    if (new RegExp(`name="${name}"[^>]*data-attribution`).test(form)) pass();
+    else fail('FORM-14', where, `the inquiry form has no hidden ${name} field, so its value never reaches Scooter.`);
+  }
+  let links = 0;
+  for (const file of htmlFiles(path.join(root, 'sites', 'productions'))) {
+    const text = fs.readFileSync(file, 'utf8');
+    if (/forms\.gle\//.test(text)) fail('FORM-14', rel(file), 'still links to a Google Form; inquiries must go through /inquiry/.');
+    links += (text.match(/href="\/inquiry\/"/g) || []).length;
+  }
+  if (links === 0) fail('FORM-14', where, 'no productions page links to /inquiry/; the scan proves nothing.');
+  else pass();
+
+  let mod;
+  try { mod = await import(pathToFileURL(LEAD_HANDLER).href); } catch (err) { fail('FORM-14', rel(LEAD_HANDLER), `lead.js could not be imported: ${err.message}`); return; }
+  const realFetch = globalThis.fetch;
+  async function post(host, env) {
+    const calls = { resend: [], sheet: 0 };
+    globalThis.fetch = async (url, init) => {
+      if (String(url).includes('api.resend.com')) { calls.resend.push(JSON.parse(init.body)); return { ok: true, text: async () => '' }; }
+      calls.sheet += 1;
+      return { ok: true, json: async () => ({ ok: true }), text: async () => '' };
+    };
+    try {
+      const body = new URLSearchParams({
+        name: 'Probe', email: 'probe@example.com', organization: 'Probe Co', help_type: 'Other',
+        lead_type: 'productions_inquiry', utm_source: 'probe-src', utm_medium: 'probe-med',
+        utm_campaign: 'probe-camp', referrer: 'https://chatgpt.com/'
+      });
+      const request = new Request(`https://${host}/api/lead`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
+      const res = await mod.onRequestPost({ request, env });
+      return { status: res.status, body: await res.json(), calls };
+    } finally { globalThis.fetch = realFetch; }
+  }
+  const TO = 'configured-recipient@test.invalid';
+  const env = { RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co', LEAD_TO: TO, WP_NETWORK_OS_INTAKE_URL: 'https://door.invalid/x', WP_NETWORK_OS_INTAKE_SECRET: 's' };
+  const h = rel(LEAD_HANDLER);
+  try {
+    const r = await post('westpeekproductions.com', env);
+    const mail = r.calls.resend[0] || {};
+    if (r.status !== 200 || r.body.ok !== true || r.calls.resend.length !== 1) fail('FORM-14', h, `productions inquiry not delivered once: ${r.status} ${JSON.stringify(r.body)}`);
+    else pass();
+    if (JSON.stringify(mail.to) !== JSON.stringify([TO])) fail('FORM-14', h, `inquiry went to ${JSON.stringify(mail.to)}, not the configured LEAD_TO.`);
+    else pass();
+    if (!['utm_source: probe-src', 'utm_medium: probe-med', 'utm_campaign: probe-camp', 'referrer: https://chatgpt.com/'].every((l) => String(mail.text).includes(l))) fail('FORM-14', h, 'the inquiry email does not carry the UTM / referrer fields.');
+    else pass();
+    if (r.calls.sheet !== 0 || r.body.sheet !== 'not_applicable') fail('FORM-14', h, `a productions inquiry reached the network sheet door (calls ${r.calls.sheet}, sheet ${r.body.sheet}).`);
+    else pass();
+    // Negative control: the same submission on a community host DOES call the
+    // door, so a zero above is the gate working, not a counter that never counts.
+    const c = await post('joinwestpeek.com', env);
+    if (c.calls.sheet !== 1) fail('FORM-14', h, `negative control: a community submission made ${c.calls.sheet} sheet call(s), expected 1 - the sheet counter proves nothing.`);
+    else pass();
+    // No address in code: without LEAD_TO nothing is sent anywhere.
+    const n = await post('westpeekproductions.com', { ...env, LEAD_TO: '' });
+    if (n.status !== 503 || n.calls.resend.length !== 0) fail('FORM-14', h, `with LEAD_TO unset the handler still sent mail (${n.status}, ${n.calls.resend.length} send(s)) - a recipient is hard-coded.`);
+    else pass();
+  } catch (err) {
+    fail('FORM-14', h, `threw ${err.message}`);
   }
 }
 
@@ -1118,6 +1201,7 @@ async function main() {
   await checkUrlNormalisation();
   await checkFormsRegister();
   await checkBotCheck();
+  await checkProductionsInquiry();
 
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ ok: failures.length === 0, failures, notes, checks_passed: passes }, null, 2));

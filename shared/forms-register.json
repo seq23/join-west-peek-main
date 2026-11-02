@@ -79,6 +79,21 @@
       "settled": true
     },
     {
+      "repo": "join-west-peek-main",
+      "site": "productions",
+      "file": "sites/productions/inquiry/index.html",
+      "form": "productions_inquiry",
+      "host": "westpeekproductions.com",
+      "description": "Start an inquiry - the main client inquiry form at westpeekproductions.com/inquiry/. Replaces the Google Form (forms.gle/qUrkAwHruFsh8WLC8) every 'Start an inquiry' button used to open, which sat outside this handler and lost UTM tags. Carries utm_*, referrer and landing_page into the email.",
+      "destination": "excluded_not_ours",
+      "via": "functions/api/lead.js -> Resend email to LEAD_TO (Scooter) only",
+      "reason": "EXCLUDED - West Peek Productions is a client-service business; its inquiries are prospective clients, not West Peek's network contacts, so they go to Scooter's inbox and nowhere else. Owner's words, 22 Sep 2026: 'the productions website forms should not go to the network tab - those are clients who should go to scooter.' Owner ruling 2 Nov 2026: inquiries must reach Scooter. Settled on principle - do not wire it to the sheet.",
+      "named_by": "Sequoia",
+      "date": "2026-09-22",
+      "settled": true,
+      "note": "Added 2 Nov 2026. The Google Form itself is Scooter's and was left untouched; only the links to it were removed. FORM-14 in scripts/validate_forms.mjs executes the handler to prove the email goes to LEAD_TO with the UTM fields and the sheet door is never called."
+    },
+    {
       "repo": "west-peek-pitch-lab",
       "file": "src/runtime/practiceFlow.mjs",
       "form": "pitch_lab_profile",

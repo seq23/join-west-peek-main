@@ -364,9 +364,14 @@ export async function onRequestPost({ request, env }) {
 
   const leadSource = clean(fields.lead_source);
   const isCommunityViabilityAssessment = leadSource === 'community_viability_assessment';
+  // The recipient comes from the Pages project's environment only, never from
+  // this public repo. Measured 2 Nov 2026: LEAD_TO is set on all three
+  // production projects. If it is ever missing the handler answers
+  // delivery_not_configured (503) and the form shows its email fallback,
+  // rather than mailing an address baked into source.
   const to = isCommunityViabilityAssessment
-    ? clean(env.COMMUNITY_ASSESSMENT_TO) || 'scooter@westpeek.ventures'
-    : clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
+    ? clean(env.COMMUNITY_ASSESSMENT_TO) || clean(env.LEAD_TO)
+    : clean(env.LEAD_TO);
   const from = clean(env.EMAIL_FROM);
   const apiKey = clean(env.RESEND_API_KEY);
   const site = host;
@@ -378,7 +383,7 @@ export async function onRequestPost({ request, env }) {
   // first.
   const sheetWrite = addToNetworkSheet(fields, env, request, site);
 
-  if (!apiKey || !from) {
+  if (!apiKey || !from || !to) {
     // Deliberately not 200. The form falls back to a visible email prompt.
     return json({ ok: false, error: 'delivery_not_configured', sheet: await sheetWrite, bot_check: botCheck }, 503);
   }
@@ -401,7 +406,9 @@ export async function onRequestPost({ request, env }) {
         reply_to: email,
         subject: isCommunityViabilityAssessment
           ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
-          : `New enquiry from ${site}`,
+          : formName === 'productions_inquiry'
+            ? `New West Peek Productions inquiry — ${clean(fields.organization) || clean(fields.name) || email}`
+            : `New enquiry from ${site}`,
         text: `${lines}\n\nSubmitted from: ${request.url}`,
         ...(deckFile ? { attachments: [{ filename: deckFile.filename, content: bytesToBase64(deckFile.bytes) }] } : {}),
       }),

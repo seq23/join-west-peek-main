@@ -170,6 +170,30 @@ if (clarityId) {
   console.log(`clarity: tagged ${tagged} page(s) for ${target}`);
 }
 
+// Attribution (2 Nov 2026). The productions inquiry form carries utm_* /
+// referrer / landing_page fields, but visitors land on a service page and click
+// through, so the tags would be gone by the time they reach /inquiry/. This
+// snippet runs on every productions page and keeps the landing values in
+// sessionStorage; shared/assets/js/forms.js reads them into the form.
+const ATTRIBUTION_SITES = new Set(["productions"]);
+if (ATTRIBUTION_SITES.has(target)) {
+  const marker = "data-attribution-loader";
+  const snippet = `<script ${marker}>(function(){try{var k="wp_attribution",s=window.sessionStorage,q=new URLSearchParams(location.search),n=["utm_source","utm_medium","utm_campaign","utm_term","utm_content"],t={},h=false;n.forEach(function(x){var v=q.get(x);if(v){t[x]=v.slice(0,200);h=true}});var r=document.referrer||"";if(r&&new URL(r).hostname===location.hostname)r="";if(h||!s.getItem(k)){t.referrer=r.slice(0,500);t.landing_page=location.href.slice(0,500);s.setItem(k,JSON.stringify(t))}}catch(e){}})()</script>`;
+  let tagged = 0;
+  (function inject(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) { inject(abs); continue; }
+      if (!entry.name.endsWith(".html")) continue;
+      const html = fs.readFileSync(abs, "utf8");
+      if (html.includes(marker) || !/<\/head>/i.test(html)) continue;
+      fs.writeFileSync(abs, html.replace(/<\/head>/i, `${snippet}</head>`));
+      tagged += 1;
+    }
+  })(out);
+  console.log(`attribution: tagged ${tagged} page(s) for ${target}`);
+}
+
 // Organization schema on every page, not just the index.
 //
 // Three of the fourteen built pages carried an Organization node; the other

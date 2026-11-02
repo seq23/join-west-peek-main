@@ -217,10 +217,38 @@
     return state;
   }
 
+  /**
+   * Attribution. A form opts in by carrying hidden inputs marked
+   * data-attribution (utm_source, utm_medium, utm_campaign, utm_term,
+   * utm_content, referrer, landing_page). The value comes from this page's
+   * own query string first, then from what the site-wide snippet that
+   * scripts/build.mjs injects on productions pages stored in sessionStorage
+   * when the visitor landed, so a visitor who arrived on a service page with
+   * UTM tags and clicked through to the form keeps them.
+   */
+  var ATTRIBUTION_KEY = 'wp_attribution';
+  function fillAttribution(form) {
+    if (typeof form.querySelectorAll !== 'function') return;
+    var inputs = form.querySelectorAll('input[data-attribution]');
+    if (!inputs.length) return;
+    var stored = {};
+    try { stored = JSON.parse(window.sessionStorage.getItem(ATTRIBUTION_KEY) || '{}') || {}; } catch (e) { stored = {}; }
+    var params = null;
+    try { params = new URLSearchParams(window.location.search); } catch (e) { params = null; }
+    for (var i = 0; i < inputs.length; i += 1) {
+      var name = inputs[i].getAttribute('name');
+      var value = (params && params.get(name)) || stored[name] || '';
+      if (!value && name === 'referrer') value = document.referrer || '';
+      if (!value && name === 'landing_page') value = window.location.href;
+      inputs[i].value = String(value).slice(0, 500);
+    }
+  }
+
   function wire(form) {
     if (form.getAttribute('data-westpeek-wired') === 'true') return;
     form.setAttribute('data-westpeek-wired', 'true');
     if (typeof form.querySelectorAll === 'function') wireUrlFields(form);
+    try { fillAttribution(form); } catch (e) { /* attribution is never worth a lost submission */ }
 
     var botCheck = wireBotCheck(form);
     var button = form.querySelector('button[type="submit"], input[type="submit"]');
