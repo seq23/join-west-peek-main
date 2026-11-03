@@ -36,8 +36,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   navigation. Guard: `npm run validate:ventures-isolation`.
 - **Ventures forms are bot-checked on the server** (Scooter, 8 Oct 2026: spam posted straight to
   `/api/lead`). On ventures hosts only, `functions/api/lead.js` drops a POST with a missing or foreign
-  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and when `TURNSTILE_SITE_KEY` and
-  `TURNSTILE_SECRET_KEY` are both set it requires a valid Cloudflare Turnstile token (400
+  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and it requires a valid Cloudflare Turnstile token (400
   `bot_check_failed`; siteverify unreachable → 503). The hidden `website` honeypot stays. Every drop is
   logged with its reason; responses carry `bot_check`. Every ventures form carries
   `data-bot-check="turnstile"`; `forms.js` renders an interaction-only widget when `GET /api/lead` returns
@@ -155,4 +154,4 @@ Prove a new guard negatively before merging: plant the defect, watch it fail, re
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
-- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Until both are set the Origin check still runs and Turnstile is off (`bot_check: "not_configured"`).
+- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
