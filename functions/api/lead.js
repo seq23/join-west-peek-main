@@ -389,7 +389,12 @@ export async function onRequestPost({ request, env }) {
       }
       botCheck = 'ok';
     } else {
-      botCheck = 'not_configured';
+      // FAIL CLOSED (security sweep, 3 Nov 2026). With the keys unset nothing proves a person sent
+      // this, so nothing is delivered or written; the form shows its email fallback on a non-ok
+      // answer. Keys: Pages project west-peek-ventures, production and preview (vault
+      // WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY / _SECRET_KEY).
+      console.error('lead refused', JSON.stringify({ reason: 'bot_check_not_configured', form: formName, host }));
+      return json({ ok: false, error: 'bot_check_not_configured', bot_check: 'not_configured' }, 503);
     }
   }
 

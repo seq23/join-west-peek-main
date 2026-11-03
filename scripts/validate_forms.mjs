@@ -1072,7 +1072,7 @@ async function checkBotCheck() {
     ['keys set, no token -> 400 bot_check_failed', { host: V, origin: `https://${V}`, keys: true }, (r) => r.status === 400 && r.body.error === 'bot_check_failed' && r.calls.resend === 0 && r.calls.sheet === 0],
     ['keys set, siteverify says no -> 400', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: false } }, (r) => r.status === 400 && r.calls.resend === 0 && r.calls.sheet === 0],
     ['keys set, siteverify says yes -> delivered once', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: true, hostname: V } }, (r) => r.status === 200 && r.body.bot_check === 'ok' && r.calls.resend === 1],
-    ['no keys, same origin -> delivered, bot_check not_configured', { host: V, origin: `https://${V}` }, (r) => r.status === 200 && r.body.bot_check === 'not_configured' && r.calls.resend === 1],
+    ['no keys, same origin -> refused 503, nothing delivered or written (fail closed)', { host: V, origin: `https://${V}` }, (r) => r.status === 503 && r.body.error === 'bot_check_not_configured' && r.calls.resend === 0 && r.calls.sheet === 0],
     ['community host is untouched (no Origin, no token)', { host: 'joinwestpeek.com', keys: true }, (r) => r.status === 200 && r.body.bot_check === 'not_applicable' && r.calls.resend === 1]
   ];
   for (const [name, input, ok] of cases) {
