@@ -42,6 +42,9 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   logged with its reason; responses carry `bot_check`. Every ventures form carries
   `data-bot-check="turnstile"`; `forms.js` renders an interaction-only widget when `GET /api/lead` returns
   a site key. Guard: rule FORM-13 in `npm run validate:forms`.
+- **Every site's `/api/lead` is limited per IP** (security sweep, 3 Nov 2026): 5 POSTs an hour per
+  address (Cache API counter, per data centre), then 429 `rate_limited` before the body is read; the
+  form shows its email fallback. Guard: rule FORM-14 in `npm run validate:forms`.
 - **Ventures visual system is frozen** — colours, fonts, styling stay; changes are structure and
   content. The WP monogram (`sites/ventures/assets/img/wp-monogram.png`, black ink) is rendered
   white with `filter: invert(1)` (approved 20 Sep 2026).

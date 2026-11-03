@@ -92,6 +92,34 @@ const TURNSTILE_FIELD = 'cf-turnstile-response';
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const TURNSTILE_TIMEOUT_MS = 4000;
 
+/**
+ * Per-IP limit on every site (security sweep, 3 Nov 2026). A person sends one enquiry; a script
+ * replaying the endpoint sends many. This repo has no storage binding, so the count lives in the
+ * Cache API: per data centre, which is where one address's requests land. A missing or failing
+ * cache never blocks a submission (the limit is a brake on volume, not the bot check).
+ */
+const LEAD_LIMIT_PER_IP = 5;
+const LEAD_LIMIT_WINDOW_SECONDS = 3600;
+
+async function overIpLimit(request) {
+  const ip = request.headers.get('cf-connecting-ip');
+  const cache = globalThis.caches?.default;
+  if (!ip || !cache) return false;
+  const windowStart = Math.floor(Date.now() / 1000 / LEAD_LIMIT_WINDOW_SECONDS);
+  const key = new Request(`https://lead-limit.invalid/${encodeURIComponent(ip)}/${windowStart}`);
+  try {
+    const hit = await cache.match(key);
+    const count = hit ? Number(await hit.text()) || 0 : 0;
+    if (count >= LEAD_LIMIT_PER_IP) return true;
+    await cache.put(key, new Response(String(count + 1), {
+      headers: { 'cache-control': `max-age=${LEAD_LIMIT_WINDOW_SECONDS}` }
+    }));
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /** How long the sheet write may take before the visitor stops waiting for it. */
 const INTAKE_TIMEOUT_MS = 5000;
 
@@ -111,6 +139,9 @@ const VENTURES_HOSTS = [
   'westpeek.ventures',
   'www.westpeek.ventures',
   'ventures.joinwestpeek.com',
+  // A ventures custom domain on the west-peek-ventures Pages project. Without this entry it fell
+  // through to the community suffix 'westpeek.co' below and skipped the ventures bot checks.
+  'ventures.westpeek.co',
   'westpeekventures.com',
   'west-peek-ventures.pages.dev'
 ];
@@ -302,6 +333,12 @@ function json(body, status) {
 }
 
 export async function onRequestPost({ request, env }) {
+  // Before the body is read: an address over its limit costs nothing more. The form shows its
+  // email fallback on any non-ok answer, so a real person who hits this still has a way through.
+  if (await overIpLimit(request)) {
+    console.error('lead dropped', JSON.stringify({ reason: 'ip_limit', host: new URL(request.url).hostname }));
+    return json({ ok: false, error: 'rate_limited' }, 429);
+  }
   let fields = {};
   let deckFile = null;
   try {
