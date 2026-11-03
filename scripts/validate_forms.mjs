@@ -1083,6 +1083,59 @@ async function checkBotCheck() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// FORM-14 - per-IP limit on /api/lead (security sweep, 3 Nov 2026). Executed against
+// a stubbed Cache API and fetch: the sixth POST from one address inside the window is
+// refused with 429 before anything is delivered; another address still gets through.
+// ---------------------------------------------------------------------------
+
+async function checkIpLimit() {
+  const where = rel(LEAD_HANDLER);
+  let mod;
+  try { mod = await import(pathToFileURL(LEAD_HANDLER).href); } catch (err) {
+    fail('FORM-14', where, `lead.js could not be imported: ${err.message}`);
+    return;
+  }
+  const store = new Map();
+  const realCaches = globalThis.caches;
+  const realFetch = globalThis.fetch;
+  let resend = 0;
+  globalThis.caches = { default: {
+    match: async (req) => (store.has(req.url) ? new Response(store.get(req.url)) : undefined),
+    put: async (req, res) => { store.set(req.url, await res.text()); }
+  } };
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('api.resend.com')) resend += 1;
+    return { ok: true, json: async () => ({ ok: true }), text: async () => '' };
+  };
+  const send = async (ip) => {
+    const request = new Request('https://joinwestpeek.com/api/lead', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': ip },
+      body: new URLSearchParams({ email: 'probe@example.com', lead_type: 'contact' })
+    });
+    const res = await mod.onRequestPost({ request, env: { RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co' } });
+    return res.status;
+  };
+  try {
+    const statuses = [];
+    for (let i = 0; i < 6; i += 1) statuses.push(await send('203.0.113.7'));
+    const sentBefore = resend;
+    const other = await send('198.51.100.9');
+    if (statuses.slice(0, 5).every((s) => s === 200)) pass();
+    else fail('FORM-14', where, `the first five POSTs from one address must be delivered, got ${statuses.slice(0, 5).join(',')}`);
+    if (statuses[5] === 429 && sentBefore === 5) pass();
+    else fail('FORM-14', where, `the sixth POST from one address must be refused with 429 before delivery, got ${statuses[5]} with ${sentBefore} emails sent`);
+    if (other === 200) pass();
+    else fail('FORM-14', where, `a different address must still get through, got ${other}`);
+  } catch (err) {
+    fail('FORM-14', where, `threw ${err.message}`);
+  } finally {
+    globalThis.caches = realCaches;
+    globalThis.fetch = realFetch;
+  }
+}
+
 async function main() {
   const hp = honeypotNames();
   notes.push(`honeypot names read from ${rel(LEAD_HANDLER)}: ${hp.join(', ') || '(none)'}`);
@@ -1118,6 +1171,7 @@ async function main() {
   await checkUrlNormalisation();
   await checkFormsRegister();
   await checkBotCheck();
+  await checkIpLimit();
 
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ ok: failures.length === 0, failures, notes, checks_passed: passes }, null, 2));
