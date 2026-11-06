@@ -1,0 +1,35 @@
+# The PRIMARY delivery channel and the alarm for every West Peek site form
+# (functions/_lib/lead-delivery.mjs explains why). Pages Functions cannot hold a send_email
+# binding, so the three Pages projects reach this Worker through the service binding FORMS_MAILER.
+# The workers.dev URL exists only so the probe and the test alarm can be run by hand; every call
+# needs FORMS_MAILER_SECRET. Deploy: npm run mailer:deploy (from the repo root).
+#
+# Secrets (set from the West Peek OS vault, never committed): FORMS_MAILER_SECRET,
+# FORMS_PROBE_SECRET, RESEND_API_KEY (vault WP_FORMS_RESEND_API_KEY), FORMS_ALARM_TO (the three
+# alarm addresses; an owner address list, so it lives in the vault, not in this public repo).
+name = "west-peek-forms-mailer"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+preview_urls = false
+
+[vars]
+EMAIL_FROM = "West Peek <hello@joinwestpeek.com>"
+
+# Email Routing on joinwestpeek.com: sends to the account's verified destination addresses.
+[[send_email]]
+name = "EMAIL"
+allowed_sender_addresses = ["forms@joinwestpeek.com"]
+
+# Incident records (first seen, count, delivered, last alarm) for the hourly dedupe.
+[[kv_namespaces]]
+binding = "ALARMS"
+id = "c2d479e283de43549e1671a74d6fbfa2"
+
+# The weekly probe: Monday 8 AM Central. Cron is UTC, so it fires at 13:00 (CDT) and 14:00 (CST)
+# every Monday and isProbeTime() runs only the one that is 8 AM in Chicago. No change at DST.
+[triggers]
+crons = ["0 13,14 * * 1"]
+
+[observability]
+enabled = true

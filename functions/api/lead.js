@@ -63,6 +63,10 @@
  * exception in that file, not an accident.
  */
 
+import {
+  PROBE_HEADER, PROBE_TO, verifyProbe, incidentsFor, alarmEmail, ALARM_INTERVAL_MS, parseAddressList
+} from '../_lib/lead-delivery.mjs';
+
 const MAX_FIELD = 5000;
 const REQUIRED = ['email'];
 
@@ -332,10 +336,19 @@ function json(body, status) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
+  const later = typeof waitUntil === 'function' ? waitUntil : () => {};
+  // The signed weekly probe (workers/forms-mailer runProbe). A header that is present but wrong,
+  // stale, or unverifiable is refused outright: it never falls through to a normal submission.
+  const probe = await verifyProbe(request.headers.get(PROBE_HEADER), clean(env.FORMS_PROBE_SECRET), new URL(request.url).hostname);
+  if (probe === 'refused') {
+    console.error('lead refused', JSON.stringify({ reason: 'probe_signature', host: new URL(request.url).hostname }));
+    return json({ ok: false, error: 'probe_refused' }, 401);
+  }
+  const isProbe = probe === 'ok';
   // Before the body is read: an address over its limit costs nothing more. The form shows its
   // email fallback on any non-ok answer, so a real person who hits this still has a way through.
-  if (await overIpLimit(request)) {
+  if (!isProbe && await overIpLimit(request)) {
     console.error('lead dropped', JSON.stringify({ reason: 'ip_limit', host: new URL(request.url).hostname }));
     return json({ ok: false, error: 'rate_limited' }, 429);
   }
@@ -374,7 +387,7 @@ export async function onRequestPost({ request, env }) {
   // Bot checks, ventures only, before any email or sheet write. Same-origin
   // first (free), then Turnstile when both of its keys are set.
   let botCheck = 'not_applicable';
-  if (botChecksApply(host)) {
+  if (botChecksApply(host) && !isProbe) {
     if (!sameOrigin(request, host)) {
       console.error('lead dropped', JSON.stringify({ reason: 'origin', form: formName, host }));
       return json({ ok: true, sheet: 'skipped' }, 200);
@@ -383,6 +396,7 @@ export async function onRequestPost({ request, env }) {
       const verdict = await verifyTurnstile(clean(fields[TURNSTILE_FIELD]), env, request);
       if (verdict !== 'ok') {
         console.error('lead dropped', JSON.stringify({ reason: 'turnstile', verdict, form: formName, host }));
+        if (verdict === 'unavailable') later(reportOutcome(env, { host, form: formName, delivered: false, bot_check: 'unavailable', error: 'bot_check_unavailable', detail: 'Turnstile siteverify unreachable or non-OK' }));
         return verdict === 'unavailable'
           ? json({ ok: false, error: 'bot_check_unavailable' }, 503)
           : json({ ok: false, error: 'bot_check_failed' }, 400);
@@ -394,6 +408,7 @@ export async function onRequestPost({ request, env }) {
       // answer. Keys: Pages project west-peek-ventures, production and preview (vault
       // WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY / _SECRET_KEY).
       console.error('lead refused', JSON.stringify({ reason: 'bot_check_not_configured', form: formName, host }));
+      later(reportOutcome(env, { host, form: formName, delivered: false, bot_check: 'not_configured', error: 'bot_check_not_configured', detail: 'TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY not set on this Pages project' }));
       return json({ ok: false, error: 'bot_check_not_configured', bot_check: 'not_configured' }, 503);
     }
   }
@@ -406,24 +421,19 @@ export async function onRequestPost({ request, env }) {
 
   const leadSource = clean(fields.lead_source);
   const isCommunityViabilityAssessment = leadSource === 'community_viability_assessment';
-  const to = isCommunityViabilityAssessment
-    ? clean(env.COMMUNITY_ASSESSMENT_TO) || 'scooter@westpeek.ventures'
-    : clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
-  const from = clean(env.EMAIL_FROM);
-  const apiKey = clean(env.RESEND_API_KEY);
+  const to = isProbe
+    ? PROBE_TO
+    : isCommunityViabilityAssessment
+      ? clean(env.COMMUNITY_ASSESSMENT_TO) || 'scooter@westpeek.ventures'
+      : clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
   const site = host;
 
   // The sheet write starts now and is awaited at the end, so it runs alongside
-  // the email rather than after it. It is started even when Resend is
+  // the email rather than after it. It is started even when delivery is
   // unconfigured: the person still belongs in the network sheet, and losing
   // them because a mail key is missing would be a second failure caused by the
-  // first.
-  const sheetWrite = addToNetworkSheet(fields, env, request, site);
-
-  if (!apiKey || !from) {
-    // Deliberately not 200. The form falls back to a visible email prompt.
-    return json({ ok: false, error: 'delivery_not_configured', sheet: await sheetWrite, bot_check: botCheck }, 503);
-  }
+  // first. A probe never writes.
+  const sheetWrite = isProbe ? Promise.resolve('skipped') : addToNetworkSheet(fields, env, request, site);
 
   // Only the traps are stripped from the notification. company_website is real
   // founder-supplied data the fund wants, so it stays in the email body.
@@ -432,35 +442,164 @@ export async function onRequestPost({ request, env }) {
     .map(([k, v]) => (k === FILE_FIELD && v ? `${k}: ${clean(v)} (attached to this email)` : `${k}: ${clean(v)}`))
     .concat([`submitted_at: ${new Date().toISOString()}`])
     .join('\n');
+  const mail = {
+    to,
+    replyTo: email,
+    subject: `${isProbe ? '[probe] ' : ''}${isCommunityViabilityAssessment
+      ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
+      : `New enquiry from ${site}`}`,
+    text: `${lines}\n\nSubmitted from: ${request.url}`,
+    deckFile
+  };
 
+  // Two independent channels: Cloudflare email first (Sequoia, 6 Nov 2026), Resend only if it
+  // did not deliver. A probe exercises BOTH so a dead backup is found on a quiet week.
+  const delivery = await deliver(env, mail, { both: isProbe });
+
+  if (isProbe) {
+    const ok = delivery.channels.cloudflare === 'ok' && delivery.channels.resend === 'ok';
+    console.log('lead probe', JSON.stringify({ host, channels: delivery.channels, detail: delivery.detail }));
+    return json({ ok, probe: true, channels: delivery.channels, ...(ok ? {} : { error: 'probe_failed', detail: delivery.detail }) }, ok ? 200 : 502);
+  }
+
+  const delivered = Boolean(delivery.deliveredBy);
+  const bothUnconfigured = delivery.channels.cloudflare === 'not_configured' && delivery.channels.resend === 'not_configured';
+  const error = delivered ? null : bothUnconfigured ? 'delivery_not_configured' : 'delivery_failed';
+  // For the alarm, an unconfigured channel is a broken channel: the lead has one way out, not two.
+  const alarmChannels = {};
+  for (const [ch, v] of Object.entries(delivery.channels)) alarmChannels[ch] = !bothUnconfigured && v === 'not_configured' ? 'failed' : v;
+  later(reportOutcome(env, {
+    host, form: formName, delivered, delivered_by: delivery.deliveredBy, channels: alarmChannels,
+    bot_check: botCheck, error, detail: delivery.detail
+  }));
+
+  if (!delivered) {
+    console.error('lead delivery failed on every channel', JSON.stringify({ host, form: formName, channels: delivery.channels, detail: delivery.detail }));
+    return json({ ok: false, error, sheet: await sheetWrite, bot_check: botCheck, channels: delivery.channels }, bothUnconfigured ? 503 : 502);
+  }
+
+  // The email is delivered, so the visitor succeeded. The sheet result is
+  // reported, never allowed to overturn that.
+  return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, delivered_by: delivery.deliveredBy, channels: delivery.channels }, 200);
+}
+
+const MAILER_URL = 'https://forms-mailer.internal';
+
+function mailerReady(env) {
+  return Boolean(env.FORMS_MAILER && typeof env.FORMS_MAILER.fetch === 'function' && clean(env.FORMS_MAILER_SECRET));
+}
+
+async function callMailer(env, path, payload) {
+  return env.FORMS_MAILER.fetch(`${MAILER_URL}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forms-mailer-secret': clean(env.FORMS_MAILER_SECRET) },
+    body: JSON.stringify(payload)
+  });
+}
+
+/** Channel 1: the forms-mailer Worker's send_email binding. 'ok' | 'failed' | 'not_configured'. */
+async function sendViaCloudflare(env, mail) {
+  if (!mailerReady(env)) return { status: 'not_configured', detail: 'cloudflare: FORMS_MAILER binding or FORMS_MAILER_SECRET not set' };
+  try {
+    const res = await callMailer(env, '/send', {
+      to: mail.to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text,
+      ...(mail.deckFile ? { attachments: [{ filename: mail.deckFile.filename, contentBase64: bytesToBase64(mail.deckFile.bytes), type: 'application/pdf' }] } : {})
+    });
+    if (res.ok) return { status: 'ok' };
+    return { status: 'failed', detail: `cloudflare: ${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}` };
+  } catch (err) {
+    return { status: 'failed', detail: `cloudflare: ${String(err).slice(0, 200)}` };
+  }
+}
+
+/** Channel 2: Resend. 'ok' | 'failed' | 'not_configured'. */
+async function sendViaResend(env, mail) {
+  const apiKey = clean(env.RESEND_API_KEY);
+  const from = clean(env.EMAIL_FROM);
+  if (!apiKey || !from) return { status: 'not_configured', detail: 'resend: RESEND_API_KEY or EMAIL_FROM not set' };
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         from,
-        to: [to],
-        reply_to: email,
-        subject: isCommunityViabilityAssessment
-          ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
-          : `New enquiry from ${site}`,
-        text: `${lines}\n\nSubmitted from: ${request.url}`,
-        ...(deckFile ? { attachments: [{ filename: deckFile.filename, content: bytesToBase64(deckFile.bytes) }] } : {}),
-      }),
+        to: [mail.to],
+        reply_to: mail.replyTo,
+        subject: mail.subject,
+        text: mail.text,
+        ...(mail.deckFile ? { attachments: [{ filename: mail.deckFile.filename, content: bytesToBase64(mail.deckFile.bytes) }] } : {})
+      })
     });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      console.error('lead delivery failed', res.status, detail.slice(0, 300));
-      return json({ ok: false, error: 'delivery_failed', sheet: await sheetWrite, bot_check: botCheck }, 502);
-    }
+    if (res.ok) return { status: 'ok' };
+    return { status: 'failed', detail: `resend: ${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}` };
   } catch (err) {
-    console.error('lead delivery threw', String(err).slice(0, 300));
-    return json({ ok: false, error: 'delivery_failed', sheet: await sheetWrite, bot_check: botCheck }, 502);
+    return { status: 'failed', detail: `resend: ${String(err).slice(0, 200)}` };
   }
+}
 
-  // The email is delivered, so the visitor succeeded. The sheet result is
-  // reported, never allowed to overturn that.
-  return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck }, 200);
+async function deliver(env, mail, { both = false } = {}) {
+  const channels = { cloudflare: 'not_configured', resend: 'skipped' };
+  const details = [];
+  let deliveredBy = null;
+  // Cloudflare email reaches only verified destination addresses, and the routed OS inbox is not
+  // one, so the probe's Cloudflare leg goes to FORMS_PROBE_CF_TO (a verified address) when set.
+  const cfMail = both && parseAddressList(env.FORMS_PROBE_CF_TO)[0] ? { ...mail, to: parseAddressList(env.FORMS_PROBE_CF_TO)[0] } : mail;
+  const cf = await sendViaCloudflare(env, cfMail);
+  channels.cloudflare = cf.status;
+  if (cf.detail) details.push(cf.detail);
+  if (cf.status === 'ok') deliveredBy = 'cloudflare';
+  if (!deliveredBy || both) {
+    const rs = await sendViaResend(env, mail);
+    channels.resend = rs.status;
+    if (rs.detail) details.push(rs.detail);
+    if (rs.status === 'ok' && !deliveredBy) deliveredBy = 'resend';
+  }
+  return { channels, deliveredBy, detail: details.join(' | ') };
+}
+
+/**
+ * Hand one outcome to the forms-mailer Worker, which keeps the incident records and sends the
+ * alarm / "fixed" emails. If the Worker cannot be reached and something is wrong, the alarm goes
+ * out from here through Resend instead (deduped per code per hour, per data centre).
+ */
+export async function reportOutcome(env, outcome) {
+  const incidents = incidentsFor(outcome);
+  if (mailerReady(env)) {
+    try {
+      const res = await callMailer(env, '/report', outcome);
+      if (res.ok) return 'reported';
+      outcome = { ...outcome, detail: `${outcome.detail || ''} | report: ${res.status}` };
+    } catch (err) {
+      outcome = { ...outcome, detail: `${outcome.detail || ''} | report: ${String(err).slice(0, 120)}` };
+    }
+  }
+  if (!incidents.length) return 'nothing_to_report';
+  const codes = [...incidents, 'mailer_unreachable'];
+  let sent = 0;
+  for (const code of codes) {
+    if (!(await claimDirectAlarm(code))) continue;
+    const mail = alarmEmail({ code, record: { first_seen: 'unknown (the alarm Worker could not be reached, so no history)', count: 'at least 1', delivered: outcome.delivered ? 'at least 1' : 0, lost: outcome.delivered ? 0 : 'at least 1', last_detail: outcome.detail }, outcome });
+    for (const to of parseAddressList(env.FORMS_ALARM_TO)) {
+      const r = await sendViaResend(env, { to, subject: mail.subject, text: mail.text });
+      if (r.status === 'ok') sent += 1;
+      else console.error('lead alarm could not be sent', JSON.stringify({ code, detail: r.detail }));
+    }
+  }
+  if (!parseAddressList(env.FORMS_ALARM_TO).length) console.error('lead alarm NAMED_STOP=FORMS_ALARM_TO_MISSING', JSON.stringify({ incidents }));
+  return sent ? 'alarmed_direct' : 'alarm_not_sent';
+}
+
+/** At most one direct alarm per code per hour (Cache API, per data centre; no cache = send). */
+async function claimDirectAlarm(code) {
+  const cache = globalThis.caches?.default;
+  if (!cache) return true;
+  const slot = Math.floor(Date.now() / ALARM_INTERVAL_MS);
+  const key = new Request(`https://lead-alarm.invalid/${code}/${slot}`);
+  try {
+    if (await cache.match(key)) return false;
+    await cache.put(key, new Response('1', { headers: { 'cache-control': `max-age=${ALARM_INTERVAL_MS / 1000}` } }));
+  } catch { /* a failing cache never silences an alarm */ }
+  return true;
 }
 
 // A GET should say what this endpoint is rather than 404, so the next person
