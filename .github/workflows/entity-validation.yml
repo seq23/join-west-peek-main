@@ -79,6 +79,9 @@ jobs:
       - name: Validate Cloudflare Function syntax
         run: node --check functions/api/lead.js
 
+      - name: Lead delivery (two channels, alarm, probe)
+        run: node scripts/test_lead_delivery.mjs
+
       - name: Build all three sites
         run: npm run build
 

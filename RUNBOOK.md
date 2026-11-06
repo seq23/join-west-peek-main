@@ -126,6 +126,35 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+## Lead delivery and alarms
+**A lead has two independent ways out** (outage 2 Nov to 6 Nov 2026: the Resend key behind every
+form was deleted, every submission failed with 502, and only `console.error` knew). Code and the
+full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scripts/test_lead_delivery.mjs`).
+- **Channel 1, Cloudflare email (primary, Sequoia 6 Nov 2026)**: the Worker `west-peek-forms-mailer`
+  (`workers/forms-mailer/`), with a `send_email` binding on joinwestpeek.com Email Routing, reached
+  from each Pages project by the service binding `FORMS_MAILER`. It sends only to the account's
+  verified destination addresses, so a new lead recipient must be added under Email Routing →
+  Destination addresses and verified first. Deploy it with `npm run mailer:deploy`.
+- **Channel 2, Resend (backup)**: Pages secret `RESEND_API_KEY` (vault `WP_FORMS_RESEND_API_KEY`, a
+  key used only by these forms). Tried only when channel 1 did not deliver. **This key belongs to
+  the forms only; rotating another product's key never touches it.** The outage began when the old
+  key, shared with westpeek.live, was replaced by a new "Westpeek-live" key on 2 Nov 2026.
+- **Only when both fail** does the visitor get a non-ok answer and see the email fallback.
+- **The alarm**: any channel failure, `delivery_failed`, `delivery_not_configured`,
+  `bot_check_not_configured` or `bot_check_unavailable` emails every address in `FORMS_ALARM_TO`.
+  It goes out through a channel that did not fail, at most once per problem per hour (KV
+  `west-peek-forms-alarms`), and a "Fixed" email follows once a later submission proves it healthy.
+  If the Worker itself cannot be reached, `lead.js` sends the alarm through Resend directly.
+- **The weekly probe**: the Worker's cron runs Monday 8 AM Central. It POSTs to `/api/lead` on all
+  three sites with a signed `x-wp-forms-probe` header (HMAC-SHA256 over `t.host`, secret
+  `FORMS_PROBE_SECRET`, 10 minutes valid). That skips the rate limit and bot checks, writes nothing to
+  the sheet, and mails through BOTH channels: Resend to `os@joinwestpeek.com`, Cloudflare to
+  `FORMS_PROBE_CF_TO` (a verified destination; the routed OS inbox cannot be one). Anything short of both channels
+  OK on every site emails `FORMS_ALARM_TO`. Each run logs one `OUTPUT probe ok=n/3` line (Worker
+  logs). A bad signature gets 401 `probe_refused`.
+- **Run by hand** (needs `FORMS_MAILER_SECRET` from the vault): `POST <worker workers.dev URL>/probe`
+  runs the probe now; `POST /test-alarm` sends a TEST alarm through each channel.
+
 ## How to make a change
 1. Branch `work/<slug>` off `main` (CI runs on `work/**` pushes and on the PR).
 2. Edit under `sites/<site>/`. New pages need a `<title>`, canonical, and a link to `/disclosures/`
@@ -154,4 +183,8 @@ Prove a new guard negatively before merging: plant the defect, watch it fail, re
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
+- All three site projects (production): `RESEND_API_KEY` (vault `WP_FORMS_RESEND_API_KEY`), service
+  binding `FORMS_MAILER` → `west-peek-forms-mailer`, `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`,
+  `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
+  the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).

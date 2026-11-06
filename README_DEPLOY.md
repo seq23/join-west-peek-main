@@ -41,7 +41,11 @@ special configuration and cannot be made to write by editing a page.
 
 | Name | Kind | Purpose |
 |---|---|---|
-| `RESEND_API_KEY` | secret | Resend delivery |
+| `RESEND_API_KEY` | secret | Resend delivery (the backup channel; vault `WP_FORMS_RESEND_API_KEY`) |
+| `FORMS_MAILER` | service binding | the `west-peek-forms-mailer` Worker: Cloudflare email, the primary channel, and the alarm |
+| `FORMS_MAILER_SECRET` | secret | shared with the Worker; every call carries it |
+| `FORMS_PROBE_SECRET` | secret | HMAC key of the weekly signed probe |
+| `FORMS_ALARM_TO` | secret | comma-separated alarm addresses (kept out of this public repo) |
 | `EMAIL_FROM` | plain var | notification sender |
 | `LEAD_TO` | plain var | notification recipient (defaults to scooter@westpeek.ventures) |
 | `COMMUNITY_ASSESSMENT_TO` | plain var | recipient for the community viability assessment |
@@ -54,6 +58,8 @@ same secret value is set on all three site projects, on `west-peek-network-os` a
 
 **Pages environment changes take effect on the NEXT deployment**, so set them before merging a change
 that depends on them.
+
+How a lead is delivered, alarmed and probed: RUNBOOK.md, "Lead delivery and alarms".
 
 If the intake door is unreachable or unconfigured, the visitor still gets a success response provided
 the email was delivered — a sheet outage must never cost somebody their submission. The outcome is
