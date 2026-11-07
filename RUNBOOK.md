@@ -132,9 +132,15 @@ form was deleted, every submission failed with 502, and only `console.error` kne
 full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scripts/test_lead_delivery.mjs`).
 - **Channel 1, Cloudflare email (primary, Sequoia 6 Nov 2026)**: the Worker `west-peek-forms-mailer`
   (`workers/forms-mailer/`), with a `send_email` binding on joinwestpeek.com Email Routing, reached
-  from each Pages project by the service binding `FORMS_MAILER`. It sends only to the account's
-  verified destination addresses, so a new lead recipient must be added under Email Routing →
-  Destination addresses and verified first. Deploy it with `npm run mailer:deploy`.
+  from each Pages project by the service binding `FORMS_MAILER`. Cloudflare email reaches only the
+  account's verified destination addresses, so channel 1 sends every lead to `FORMS_PROBE_CF_TO`
+  (one verified destination; vault `WP_FORMS_PROBE_CF_TO`), and when that is not `LEAD_TO`, Resend
+  also sends the lead to `LEAD_TO`, so the lead recipient gets every lead (7 Nov 2026: `LEAD_TO` was
+  added as a destination on 6 Nov but never verified, so every Cloudflare leg failed with
+  "destination address is not a verified address"). An unverified recipient answers 422
+  `recipient_unverified` with the address, never 502; a real submission raises
+  `cloudflare_unverified` (at most once a day, naming the address), and the probe logs it as a note.
+  Deploy it with `npm run mailer:deploy`.
 - **Channel 2, Resend (backup)**: Pages secret `RESEND_API_KEY` (vault `WP_FORMS_RESEND_API_KEY`, a
   key used only by these forms). Tried only when channel 1 did not deliver. **This key belongs to
   the forms only; rotating another product's key never touches it.** The outage began when the old
@@ -145,15 +151,17 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
   It goes out through a channel that did not fail, at most once per problem per hour (KV
   `west-peek-forms-alarms`), and a "Fixed" email follows once a later submission proves it healthy.
   If the Worker itself cannot be reached, `lead.js` sends the alarm through Resend directly.
-- **The weekly probe**: the Worker's cron runs Monday 8 AM Central. It POSTs to `/api/lead` on all
-  three sites with a signed `x-wp-forms-probe` header (HMAC-SHA256 over `t.host`, secret
+- **The probe**: the Worker's cron runs at 8 AM Central (`0 13,14 * * *` UTC; `probeSitesFor()`
+  keeps only the run that is 8 AM in Chicago): westpeek.ventures **every day** (Sequoia, 7 Nov
+  2026), all three sites on Mondays. It POSTs to `/api/lead` with a signed `x-wp-forms-probe` header (HMAC-SHA256 over `t.host`, secret
   `FORMS_PROBE_SECRET`, 10 minutes valid). That skips the rate limit and bot checks, writes nothing to
   the sheet, and mails through BOTH channels: Resend to `os@joinwestpeek.com`, Cloudflare to
-  `FORMS_PROBE_CF_TO` (a verified destination; the routed OS inbox cannot be one). Anything short of both channels
-  OK on every site emails `FORMS_ALARM_TO`. Each run logs one `OUTPUT probe ok=n/3` line (Worker
-  logs). A bad signature gets 401 `probe_refused`.
+  `FORMS_PROBE_CF_TO`. Anything short of both channels OK on every site probed emails `FORMS_ALARM_TO`
+  (a channel-1 address still waiting for its verification click is a note, not a failure). Each run
+  logs one `OUTPUT probe daily|weekly ok=n/m` line (Worker logs), with any `note:`. Zero sites is
+  `NAMED_STOP=NO_SITES_SELECTED`. A bad signature gets 401 `probe_refused`.
 - **Run by hand** (needs `FORMS_MAILER_SECRET` from the vault): `POST <worker workers.dev URL>/probe`
-  runs the probe now; `POST /test-alarm` sends a TEST alarm through each channel.
+  runs the probe now (body `{"sites":["westpeek.ventures"]}` for one site); `POST /test-alarm` sends a TEST alarm through each channel.
 
 ## How to make a change
 1. Branch `work/<slug>` off `main` (CI runs on `work/**` pushes and on the PR).
