@@ -26,10 +26,11 @@ allowed_sender_addresses = ["forms@joinwestpeek.com"]
 binding = "ALARMS"
 id = "c2d479e283de43549e1671a74d6fbfa2"
 
-# The weekly probe: Monday 8 AM Central. Cron is UTC, so it fires at 13:00 (CDT) and 14:00 (CST)
-# every Monday and isProbeTime() runs only the one that is 8 AM in Chicago. No change at DST.
+# The probe at 8 AM Central: westpeek.ventures every day, all three sites on Mondays. Cron is UTC,
+# so it fires at 13:00 (CDT) and 14:00 (CST) every day and probeSitesFor() runs only the one that
+# is 8 AM in Chicago. No change at DST.
 [triggers]
-crons = ["0 13,14 * * 1"]
+crons = ["0 13,14 * * *"]
 
 [observability]
 enabled = true

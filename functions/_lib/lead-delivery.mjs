@@ -1,5 +1,5 @@
 /**
- * Lead delivery: two channels, a loud alarm, and the signed weekly probe.
+ * Lead delivery: two channels, a loud alarm, and the signed probe (daily for westpeek.ventures).
  *
  * WHY (6 Nov 2026). From 2 Nov 2026 (about 04:20 UTC) every form on these sites failed. The
  * Resend key in the Pages secret RESEND_API_KEY had been deleted from the Resend account, so
@@ -39,8 +39,12 @@ export const INCIDENTS = {
   delivery_not_configured: 'Neither way of delivering form submissions is set up on this site. Visitors saw an error.',
   bot_check_not_configured: 'The ventures bot check (Turnstile) has no keys, so every ventures form submission is refused.',
   bot_check_unavailable: 'The ventures bot check (Turnstile) could not be reached, so ventures form submissions were refused.',
-  mailer_unreachable: 'The Cloudflare email Worker could not be reached from the site, so alarms are going out through Resend directly.'
+  mailer_unreachable: 'The Cloudflare email Worker could not be reached from the site, so alarms are going out through Resend directly.',
+  cloudflare_unverified: 'Cloudflare email (the main way form submissions reach you) is waiting for its address to be verified. Submissions still reach you through Resend. Open the Cloudflare verification email sent to the address under Detail and click the link; nothing else needs changing.'
 };
+
+/** Codes that alarm less often than hourly: waiting on one person's click is not an hourly emergency. */
+export const ALARM_INTERVAL_FOR = { cloudflare_unverified: 24 * 60 * 60 * 1000 };
 
 /** What a lead submission's outcome says is broken. */
 export function incidentsFor(outcome) {
@@ -49,6 +53,7 @@ export function incidentsFor(outcome) {
   if (outcome.bot_check === 'unavailable') codes.push('bot_check_unavailable');
   const ch = outcome.channels || {};
   if (ch.cloudflare === 'failed') codes.push('cloudflare_failed');
+  if (ch.cloudflare === 'unverified') codes.push('cloudflare_unverified');
   if (ch.resend === 'failed') codes.push('resend_failed');
   if (outcome.error === 'delivery_failed') codes.push('delivery_failed');
   if (outcome.error === 'delivery_not_configured') codes.push('delivery_not_configured');
@@ -60,7 +65,7 @@ export function healthyFor(outcome) {
   const codes = [];
   if (outcome.bot_check === 'ok') codes.push('bot_check_not_configured', 'bot_check_unavailable');
   const ch = outcome.channels || {};
-  if (ch.cloudflare === 'ok') codes.push('cloudflare_failed', 'mailer_unreachable');
+  if (ch.cloudflare === 'ok') codes.push('cloudflare_failed', 'cloudflare_unverified', 'mailer_unreachable');
   if (ch.resend === 'ok') codes.push('resend_failed');
   if (outcome.delivered) codes.push('delivery_failed', 'delivery_not_configured');
   return codes;
@@ -68,7 +73,7 @@ export function healthyFor(outcome) {
 
 /** The channel an alarm about `code` must NOT rely on. */
 export function alarmAvoids(code) {
-  if (code === 'cloudflare_failed' || code === 'mailer_unreachable') return 'cloudflare';
+  if (code === 'cloudflare_failed' || code === 'cloudflare_unverified' || code === 'mailer_unreachable') return 'cloudflare';
   if (code === 'resend_failed') return 'resend';
   return null;
 }
@@ -99,7 +104,7 @@ export async function applyOutcome(store, outcome, now = Date.now()) {
     rec.last_seen = new Date(now).toISOString();
     rec.last_detail = String(outcome.detail || '').slice(0, 300);
     rec.last_host = outcome.host || '';
-    const due = now - (rec.last_alarm_at || 0) >= ALARM_INTERVAL_MS;
+    const due = now - (rec.last_alarm_at || 0) >= (ALARM_INTERVAL_FOR[code] || ALARM_INTERVAL_MS);
     if (due) rec.last_alarm_at = now;
     await store.put(key, JSON.stringify(rec));
     if (due) alarms.push({ code, record: { ...rec }, outcome });
@@ -139,7 +144,7 @@ export function alarmEmail({ code, record, outcome }, { test = false } = {}) {
     line('Detail', record.last_detail || 'none'),
     '',
     'Lost submissions are not stored anywhere else. Community and ventures forms still add the person to the Network OS sheet (contacts tab), so look there for anyone who tried.',
-    'You get at most one of these an hour for this problem, and a "fixed" email when a later submission works.',
+    `You get at most one of these ${ALARM_INTERVAL_FOR[code] ? 'a day' : 'an hour'} for this problem, and a "fixed" email when a later submission works.`,
     'Runbook: RUNBOOK.md in seq23/join-west-peek-main, section "Lead delivery and alarms".'
   ].filter((s, i) => i !== 0 || s).join('\n');
   return { subject: `${tag}[West Peek forms] ${outcome.delivered ? 'Problem' : 'LEADS LOST'}: ${code} on ${outcome.host || 'a site'}`, text };

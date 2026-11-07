@@ -338,7 +338,7 @@ function json(body, status) {
 
 export async function onRequestPost({ request, env, waitUntil }) {
   const later = typeof waitUntil === 'function' ? waitUntil : () => {};
-  // The signed weekly probe (workers/forms-mailer runProbe). A header that is present but wrong,
+  // The signed probe (workers/forms-mailer runProbe; daily on ventures, Mondays elsewhere). A header that is present but wrong,
   // stale, or unverifiable is refused outright: it never falls through to a normal submission.
   const probe = await verifyProbe(request.headers.get(PROBE_HEADER), clean(env.FORMS_PROBE_SECRET), new URL(request.url).hostname);
   if (probe === 'refused') {
@@ -457,9 +457,13 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const delivery = await deliver(env, mail, { both: isProbe });
 
   if (isProbe) {
-    const ok = delivery.channels.cloudflare === 'ok' && delivery.channels.resend === 'ok';
+    // A channel-1 address still waiting for its verification click is a NOTE, not a failure
+    // (Sequoia, 7 Nov 2026): the lead path is Resend meanwhile, and it starts working by itself
+    // once the address is verified.
+    const cfOk = delivery.channels.cloudflare === 'ok' || delivery.channels.cloudflare === 'unverified';
+    const ok = cfOk && delivery.channels.resend === 'ok';
     console.log('lead probe', JSON.stringify({ host, channels: delivery.channels, detail: delivery.detail }));
-    return json({ ok, probe: true, channels: delivery.channels, ...(ok ? {} : { error: 'probe_failed', detail: delivery.detail }) }, ok ? 200 : 502);
+    return json({ ok, probe: true, channels: delivery.channels, ...(delivery.unverified ? { unverified: delivery.unverified } : {}), ...(ok ? {} : { error: 'probe_failed', detail: delivery.detail }) }, ok ? 200 : 502);
   }
 
   const delivered = Boolean(delivery.deliveredBy);
@@ -497,7 +501,12 @@ async function callMailer(env, path, payload) {
   });
 }
 
-/** Channel 1: the forms-mailer Worker's send_email binding. 'ok' | 'failed' | 'not_configured'. */
+/**
+ * Channel 1: the forms-mailer Worker's send_email binding.
+ * 'ok' | 'failed' | 'unverified' | 'not_configured'. 'unverified' means Email Routing refused the
+ * recipient because it is not (yet) a verified destination address: the Worker answers 422
+ * recipient_unverified and names it, and Resend carries the lead instead.
+ */
 async function sendViaCloudflare(env, mail) {
   if (!mailerReady(env)) return { status: 'not_configured', detail: 'cloudflare: FORMS_MAILER binding or FORMS_MAILER_SECRET not set' };
   try {
@@ -506,7 +515,13 @@ async function sendViaCloudflare(env, mail) {
       ...(mail.deckFile ? { attachments: [{ filename: mail.deckFile.filename, contentBase64: bytesToBase64(mail.deckFile.bytes), type: 'application/pdf' }] } : {})
     });
     if (res.ok) return { status: 'ok' };
-    return { status: 'failed', detail: `cloudflare: ${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}` };
+    const raw = await res.text().catch(() => '');
+    let body = null;
+    try { body = JSON.parse(raw); } catch { /* not JSON */ }
+    if (res.status === 422 && body && body.error === 'recipient_unverified') {
+      return { status: 'unverified', address: body.address || mail.to, detail: `cloudflare: ${body.address || mail.to} is not a verified Email Routing destination address yet` };
+    }
+    return { status: 'failed', detail: `cloudflare: ${res.status} ${raw.slice(0, 200)}` };
   } catch (err) {
     return { status: 'failed', detail: `cloudflare: ${String(err).slice(0, 200)}` };
   }
@@ -537,24 +552,32 @@ async function sendViaResend(env, mail) {
   }
 }
 
+/**
+ * Channel 1 sends to FORMS_PROBE_CF_TO, the one address that is a verified Email Routing
+ * destination (vault WP_FORMS_PROBE_CF_TO; never committed), because Cloudflare email reaches
+ * nothing else (7 Nov 2026: LEAD_TO had been added as a destination on 6 Nov but never verified,
+ * so every submission's Cloudflare leg failed with "destination address is not a verified
+ * address"; Sequoia: send channel 1 to that verified address instead). When that address is not
+ * LEAD_TO, Resend ALSO sends to LEAD_TO, so the lead recipient gets every lead unchanged.
+ * Without FORMS_PROBE_CF_TO, channel 1 tries LEAD_TO itself.
+ */
 async function deliver(env, mail, { both = false } = {}) {
   const channels = { cloudflare: 'not_configured', resend: 'skipped' };
   const details = [];
   let deliveredBy = null;
-  // Cloudflare email reaches only verified destination addresses, and the routed OS inbox is not
-  // one, so the probe's Cloudflare leg goes to FORMS_PROBE_CF_TO (a verified address) when set.
-  const cfMail = both && parseAddressList(env.FORMS_PROBE_CF_TO)[0] ? { ...mail, to: parseAddressList(env.FORMS_PROBE_CF_TO)[0] } : mail;
-  const cf = await sendViaCloudflare(env, cfMail);
+  const cfTo = parseAddressList(env.FORMS_PROBE_CF_TO)[0] || mail.to;
+  const cf = await sendViaCloudflare(env, { ...mail, to: cfTo });
   channels.cloudflare = cf.status;
   if (cf.detail) details.push(cf.detail);
   if (cf.status === 'ok') deliveredBy = 'cloudflare';
-  if (!deliveredBy || both) {
+  const alsoResend = both || cfTo.toLowerCase() !== String(mail.to).toLowerCase();
+  if (!deliveredBy || alsoResend) {
     const rs = await sendViaResend(env, mail);
     channels.resend = rs.status;
     if (rs.detail) details.push(rs.detail);
     if (rs.status === 'ok' && !deliveredBy) deliveredBy = 'resend';
   }
-  return { channels, deliveredBy, detail: details.join(' | ') };
+  return { channels, deliveredBy, detail: details.join(' | '), ...(cf.address ? { unverified: cf.address } : {}) };
 }
 
 /**
