@@ -32,7 +32,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 - **No navigation between the three properties** (Scooter, 20 Sep 2026). Ventures pages may not link
   to joinwestpeek.com, westpeekproductions.com or westpeek.live; `dilution.joinwestpeek.com` is the
   one allowed sister host. Structured data (JSON-LD) may still reference the family — it is not
-  navigation.
+  navigation. Guard: `npm run validate:ventures-isolation`.
 - **Ventures forms are bot-checked on the server** (Scooter, 8 Oct 2026: spam posted straight to
   `/api/lead`). On ventures hosts only, `functions/api/lead.js` drops a POST with a missing or foreign
   `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and it requires a valid Cloudflare Turnstile token (400
@@ -49,7 +49,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 - **Securities disclosure lives on `/disclosures` only** (Sequoia, 20 Sep 2026); every other ventures
   page links to it and carries no inline block. Guard: `npm run validate:disclosure`.
 - **Ventures nav is one list**: Home · Thesis · What We Look For · Portfolio · Team · Community ·
-  Resources ▾ · Submit Your Company. Change the
+  Resources ▾ · Submit Your Company, held in `scripts/validate_ventures_isolation.mjs`. Change the
   list there and in every page's `<nav class="wp-nav">` together.
 - **Portfolio records** live in the markup of `sites/ventures/index.html#portfolio` and are mirrored
   on `sites/ventures/companies.html`. Each company: logo on a cream tile, founder photo, name,
@@ -165,7 +165,8 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 1. Branch `work/<slug>` off `main` (CI runs on `work/**` pushes and on the PR).
 2. Edit under `sites/<site>/`. New pages need a `<title>`, canonical, and a link to `/disclosures/`
    if under `sites/ventures/`.
-3. `npm run validate` — builds all three sites, then runs `validate:forms` and `validate:disclosure`. All must pass.
+3. `npm run validate` — builds all three sites, then runs `validate:forms`, `validate:disclosure` and
+   `validate:ventures-isolation`. All must pass.
 4. Commit sources, then `npm run lastmod` (sitemap dates come from git history), `npm run build`, commit `shared/lastmod.json` + `dist/`.
 5. Look at it: serve `dist/<site>` locally, screenshot desktop and 390px (drawer open and closed
    for ventures). Curl every external link you added.
@@ -177,7 +178,8 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
-| `.github/workflows/entity-validation.yml` | the JSON-LD entity graph on the three index pages; Organization schema on every built page; dated sitemaps |
+| `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
+| `.github/workflows/entity-validation.yml` | runs the build and the guards above on every push and PR |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
 

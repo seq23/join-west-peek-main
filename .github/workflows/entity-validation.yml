@@ -52,3 +52,9 @@ jobs:
       # asserts both, over sites/ and dist/.
       - name: Validate securities disclosure and outbound link rel
         run: npm run validate:disclosure
+
+      # Scooter's 20 Sep 2026 rule: no ventures page may navigate to the
+      # community, agency or live properties; the nav is the shared seven-item
+      # bar with a mobile toggle; every anchor resolves; retired pages redirect.
+      - name: Validate ventures isolation and navigation
+        run: npm run validate:ventures-isolation
