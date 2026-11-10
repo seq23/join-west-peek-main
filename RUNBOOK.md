@@ -90,7 +90,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   westpeek.live (Scooter's 20 Sep 2026 rule, same as ventures isolation) — the JSON-LD entity
   graph on the homepage is exempt, since structured data is not navigation. `/join` carries the
   same nav and the community's sheet-writing join form, reachable from the hero Join button and
-  the footer. **Footer carries no LinkedIn link** (27 Sep 2026).
+  the footer. **Footer carries no LinkedIn link** (27 Sep 2026). Guard (sister links, personal address, Update consent and gate): `npm run validate:community-site`.
 - **Community homepage order is fixed**: Hero (the brief's exact line, a Join button, and a photo
   slot that stays hidden until `assets/data/hero.json` names a photo) &middot; Origin/History
   &middot; Podcast &middot; The Update &middot; Pitch Competition &middot; Workshops. `/podcast`
@@ -179,6 +179,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
+| `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
 | `.github/workflows/entity-validation.yml` | runs the build and the guards above on every push and PR |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.

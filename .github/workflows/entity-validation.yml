@@ -58,3 +58,8 @@ jobs:
       # bar with a mobile toggle; every anchor resolves; retired pages redirect.
       - name: Validate ventures isolation and navigation
         run: npm run validate:ventures-isolation
+
+      # Same rule on the community site: no navigable link to a sister property;
+      # no personal address; The Update keeps its consent radios and server gate.
+      - name: Validate community site (sister links, consent, form gate)
+        run: npm run validate:community-site
