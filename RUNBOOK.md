@@ -1,8 +1,7 @@
 # RUNBOOK — join-west-peek-main
 
 Read this before changing anything. It is the file an AI employee (Porter in West Peek OS,
-Danielle in Boss OS) reads at plan time; `scripts/validate_runbook.mjs` fails the build if the
-paths and scripts named here stop existing.
+Danielle in Boss OS) reads at plan time; keep the paths and scripts named here current.
 
 ## What this repo is
 Three static sites, one repo, three Cloudflare Pages projects that each build from `main` on push:
@@ -91,7 +90,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   westpeek.live (Scooter's 20 Sep 2026 rule, same as ventures isolation) — the JSON-LD entity
   graph on the homepage is exempt, since structured data is not navigation. `/join` carries the
   same nav and the community's sheet-writing join form, reachable from the hero Join button and
-  the footer. **Footer carries no LinkedIn link** (27 Sep 2026). Guard: `npm run validate:community-site`.
+  the footer. **Footer carries no LinkedIn link** (27 Sep 2026). Guard (sister links, personal address, Update consent and gate): `npm run validate:community-site`.
 - **Community homepage order is fixed**: Hero (the brief's exact line, a Join button, and a photo
   slot that stays hidden until `assets/data/hero.json` names a photo) &middot; Origin/History
   &middot; Podcast &middot; The Update &middot; Pitch Competition &middot; Workshops. `/podcast`
@@ -101,11 +100,10 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   h1's `data-phrases` type out, backspace and rotate (`assets/community.js`, `heroTyping`). The
   brief's exact line remains the h1's real shipped text (`#hero-line`) - what no-JS and
   `prefers-reduced-motion` visitors see and what screen readers hear; the typed copy is
-  `aria-hidden`. Change the phrases in `sites/community/index.html` AND in
-  `scripts/validate_community_site.mjs` (`HERO_PHRASES`) together.
+  `aria-hidden`. Change the phrases in `sites/community/index.html`.
 - **Pitch competition naming** (Scooter, 28 Sep 2026): it is "the pitch competition" or the
   "Sengo pitch competition", never "West Peek pitch competition"; the partner is spelled Sengo (owner, 28 Sep 2026; "Sango" was a misspelling).
-  `/pitch` carries one winners heading, not a tag plus an h2. Guard: `npm run validate:community-site`.
+  `/pitch` carries one winners heading, not a tag plus an h2.
 - **No personal address on the community site** (28 Sep 2026): the "if the form fails, email
   scooter@…" line is gone; every community form carries
   `data-fallback-email="os@joinwestpeek.com"` (the West Peek OS inbox, routed) and must load
@@ -167,10 +165,9 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 1. Branch `work/<slug>` off `main` (CI runs on `work/**` pushes and on the PR).
 2. Edit under `sites/<site>/`. New pages need a `<title>`, canonical, and a link to `/disclosures/`
    if under `sites/ventures/`.
-3. `npm run validate` — builds all three sites, then runs `validate:forms`, `validate:disclosure`,
-   `validate:ventures-isolation`, `validate:community-viability`. All must pass.
-4. Commit sources, then `npm run lastmod` (sitemap dates come from git history; CI fails an
-   undated URL), `npm run build`, commit `shared/lastmod.json` + `dist/`.
+3. `npm run validate` — builds all three sites, then runs `validate:forms`, `validate:disclosure` and
+   `validate:ventures-isolation`. All must pass.
+4. Commit sources, then `npm run lastmod` (sitemap dates come from git history), `npm run build`, commit `shared/lastmod.json` + `dist/`.
 5. Look at it: serve `dist/<site>` locally, screenshot desktop and 390px (drawer open and closed
    for ventures). Curl every external link you added.
 6. PR with the change spelled out; `~/bin/land <pr>` verifies green, merges, watches `main`. Pages
@@ -182,10 +179,8 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
-| `scripts/validate_community_viability.mjs` | the Community assessment route and gates |
-| `scripts/validate_community_site.mjs` | the community redesign: shared four-item nav on every page, exact homepage order, hero with the brief's line as `#hero-line` plus the three typed phrases and no shipped photo until hero.json names one, the Sengo naming, one winners heading on `/pitch`, no personal address and the OS-inbox fallback on every form, The Update's questions in Scooter's words, `/welcome` noindex with his note verbatim, the scroller edge fade kept soft, no italic/script markup, no sister-property or LinkedIn links, no Dinners, no "Who built it", no Airtable embed, podcast intro present, Update form actually gated (markers + functions/update.js), `/podcast` and `/history` redirect, every episode's YouTube id, headshot and generated /episodes/<slug> page real |
-| `.github/workflows/entity-validation.yml` | the JSON-LD entity graph on the three index pages; Organization schema on every built page; dated sitemaps |
-| `scripts/validate_runbook.mjs` | this file names real paths and scripts |
+| `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
+| `.github/workflows/entity-validation.yml` | runs the build and the guards above on every push and PR |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
 
