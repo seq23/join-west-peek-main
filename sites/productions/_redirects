@@ -1,0 +1,25 @@
+# Retired pages redirect, never 404 (site rebuild, Scooter, 13 Nov 2026).
+# The eight /services/* pages fold into the four capabilities on /what-we-do.
+/services                                        /what-we-do                          301
+/services/                                       /what-we-do                          301
+/services/index.html                             /what-we-do                          301
+/services/community-strategy                     /what-we-do#events-and-experiences   301
+/services/community-strategy.html                /what-we-do#events-and-experiences   301
+/services/virtual-and-hybrid-event-production    /what-we-do#events-and-experiences   301
+/services/virtual-and-hybrid-event-production.html /what-we-do#events-and-experiences 301
+/services/webinar-production                     /what-we-do#events-and-experiences   301
+/services/webinar-production.html                /what-we-do#events-and-experiences   301
+/services/live-stream-production                 /what-we-do#events-and-experiences   301
+/services/live-stream-production.html            /what-we-do#events-and-experiences   301
+/services/executive-broadcasts                   /what-we-do#events-and-experiences   301
+/services/executive-broadcasts.html              /what-we-do#events-and-experiences   301
+/services/storytelling-and-content               /what-we-do#content-and-media        301
+/services/storytelling-and-content.html          /what-we-do#content-and-media        301
+/services/audience-growth                        /what-we-do#content-and-media        301
+/services/audience-growth.html                   /what-we-do#content-and-media        301
+/services/brand-and-creative                     /what-we-do#brand-and-storytelling   301
+/services/brand-and-creative.html                /what-we-do#brand-and-storytelling   301
+# Community-as-a-Service and its 3-minute quiz are retired (Scooter, 13 Nov 2026).
+/community-as-a-service                          /what-we-do                          301
+/community-as-a-service/                         /what-we-do                          301
+/community-as-a-service/index.html               /what-we-do                          301

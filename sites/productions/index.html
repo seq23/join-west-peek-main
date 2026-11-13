@@ -3,19 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>West Peek Productions | Community-as-a-Service & Creative Agency</title>
-  <meta name="description" content="West Peek Productions is a Community-as-a-Service and creative agency: event production, storytelling, brand and audience growth for organizations.">
+  <title>West Peek Productions | We make people care</title>
+  <meta name="description" content="West Peek Productions helps foundations, schools, nonprofits and mission-led organizations close the gap between the work they do and how they tell its story.">
   <link rel="canonical" href="https://westpeekproductions.com/"/>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="West Peek Productions">
+  <meta property="og:title" content="West Peek Productions | We make people care">
+  <meta property="og:description" content="West Peek Productions helps foundations, schools, nonprofits and mission-led organizations close the gap between the work they do and how they tell its story.">
+  <meta property="og:url" content="https://westpeekproductions.com/">
+  <link rel="preload" href="/assets/fonts/Maax-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/Maax-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/productions.css?v=20261113">
+  <meta name="theme-color" content="#0b0b0c">
   <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "WebSite",
+      "@id": "https://westpeekproductions.com/#website",
+      "url": "https://westpeekproductions.com/",
+      "name": "West Peek Productions",
+      "publisher": {
+        "@id": "https://westpeekproductions.com/#organization"
+      }
+    },
+    {
       "@type": "WebPage",
       "@id": "https://westpeekproductions.com/#webpage",
       "url": "https://westpeekproductions.com/",
       "name": "West Peek Productions",
-      "description": "West Peek Productions is a Community-as-a-Service and creative agency.",
+      "description": "West Peek Productions helps organizations close the gap between the work they are doing and how they are telling its story.",
+      "isPartOf": {
+        "@id": "https://westpeekproductions.com/#website"
+      },
       "mainEntity": {
         "@id": "https://westpeekproductions.com/#organization"
       }
@@ -25,7 +46,7 @@
       "@id": "https://westpeekproductions.com/#organization",
       "name": "West Peek Productions",
       "url": "https://westpeekproductions.com/",
-      "description": "A Community-as-a-Service and creative agency helping organizations build, engage, and grow communities through strategy, experiences, storytelling, brand, content, and audience growth.",
+      "description": "A creative company that helps organizations close the gap between the work they are doing and how they are telling its story, through creative strategy, storytelling, content, digital experiences and production.",
       "founder": {
         "@id": "https://scootertaylor.com/#person"
       },
@@ -50,246 +71,189 @@
     }
   ]
 }
-</script>
-  <link rel="stylesheet" href="assets/base.css?v=20260915-3">
+  </script>
 </head>
-<body class="agency-page">
-<header>
-  <div class="nav global-nav">
-    <a class="brand" href="https://joinwestpeek.com/" aria-label="West Peek home"><img src="assets/img/community-logo.jpg" alt="West Peek logo"><span>West Peek</span></a>
-    <nav class="navlinks global-navlinks" aria-label="West Peek network navigation">
-      <span class="nav-group nav-group-primary">
-        <a href="https://joinwestpeek.com/">Community</a>
-        <a href="https://westpeek.ventures/">Ventures</a>
-        <a class="active" href="https://westpeekproductions.com/">Agency</a>
-      </span>
-      <span class="nav-divider" aria-hidden="true"></span>
-      <span class="nav-group nav-group-secondary">
-        <a href="https://dilution.joinwestpeek.com/">Founder Dilution Dashboard</a>
-        <a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a>
-      </span>
+<body class="wpp">
+<a class="wpp-skip" href="#main">Skip to content</a>
+<header class="wpp-header">
+  <div class="wpp-header__inner">
+    <a class="wpp-brand" href="/" aria-label="West Peek Productions home"><img src="/assets/img/productions-logo.jpg" alt="" width="40" height="40"><span>West Peek Productions</span></a>
+    <nav class="wpp-nav" aria-label="Main">
+      <a href="/work">Work</a>
+      <a href="/what-we-do">What we do</a>
+      <a href="/about">About</a>
+      <a class="wpp-nav__cta" href="/start">Start a project</a>
     </nav>
   </div>
 </header>
-<div class="subnav">
-  <div class="subnav-inner">
-    <span class="subnav-label">West Peek Productions</span>
-    <nav class="subnav-links" aria-label="West Peek Productions">
-      <a href="/services/">Services</a>
-      <a href="/event-production-cost">Event pricing</a>
-      <a href="#answers">Planning resources</a>
-      <a class="subnav-cta" href="/community-as-a-service/">Can Your Business Build a Community? <span class="subnav-quiz-meta">3-min quiz</span><span aria-hidden="true">→</span></a>
-    </nav>
-  </div>
-</div>
 
-<main>
-  <section class="agency-hero" aria-labelledby="agency-hero-title">
-    <div class="agency-hero-image" role="img" aria-label="A large community audience gathered for a live experience"></div>
-    <div class="agency-hero-overlay"></div>
-    <div class="agency-hero-content">
-      <div class="agency-eyebrow">Community-as-a-Service</div>
-      <h1 id="agency-hero-title">Build the community.<br>Shape the story.<br>Create the moments that move people.</h1>
-      <p>West Peek Productions is a Community-as-a-Service and creative agency helping organizations build, engage, and grow communities through strategy, experiences, storytelling, brand, content, and audience growth.</p>
-      <div class="agency-actions">
-        <a class="agency-button agency-button-primary" href="/community-as-a-service/">Find out if your business can build a community <span aria-hidden="true">→</span></a>
-        <a class="agency-button agency-button-secondary" href="#what-we-do">Explore what we do</a>
+<main id="main">
+  <section class="wpp-hero" aria-labelledby="hero-title">
+    <div class="wpp-wrap">
+      <p class="wpp-eyebrow">West Peek Productions</p>
+      <h1 id="hero-title">We make people <span class="wpp-o">care.</span></h1>
+      <p class="wpp-hero__sub">Your impact deserves more attention.</p>
+      <p class="wpp-lead">We help organizations close the gap between the work they are doing and how they are telling its story, through creative strategy, storytelling, content, digital experiences and production, online and in person.</p>
+      <div class="wpp-hero__actions">
+        <a class="wpp-btn" href="/start">Start a project <span aria-hidden="true">&rarr;</span></a>
+        <a class="wpp-btn wpp-btn--ghost" href="/what-we-do">What we do</a>
+      </div>
+      <div class="wpp-gap" role="img" aria-label="The work an organization is doing is often far bigger than how it is being told. We close that gap.">
+        <div class="wpp-gap__row"><span class="wpp-gap__label">The work you are doing</span><span class="wpp-gap__track"><span class="wpp-gap__bar"></span></span></div>
+        <div class="wpp-gap__row"><span class="wpp-gap__label">How it is being told</span><span class="wpp-gap__track"><span class="wpp-gap__bar wpp-gap__bar--story"></span></span></div>
+        <div class="wpp-gap__row"><span class="wpp-gap__label">Where we take it</span><span class="wpp-gap__track"><span class="wpp-gap__bar wpp-gap__bar--with"></span></span></div>
       </div>
     </div>
   </section>
 
-  <section class="agency-proof-strip" aria-label="Experience across organization types">
-    <div class="agency-proof-label">Built for communities and organizations across industries</div>
-    <div class="agency-proof-items">
-      <span>Enterprise organizations</span>
-      <span>National nonprofits</span>
-      <span>High-growth companies</span>
-      <span>Community ecosystems</span>
+  <section class="wpp-section wpp-section--paper" aria-labelledby="gap-title">
+    <div class="wpp-wrap wpp-statement">
+      <div data-reveal>
+        <p class="wpp-eyebrow">The gap</p>
+        <h2 id="gap-title">Most organizations are doing better work than their story shows.</h2>
+      </div>
+      <div data-reveal>
+        <p>The programs are real. The results are real. But the website, the video, the event and the report tell a smaller version of it, so the people who should care never quite do.</p>
+        <p>Closing that gap is the whole job. We start with the audience and the reason they would engage, not with a format or a deliverable. Then we make the work visible.</p>
+        <p class="wpp-pull">Make your marketing match your impact.</p>
+      </div>
     </div>
   </section>
 
-  <section class="agency-positioning agency-section-narrow">
-    <div class="agency-eyebrow">The operating idea</div>
-    <h2>Community is not a channel. It’s an operating advantage.</h2>
-    <p class="agency-lead">The strongest organizations do more than attract an audience. They create a reason for people to stay connected, participate, contribute, and come back.</p>
-    <p>West Peek Productions helps organizations build that connective layer. We bring community strategy, creative, storytelling, experiences, content, and audience growth together under one operating partner—so the work before, during, and after any single moment actually compounds.</p>
-    <blockquote>“Good people should meet good people.”</blockquote>
-  </section>
-
-  <section class="agency-section" id="what-we-do">
-    <div class="agency-section-heading">
-      <div class="agency-eyebrow">What we do</div>
-      <h2>Community, content, and experiences that connect people and move organizations forward.</h2>
-    </div>
-    <div class="agency-service-grid">
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">◎</div>
-        <h3><a href="/services/community-strategy">Community Strategy &amp; Activation</a></h3>
-        <p>We help shape who a community is for, why people participate, how engagement happens, and what keeps the relationship valuable over time.</p>
-        <div class="agency-card-detail">Community strategy · programming · member engagement · partnerships · launches · community experiences</div>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">▦</div>
-        <h3><a href="/services/virtual-and-hybrid-event-production">Virtual &amp; Hybrid Experiences</a></h3>
-        <p>Polished, high-stakes experiences that bring people together without the operational chaos, backed by more than 400 virtual and hybrid productions.</p>
-        <div class="agency-card-detail">Conferences · summits · galas · career fairs · internal events · community gatherings</div>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">▣</div>
-        <h3><a href="/services/storytelling-and-content">Storytelling &amp; Content</a></h3>
-        <p>We turn ideas, people, and experiences into stories worth paying attention to—and assets that keep working after the moment is over.</p>
-        <div class="agency-card-detail">Brand storytelling · editorial concepts · podcasts · campaigns · founder stories · event-to-content systems</div>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">✎</div>
-        <h3><a href="/services/brand-and-creative">Brand &amp; Creative</a></h3>
-        <p>We sharpen how an organization shows up, what it says, and how its ideas translate into creative work people recognize and remember.</p>
-        <div class="agency-card-detail">Positioning · messaging · creative direction · campaign concepts · visual systems · launch creative</div>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">↗</div>
-        <h3><a href="/services/audience-growth">Audience Growth</a></h3>
-        <p>We help organizations think beyond impressions toward repeat engagement, distribution, participation, and sustained audience growth.</p>
-        <div class="agency-card-detail">Audience strategy · distribution · partnerships · programming · amplification · community-led growth</div>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">⚙</div>
-        <h3>Smarter Operations</h3>
-        <p>We streamline repetitive workflows and connect the systems that keep community and creative programs moving.</p>
-        <div class="agency-card-detail">Where useful, this can include selective AI-enabled workflows and automation—used as infrastructure, not as the headline.</div>
-      </article>
+  <section class="wpp-section" aria-labelledby="who-title">
+    <div class="wpp-wrap">
+      <div class="wpp-head" data-reveal>
+        <p class="wpp-eyebrow">Who hires us</p>
+        <h2 id="who-title">Organizations with real work to show.</h2>
+      </div>
+      <ol class="wpp-who" data-reveal>
+        <li><span class="wpp-who__n">01</span><span class="wpp-who__name">Foundations</span><span class="wpp-who__note"></span></li>
+        <li><span class="wpp-who__n">02</span><span class="wpp-who__name">Educational organizations</span><span class="wpp-who__note"></span></li>
+        <li><span class="wpp-who__n">03</span><span class="wpp-who__name">Nonprofits</span><span class="wpp-who__note"></span></li>
+        <li><span class="wpp-who__n">04</span><span class="wpp-who__name">Associations and membership organizations</span><span class="wpp-who__note"></span></li>
+        <li><span class="wpp-who__n">05</span><span class="wpp-who__name">Mission-led institutions</span><span class="wpp-who__note"></span></li>
+        <li><span class="wpp-who__n">06</span><span class="wpp-who__name">Brands</span><span class="wpp-who__note">when the problem fits</span></li>
+      </ol>
+      <p class="wpp-who-foot" data-reveal>It usually starts with a senior leader who knows the story is bigger than it looks, and a communications team that has to make it happen. We earn the first one&rsquo;s confidence and make the second one&rsquo;s job easier. The moment is often a launch, a new strategic plan, an anniversary or a major event.</p>
     </div>
   </section>
 
-  <section class="agency-story-section agency-section">
-    <div class="agency-story-copy">
-      <div class="agency-eyebrow">Our story</div>
-      <h2>We started with events. We learned the real opportunity was community.</h2>
-      <p>West Peek Productions began in 2020 as a turnkey virtual and hybrid event production partner, helping organizations create seamless, high-quality experiences when connection had to rapidly move online.</p>
-      <p>After producing more than 400 virtual and hybrid events, one pattern became impossible to ignore: <strong>the event was rarely the whole job.</strong></p>
-      <p>The organizations creating the strongest outcomes were building something around the moment—an audience, a relationship, a story, a brand, a network, or a community that continued after the screen went dark.</p>
-      <p>Today, West Peek Productions operates more broadly as a <strong>Community-as-a-Service and creative agency</strong>, helping organizations connect community strategy, experiences, storytelling, brand, content, and audience growth into one coherent engine.</p>
-      <p>We are backed by the broader West Peek community of 5,000+ founders, operators, investors, creatives, and builders—a network that gives us a firsthand understanding of what makes people gather, participate, collaborate, and stay connected.</p>
-      <a class="agency-text-link" href="https://forms.gle/qUrkAwHruFsh8WLC8" target="_blank" rel="noopener">Start your inquiry →</a>
-    </div>
-    <aside class="agency-metrics" aria-label="West Peek Productions proof points">
-      <div class="agency-metric"><strong>5,000+</strong><span>founders, operators, investors, creatives, and builders in the broader West Peek community</span></div>
-      <div class="agency-metric"><strong>400+</strong><span>virtual and hybrid experiences produced across organizations and sectors</span></div>
-      <div class="agency-metric"><strong>One partner</strong><span>connecting community, creative, experiences, content, and audience growth</span></div>
-    </aside>
-  </section>
-
-  <section class="agency-compounding agency-section">
-    <div class="agency-section-heading">
-      <div class="agency-eyebrow">How the work compounds</div>
-      <h2>One effort should create more than one outcome.</h2>
-      <p>An event can create content. Content can grow an audience. An audience can strengthen a community. A strong community creates the next opportunity. We design with that full cycle in mind.</p>
-    </div>
-    <div class="agency-flow" aria-label="Experience creates content, which grows audience, strengthens community, and creates opportunity">
-      <span>Experience</span><b>→</b><span>Content</span><b>→</b><span>Audience</span><b>→</b><span>Community</span><b>→</b><span>Opportunity</span>
-    </div>
-  </section>
-
-  <section class="agency-section agency-benefits">
-    <div class="agency-section-heading">
-      <div class="agency-eyebrow">Why West Peek</div>
-      <h2>Why organizations work with us</h2>
-    </div>
-    <div class="agency-benefit-grid">
-      <article>
-        <div class="agency-icon" aria-hidden="true">◎</div>
-        <h3>One partner from strategy through activation</h3>
-        <p>You should not need five disconnected vendors to manage community, creative, experiences, content, and audience growth.</p>
+  <section class="wpp-section" aria-labelledby="caps-title">
+    <div class="wpp-wrap">
+      <div class="wpp-head" data-reveal>
+        <p class="wpp-eyebrow">What we do</p>
+        <h2 id="caps-title">Four capabilities. One question: why should people care?</h2>
+        <p class="wpp-lead">These are capabilities, not packages. We diagnose first, then recommend the mix that fits the initiative.</p>
+      </div>
+    <div class="wpp-caps">
+      <article class="wpp-cap" id="content-and-media" data-reveal>
+        <p class="wpp-cap__role">Make stories visible</p>
+        <h3>Content and media</h3>
+        <p>Social video, podcasts, interviews and series that put the people and the work on screen, so the story travels further than the room it happened in.</p>
+        <p class="wpp-cap__eg">Social video &middot; podcasts &middot; interviews &middot; documentary-style series &middot; event-to-content</p>
+        <a class="wpp-link" href="/what-we-do#content-and-media">More on content and media <span aria-hidden="true">&rarr;</span></a>
       </article>
-      <article>
-        <div class="agency-icon" aria-hidden="true">◉</div>
-        <h3>Community-first by design</h3>
-        <p>We think about the relationship before, during, and after any campaign, event, launch, or piece of content.</p>
+      <article class="wpp-cap" id="events-and-experiences" data-reveal>
+        <p class="wpp-cap__role">Create participation</p>
+        <h3>Events and experiences</h3>
+        <p>Virtual, livestream and hybrid events and live activations that bring people into the work, not just in front of it. This is where we started, and where we are most practiced.</p>
+        <p class="wpp-cap__eg">Virtual and hybrid conferences &middot; summits &middot; webinars &middot; executive broadcasts &middot; livestreams &middot; activations</p>
+        <a class="wpp-link" href="/what-we-do#events-and-experiences">More on events and experiences <span aria-hidden="true">&rarr;</span></a>
       </article>
-      <article>
-        <div class="agency-icon" aria-hidden="true">↗</div>
-        <h3>Built to perform beyond the moment</h3>
-        <p>We design the work so it can keep creating value after the initial deliverable is finished.</p>
+      <article class="wpp-cap" id="brand-and-storytelling" data-reveal>
+        <p class="wpp-cap__role">Clarify why people care</p>
+        <h3>Brand and storytelling</h3>
+        <p>Narrative, identity and campaigns that say plainly what the work means, who it is for and why it matters now.</p>
+        <p class="wpp-cap__eg">Positioning and narrative &middot; identity &middot; campaign concepts &middot; launch creative</p>
+        <a class="wpp-link" href="/what-we-do#brand-and-storytelling">More on brand and storytelling <span aria-hidden="true">&rarr;</span></a>
       </article>
+      <article class="wpp-cap" id="web-and-digital" data-reveal>
+        <p class="wpp-cap__role">Make engagement easier</p>
+        <h3>Web and digital</h3>
+        <p>Websites, portals and interactive tools that turn interest into action: sign up, show up, give, apply, come back.</p>
+        <p class="wpp-cap__eg">Websites &middot; portals &middot; interactive tools &middot; landing pages for launches and events</p>
+        <a class="wpp-link" href="/what-we-do#web-and-digital">More on web and digital <span aria-hidden="true">&rarr;</span></a>
+      </article>
+    </div>
     </div>
   </section>
 
-  <section class="agency-section" id="answers">
-    <div class="agency-section-heading">
-      <div class="agency-eyebrow">Before you talk to anyone</div>
-      <h2>The questions buyers ask before they are ready for a conversation.</h2>
-      <p>We answer these in public, in full, whether or not you ever contact us. Our production price bands are published rather than withheld until a call.</p>
+  <section class="wpp-section wpp-section--paper" aria-labelledby="proof-title">
+    <div class="wpp-wrap">
+      <div class="wpp-head" data-reveal>
+        <p class="wpp-eyebrow">Proof</p>
+        <h2 id="proof-title">Production you can trust with the moment that matters.</h2>
+      </div>
+      <div class="wpp-stats" data-reveal>
+        <div class="wpp-stat"><strong>2020</strong><span>the year West Peek Productions began, producing virtual and hybrid events</span></div>
+        <div class="wpp-stat"><strong>400+</strong><span>virtual and hybrid events produced since</span></div>
+        <div class="wpp-stat"><strong>4</strong><span>capabilities, led by one creative point of view</span></div>
+      </div>
+      <div style="margin-top:56px" data-reveal>
+        <div class="wpp-placeholder">
+          <p class="wpp-placeholder__tag">Placeholder &middot; selected work</p>
+          <h3>Selected work is being cleared with clients.</h3>
+          <p>No client name, logo, asset or number appears on this site until that client has said yes. Approved case studies will sit here and on the Work page.</p>
+          <a class="wpp-link" href="/work">How we write up our work <span aria-hidden="true">&rarr;</span></a>
+        </div>
+      </div>
     </div>
-    <div class="agency-service-grid">
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">＄</div>
-        <h3><a href="/event-production-cost">What does event production cost?</a></h3>
-        <p>Both of our published bands — $2,500 to $7,500 for moderated webinars, $10,000 to $50,000 and above for summits, conferences and hybrid — and the six drivers that decide where inside a band a job lands.</p>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">☑</div>
-        <h3><a href="/virtual-event-planning-checklist">Virtual event planning checklist</a></h3>
-        <p>What to settle at eight weeks, four weeks, one week out, on the day, and afterwards — drawn from more than 400 productions.</p>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">⇆</div>
-        <h3><a href="/in-house-vs-agency-event-production">In-house vs agency production</a></h3>
-        <p>An honest comparison, including the cases where keeping it in-house is genuinely the right answer.</p>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">▤</div>
-        <h3><a href="/how-to-choose-a-virtual-event-platform">Choosing a virtual event platform</a></h3>
-        <p>The five criteria that decide it, and the one rule we would not bend: never migrate platforms inside four weeks of a show.</p>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">◉</div>
-        <h3><a href="/services/live-stream-production">Live stream production</a></h3>
-        <p>Multi-source switching, rehearsed presenters, and a planned answer for every way a live broadcast fails.</p>
-      </article>
-      <article class="agency-service-card">
-        <div class="agency-icon" aria-hidden="true">▷</div>
-        <h3><a href="/services/webinar-production">Webinar production</a></h3>
-        <p>The format most organizations run most often, and the one most often under-produced. Also <a href="/services/executive-broadcasts">executive broadcasts</a>.</p>
-      </article>
-    </div>
-    <p style="margin-top:22px"><a class="agency-text-link" href="/services/">See everything we do →</a></p>
   </section>
 
-  <section class="agency-inquiry agency-section" id="start-inquiry">
-    <div>
-      <div class="agency-eyebrow">Start an inquiry</div>
-      <h2>What are you trying to build?</h2>
-      <p>Whether you are building a community, launching a new initiative, producing an experience, developing your brand story, growing an audience, or connecting several of those needs together, we will review your inquiry and determine the right way to help.</p>
+  <section class="wpp-section" aria-labelledby="how-title">
+    <div class="wpp-wrap">
+      <div class="wpp-head" data-reveal>
+        <p class="wpp-eyebrow">How a project starts</p>
+        <h2 id="how-title">Diagnosis before deliverables.</h2>
+      </div>
+      <ol class="wpp-steps" data-reveal>
+        <li><h3>Diagnose</h3><p>What is changing or launching, and why now? Who needs to care, and what should they do?</p></li>
+        <li><h3>Recommend</h3><p>The right mix of content, events, brand and digital, with scope, timing and budget in writing.</p></li>
+        <li><h3>Make</h3><p>Specialists produce the work. The creative lead stays on the concept and the decisions that matter.</p></li>
+        <li><h3>Report honestly</h3><p>Reach and engagement are reported apart from organizational outcomes, so you can see what moved.</p></li>
+      </ol>
     </div>
-    <a class="agency-button agency-button-primary" href="https://forms.gle/qUrkAwHruFsh8WLC8" target="_blank" rel="noopener">Start an inquiry <span aria-hidden="true">→</span></a>
+  </section>
+
+  <section class="wpp-cta" aria-labelledby="cta-title">
+    <div class="wpp-wrap">
+      <h2 id="cta-title">Have a priority initiative?</h2>
+      <p>Tell us what is launching or changing, and who needs to care. Scooter reads every inquiry and follows up himself.</p>
+      <a class="wpp-btn" href="/start">Start a project <span aria-hidden="true">&rarr;</span></a>
+    </div>
   </section>
 </main>
 
-<footer class="agency-footer">
-  <div class="agency-footer-brand"><img src="assets/img/productions-logo.jpg" alt="West Peek Productions logo"><span>West Peek Productions</span></div>
-  <div class="footer-nav-groups">
-    <nav class="footer-nav-group" aria-label="West Peek Productions">
-      <span>Explore</span>
-      <a href="/services/">Services</a>
-      <a href="/community-as-a-service/">Can Your Business Build a Community?</a>
-      <a href="/event-production-cost">Event pricing</a>
-    </nav>
-    <nav class="footer-nav-group" aria-label="Planning resources">
-      <span>Resources</span>
-      <a href="/virtual-event-planning-checklist">Planning checklist</a>
-      <a href="/in-house-vs-agency-event-production">In-house vs agency</a>
-      <a href="/how-to-choose-a-virtual-event-platform">Choosing a platform</a>
-    </nav>
-    <nav class="footer-nav-group" aria-label="West Peek network">
-      <span>West Peek</span>
-      <a href="https://joinwestpeek.com/">Community</a>
-      <a href="https://westpeek.ventures/">Ventures</a>
-      <a class="live-link" href="https://westpeek.live/">West Peek <span class="live-mark">Live!</span></a>
-    </nav>
+<footer class="wpp-footer">
+  <div class="wpp-wrap">
+    <div class="wpp-footer__grid">
+      <div>
+        <div class="wpp-footer__brand"><img src="/assets/img/productions-logo.jpg" alt="" width="44" height="44"><span>West Peek Productions</span></div>
+        <p class="wpp-footer__tag">We make people care.</p>
+      </div>
+      <nav aria-label="Explore">
+        <h2>Explore</h2>
+        <ul>
+          <li><a href="/work">Work</a></li>
+          <li><a href="/what-we-do">What we do</a></li>
+          <li><a href="/about">About</a></li>
+          <li><a href="/start">Start a project</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Planning resources">
+        <h2>Planning resources</h2>
+        <ul>
+          <li><a href="/event-production-cost">What event production costs</a></li>
+          <li><a href="/virtual-event-planning-checklist">Virtual event planning checklist</a></li>
+          <li><a href="/in-house-vs-agency-event-production">In-house vs agency production</a></li>
+          <li><a href="/how-to-choose-a-virtual-event-platform">Choosing a virtual event platform</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="wpp-footer__base">&copy; <span id="y">2026</span> West Peek Productions &middot; New York &middot; Atlanta &middot; Memphis</div>
   </div>
-  <div class="small">© <span id="y"></span> West Peek Productions · New York · Atlanta · Memphis</div>
 </footer>
 
-<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+<script src="/assets/productions.js" defer></script>
 </body>
 </html>
