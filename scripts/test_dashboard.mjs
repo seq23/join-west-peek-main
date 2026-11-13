@@ -3,12 +3,14 @@
  * The Productions dashboard gate (functions/_lib/productions-dashboard.mjs), executed.
  *
  * Scooter, 13 Nov 2026: "No dashboard page or data without the password ... finance view for
- * Scooter and Sequoia only ... Cold Email Log with sending off. Private figures never in the repo."
+ * Scooter only ... Cold Email Log with sending off. Private figures never in the repo." And after
+ * the second preview: "The Productions dashboard is for Scooter only. Remove the team sign-in
+ * completely ... the owners list is Scooter alone."
  * Each case below states the behaviour it pins. The figures used are invented test markers.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { handleDashboard, storeProblems, COLD_EMAIL_SENDING, hashSecret, OWNER_FAIL_LIMIT } from '../functions/_lib/productions-dashboard.mjs';
+import { handleDashboard, storeProblems, COLD_EMAIL_SENDING, hashSecret, OWNER_FAIL_LIMIT, OWNER_IDS, PROOF_OWNER_MAX_MS } from '../functions/_lib/productions-dashboard.mjs';
 
 const failures = [];
 let cases = 0;
@@ -20,10 +22,14 @@ function check(name, cond, detail = '') {
 const TEAM_MARK = 'TEAMROW-7731';
 const FIN_MARK = 'FINROW-4412';
 const DATA_KEYS = ['team', 'finance', 'meta'];
-const OWNER_A = 'owner-a@example.test';
-const OWNER_B = 'owner-b@example.test';
+const OWNER_A = 'owner-a@example.test'; // Scooter's record
+const OWNER_B = 'owner-b@example.test'; // a record left in the store under an id NOT on the owners list
 const A_PW = 'owner-a-own-password';
 const A_PW_REC = await hashSecret(A_PW);
+const B_PW = 'owner-b-own-password';
+const B_PW_REC = await hashSecret(B_PW);
+/** Scooter with no password yet, the state a one-time password starts from. */
+const FRESH = { owners: JSON.stringify({ scooter: { name: 'Owner A', email: OWNER_A, pw: null, otp: null, gen: 0 } }) };
 function kv(over = {}) {
   const m = new Map(Object.entries({
     meta: JSON.stringify({ updated_at: '2026-11-13T15:00:00Z' }),
@@ -42,7 +48,7 @@ function kv(over = {}) {
     }),
     owners: JSON.stringify({
       scooter: { name: 'Owner A', email: OWNER_A, pw: A_PW_REC, otp: null, gen: 0 },
-      sequoia: { name: 'Owner B', email: OWNER_B, pw: null, otp: null, gen: 0 }
+      sequoia: { name: 'Owner B', email: OWNER_B, pw: B_PW_REC, otp: null, gen: 0 }
     }),
     ...over
   }));
@@ -56,12 +62,10 @@ function trackedKv(over) {
 }
 const dataReads = (env) => env.PRODUCTIONS_DASHBOARD.reads.filter((k) => DATA_KEYS.includes(k));
 // The site's mail sender (channel 1, the forms-mailer Worker), stubbed: every email it is asked to send.
-function ENV() {
+function ENV(over) {
   const sent = [];
   return {
-    PRODUCTIONS_DASHBOARD_PASSWORD: 'team-pass',
-    PRODUCTIONS_DASHBOARD_OWNER_PASSWORD: 'owner-pass', // the old shared owner password: must open nothing
-    PRODUCTIONS_DASHBOARD: trackedKv(),
+    PRODUCTIONS_DASHBOARD: trackedKv(over),
     FORMS_MAILER: { fetch: async (u, init) => { sent.push({ path: new URL(u).pathname, ...JSON.parse(init.body) }); return new Response('{"ok":true}'); } },
     FORMS_MAILER_SECRET: 'mailer-secret',
     sent
@@ -97,22 +101,31 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
 }
 // 2. Wrong passwords refused, no cookie.
 {
-  check('wrong team password is refused', (await login('guess')).res.status === 401 && !(await login('guess')).cookie.includes('.'));
   const r = await login('guess', ENV(), OWNER_A);
   check('wrong owner password is refused', r.res.status === 401 && !r.cookie.includes('.'));
-  const r2 = await login('team-pass', ENV(), 'stranger@example.test');
-  check('an unknown email opens nothing, not even with the team password', r2.res.status === 401 && !r2.cookie.includes('.'));
+  const r2 = await login(A_PW, ENV(), 'stranger@example.test');
+  check('an unknown email opens nothing, even with the owner\'s password', r2.res.status === 401 && !r2.cookie.includes('.'));
 }
-// 3. Team password (email empty), unchanged: team views, never Money, finance never read.
+// 3. No sign-in without an email (Scooter, 13 Nov 2026: "no team password, no team view, no sign-in
+//    without an email"): a password on its own opens nothing, whoever's it is, and reads no figures.
 {
-  const { cookie, env } = await login('team-pass');
-  check('team password sets a team session', cookie.startsWith('wpp_dash=team.'));
-  const { res, text } = await call('/dashboard', { cookie, env });
-  check('team sees the dashboard', res.status === 200 && text.includes(TEAM_MARK), `status ${res.status}`);
-  check('team never sees Money', !text.includes(FIN_MARK) && !text.includes('id="money"'));
-  check('team session never reads the finance key', !env.PRODUCTIONS_DASHBOARD.reads.includes('finance'));
-  check('team view has no Change password', !text.includes('/dashboard/password'));
-  for (const id of ['work', 'waiting', 'proposals', 'funnel', 'cold', 'drafts', 'activity']) check(`team view has section ${id}`, text.includes(`id="${id}"`));
+  for (const [name, pw] of [['the owner\'s own password', A_PW], ['any password', 'team-pass'], ['an empty password', '']]) {
+    const r = await login(pw);
+    check(`${name} typed without an email opens nothing`, r.res.status === 401 && !r.cookie.includes('.') && dataReads(r.env).length === 0, `${r.res.status} ${r.cookie}`);
+  }
+  // The dashboard reads no password setting at all: every env name it touches is recorded.
+  const touched = new Set();
+  const base = ENV();
+  const watched = new Proxy(base, { get: (t, k) => { if (typeof k === 'string') touched.add(k); return t[k]; } });
+  await login('team-pass', watched);
+  await login(A_PW, watched, OWNER_A);
+  const { cookie } = await login(A_PW, base, OWNER_A);
+  await call('/dashboard', { cookie, env: watched });
+  await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_A }, env: watched, origin: HOST });
+  const pwSettings = [...touched].filter((k) => /PASSWORD/i.test(k));
+  check('the dashboard reads no password setting (no team or shared owner password exists)', touched.size > 0 && pwSettings.length === 0, pwSettings.join(','));
+  const signIn = (await call('/dashboard')).text;
+  check('the sign-in screen requires an email', /<input id="em" name="email"[^>]* required/.test(signIn));
 }
 // 4. An owner's own email and own password: everything, Money included, plus Change password.
 {
@@ -122,25 +135,39 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
   check('owner sees Money', text.includes('id="money"') && text.includes(FIN_MARK));
   check('owner line 1 counts the draft and the overdue invoice', text.includes('2 need you'), text.match(/<h1>[^<]*/)?.[0]);
   check('owner dashboard links to Change password', text.includes('href="/dashboard/password"') && text.includes('Change password'));
+  check('the dashboard is labelled for Scooter alone', text.includes('West Peek Productions · Scooter<') && !/Sequoia|Team view/.test(text));
+  for (const id of ['work', 'waiting', 'proposals', 'money', 'funnel', 'cold', 'drafts', 'activity']) check(`owner view has section ${id}`, text.includes(`id="${id}"`));
 }
-// 5. The old shared owner password opens nothing, with or without an email.
+// 5. The owners list is Scooter alone: a record under any other id opens nothing, even with its own
+//    email and its own password, and is never sent a one-time password.
 {
-  const a = await login('owner-pass');
-  check('old shared owner password alone is refused', a.res.status === 401 && !a.cookie.includes('.'));
-  const b = await login('owner-pass', ENV(), OWNER_A);
-  check('old shared owner password with an owner email is refused', b.res.status === 401 && !b.cookie.includes('.'));
-  const c = await login('owner-pass', ENV(), OWNER_B);
-  check('old shared owner password opens nothing for an owner with no password yet', c.res.status === 401 && !c.cookie.includes('.'));
+  check('the owners list is Scooter alone', OWNER_IDS.length === 1 && OWNER_IDS[0] === 'scooter', OWNER_IDS.join(','));
+  const b = await login(B_PW, ENV(), OWNER_B);
+  check('a record not on the owners list does not sign in with its own password', b.res.status === 401 && !b.cookie.includes('.') && dataReads(b.env).length === 0);
+  const env = ENV();
+  await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env, origin: HOST });
+  check('Forgot it? sends nothing to a record not on the owners list', env.sent.length === 0);
+  const a = await login(A_PW, ENV(), OWNER_A);
+  check('Scooter\'s own email and password still sign in', a.res.status === 303 && a.cookie.includes('wpp_dash=owner~scooter~'));
+  // A session for that record, carrying a valid signature, still opens nothing.
+  const { sessionCookie } = await import('../functions/_lib/productions-dashboard.mjs');
+  const forged = (await sessionCookie(a.env, { id: 'sequoia', gen: 0, stage: 'full' }, NOW)).split(';')[0];
+  check('a validly signed session for a record not on the owners list is refused', (await call('/dashboard', { cookie: forged, env: a.env })).res.status === 401);
+  // dashboard:owners' throwaway proof owner opens only for its short window.
+  const proof = (until) => ENV({ owners: JSON.stringify({ 'proof-x': { name: 'P', email: 'proof-x@example.invalid', pw: A_PW_REC, gen: 0, proof_until: until } }) });
+  check('a proof owner opens inside its window', (await login(A_PW, proof(NOW + 60000), 'proof-x@example.invalid')).res.status === 303);
+  check('a proof owner opens nothing after its window', (await login(A_PW, proof(NOW - 1), 'proof-x@example.invalid')).res.status === 401);
+  check('a proof owner with a window longer than the limit opens nothing', (await login(A_PW, proof(NOW + PROOF_OWNER_MAX_MS + 60000), 'proof-x@example.invalid')).res.status === 401);
 }
 // 6. A forged or tampered cookie opens nothing.
 {
-  const { cookie } = await login('team-pass');
-  const forged = cookie.replace('wpp_dash=team.', 'wpp_dash=owner~scooter~0~full.');
-  const { res, text } = await call('/dashboard', { cookie: forged });
-  check('a cookie edited from team to owner is refused', res.status === 401 && !text.includes(FIN_MARK));
-  const { res: r2 } = await call('/dashboard', { cookie, env: { ...ENV(), PRODUCTIONS_DASHBOARD_PASSWORD: 'rotated' } });
-  check('changing the team password signs existing sessions out', r2.status === 401);
   const env = ENV();
+  const { cookie: c0 } = await login(A_PW, env, OWNER_A);
+  const [, exp, sig] = c0.split('.');
+  const { res, text } = await call('/dashboard', { cookie: `wpp_dash=team.${exp}.${sig}`, env });
+  check('an old-style team cookie opens nothing', res.status === 401 && !text.includes(FIN_MARK));
+  const longer = c0.replace(/\.(\d+)\./, (_, e) => `.${Number(e) + 99999}.`);
+  check('a cookie with its expiry edited is refused', (await call('/dashboard', { cookie: longer, env })).res.status === 401);
   const fresh = trackedKv();
   const { cookie: oc } = await login(A_PW, env, OWNER_A);
   const { res: r3 } = await call('/dashboard', { cookie: oc, env: { ...env, PRODUCTIONS_DASHBOARD: fresh } });
@@ -148,16 +175,16 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
 }
 // 7. The one-time password: emailed to that owner's own address only, used once, forces a password.
 {
-  const env = ENV();
+  const env = ENV(FRESH);
   const logs = [];
   const orig = [console.log, console.error];
   console.log = (...a) => logs.push(a.join(' '));
   console.error = (...a) => logs.push(a.join(' '));
-  const f = await call('/dashboard/forgot', { method: 'POST', form: { email: ' OWNER-B@example.test' }, env, origin: HOST });
+  const f = await call('/dashboard/forgot', { method: 'POST', form: { email: ' OWNER-A@example.test' }, env, origin: HOST });
   const stranger = await call('/dashboard/forgot', { method: 'POST', form: { email: 'stranger@example.test' }, env, origin: HOST });
   [console.log, console.error] = orig;
   check('Forgot it? answers the same whoever asks', f.res.status === 200 && stranger.res.status === 200 && f.text === stranger.text);
-  check('exactly one email, to the owner\'s own address only', env.sent.length === 1 && env.sent[0].to === OWNER_B, JSON.stringify(env.sent.map((m) => m.to)));
+  check('exactly one email, to the owner\'s own address only', env.sent.length === 1 && env.sent[0].to === OWNER_A, JSON.stringify(env.sent.map((m) => m.to)));
   const mail = env.sent[0];
   const code = codeIn(mail);
   check('the email carries a one-time password and the link', Boolean(code) && mail.text.includes(`${HOST}/dashboard`));
@@ -166,59 +193,59 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
   check('the email has no apology and nothing about earlier', !/sorry|apolog|earlier|previous|before now/i.test(`${mail.subject} ${mail.text}`));
   check('no owner email address is logged', !logs.some((l) => l.includes('@')), logs.join(' | '));
   const stored = env.PRODUCTIONS_DASHBOARD.map.get('owners');
-  check('the one-time password is stored only as a salted hash', !stored.includes(code) && !stored.includes(code.replace(/-/g, '')) && Boolean(owners(env).sequoia.otp?.salt));
-  check('it lasts 7 days', owners(env).sequoia.otp?.expires_at - NOW === 7 * 86400000);
+  check('the one-time password is stored only as a salted hash', !stored.includes(code) && !stored.includes(code.replace(/-/g, '')) && Boolean(owners(env).scooter.otp?.salt));
+  check('it lasts 7 days', owners(env).scooter.otp?.expires_at - NOW === 7 * 86400000);
 
-  const again = await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env, origin: HOST, now: NOW + 60000 });
+  const again = await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_A }, env, origin: HOST, now: NOW + 60000 });
   check('a second Forgot it? within 5 minutes sends nothing more', again.res.status === 200 && env.sent.length === 1);
 
   // A send that did not deliver does not start the gap: once the sender exists, the next try goes out.
   {
-    const bare = ENV();
+    const bare = ENV(FRESH);
     delete bare.FORMS_MAILER; delete bare.FORMS_MAILER_SECRET;
     const logs0 = [console.log, console.error];
     console.log = () => {}; console.error = () => {};
-    await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env: bare, origin: HOST });
-    const undelivered = owners(bare).sequoia.last_issue?.by;
-    const withSender = { ...ENV(), PRODUCTIONS_DASHBOARD: bare.PRODUCTIONS_DASHBOARD };
-    await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env: withSender, origin: HOST, now: NOW + 60000 });
+    await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_A }, env: bare, origin: HOST });
+    const undelivered = owners(bare).scooter.last_issue?.by;
+    const withSender = { ...ENV(FRESH), PRODUCTIONS_DASHBOARD: bare.PRODUCTIONS_DASHBOARD };
+    await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_A }, env: withSender, origin: HOST, now: NOW + 60000 });
     [console.log, console.error] = logs0;
     check('an undelivered one-time password is recorded as not_configured', undelivered === 'not_configured', String(undelivered));
-    check('a Forgot it? right after an undelivered one sends at once', withSender.sent.length === 1 && withSender.sent[0].to === OWNER_B && owners(withSender).sequoia.last_issue?.by === 'cloudflare');
+    check('a Forgot it? right after an undelivered one sends at once', withSender.sent.length === 1 && withSender.sent[0].to === OWNER_A && owners(withSender).scooter.last_issue?.by === 'cloudflare');
   }
 
-  const first = await login(code.toLowerCase(), env, OWNER_B);
+  const first = await login(code.toLowerCase(), env, OWNER_A);
   check('the one-time password signs in straight to choosing a password', first.res.status === 303 && first.res.headers.get('location') === '/dashboard/password' && first.cookie.includes('~choose.'), first.cookie);
   const before = dataReads(env).length;
   const peek = await call('/dashboard', { cookie: first.cookie, env });
   check('nothing is shown before a password is chosen', peek.res.status === 303 && peek.res.headers.get('location') === '/dashboard/password' && !peek.text.includes(TEAM_MARK) && dataReads(env).length === before);
   const choose = await call('/dashboard/password', { cookie: first.cookie, env });
   check('the first screen asks for a new password', choose.res.status === 200 && choose.text.includes('Choose your own password') && !choose.text.includes('name="current"'));
-  const reuse = await login(code, env, OWNER_B);
+  const reuse = await login(code, env, OWNER_A);
   check('the one-time password stops working the moment it is used', reuse.res.status === 401 && !reuse.cookie.includes('.'));
 
   const short = await call('/dashboard/password', { method: 'POST', cookie: first.cookie, env, origin: HOST, form: { password: 'short', confirm: 'short' } });
-  check('a password under 12 characters is refused', short.res.status === 400 && !owners(env).sequoia.pw);
-  const differ = await call('/dashboard/password', { method: 'POST', cookie: first.cookie, env, origin: HOST, form: { password: 'owner-b-new-password', confirm: 'owner-b-other-password' } });
-  check('two different passwords are refused', differ.res.status === 400 && !owners(env).sequoia.pw);
-  const set = await call('/dashboard/password', { method: 'POST', cookie: first.cookie, env, origin: HOST, form: { password: 'owner-b-new-password', confirm: 'owner-b-new-password' } });
+  check('a password under 12 characters is refused', short.res.status === 400 && !owners(env).scooter.pw);
+  const differ = await call('/dashboard/password', { method: 'POST', cookie: first.cookie, env, origin: HOST, form: { password: 'owner-a-x-new-password', confirm: 'owner-a-x-other-password' } });
+  check('two different passwords are refused', differ.res.status === 400 && !owners(env).scooter.pw);
+  const set = await call('/dashboard/password', { method: 'POST', cookie: first.cookie, env, origin: HOST, form: { password: 'owner-a-x-new-password', confirm: 'owner-a-x-new-password' } });
   check('choosing a password opens the dashboard', set.res.status === 303 && set.cookie.includes('~full.'));
-  check('the password is stored only as a salted hash', !env.PRODUCTIONS_DASHBOARD.map.get('owners').includes('owner-b-new-password') && Boolean(owners(env).sequoia.pw?.salt));
+  check('the password is stored only as a salted hash', !env.PRODUCTIONS_DASHBOARD.map.get('owners').includes('owner-a-x-new-password') && Boolean(owners(env).scooter.pw?.salt));
   const view = await call('/dashboard', { cookie: set.cookie, env });
-  check('the second owner sees everything, Money included', view.res.status === 200 && view.text.includes('id="money"') && view.text.includes(FIN_MARK));
+  check('Scooter sees everything, Money included', view.res.status === 200 && view.text.includes('id="money"') && view.text.includes(FIN_MARK));
   const stale = await call('/dashboard', { cookie: first.cookie, env });
   check('the choose-password session ends once a password is chosen', stale.res.status === 401);
-  const own = await login('owner-b-new-password', env, OWNER_B);
+  const own = await login('owner-a-x-new-password', env, OWNER_A);
   check('the chosen password signs in afterwards', own.res.status === 303 && own.cookie.includes('~full.'));
 }
 // 8. A one-time password not used within 7 days stops working.
 {
-  const env = ENV();
-  await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env, origin: HOST });
+  const env = ENV(FRESH);
+  await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_A }, env, origin: HOST });
   const code = codeIn(env.sent[0]);
-  const late = await login(code, env, OWNER_B, NOW + 7 * 86400000 + 1000);
+  const late = await login(code, env, OWNER_A, NOW + 7 * 86400000 + 1000);
   check('a one-time password older than 7 days is refused', late.res.status === 401 && !late.cookie.includes('.'));
-  const intime = await login(code, env, OWNER_B, NOW + 6 * 86400000);
+  const intime = await login(code, env, OWNER_A, NOW + 6 * 86400000);
   check('the same one-time password works inside 7 days', intime.res.status === 303);
 }
 // 9. Change password: needs the current one, and signs the old session out.
@@ -232,8 +259,7 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
   check('the old session is signed out by the change', (await call('/dashboard', { cookie, env })).res.status === 401);
   check('the old password stops working', (await login(A_PW, env, OWNER_A)).res.status === 401);
   check('the new password works', (await login('owner-a-second-password', env, OWNER_A)).res.status === 303);
-  const team = await login('team-pass', env);
-  check('a team session cannot reach Change password', (await call('/dashboard/password', { method: 'POST', cookie: team.cookie, env, origin: HOST, form: { password: 'x'.repeat(20), confirm: 'x'.repeat(20) } })).res.status === 401);
+  check('signed out, Change password is refused', (await call('/dashboard/password', { method: 'POST', env, origin: HOST, form: { password: 'x'.repeat(20), confirm: 'x'.repeat(20) } })).res.status === 401);
 }
 // 10. Wrong tries are rate-limited per owner.
 {
@@ -244,7 +270,7 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
   const later = await login(A_PW, env, OWNER_A, NOW + 16 * 60000);
   check('the owner lock lifts after 15 minutes', later.res.status === 303);
 }
-// 11. Not switched on: no team password and no private store → shut, nothing read.
+// 11. Not switched on: no private store → shut, nothing read.
 {
   const env = {};
   const { res, text } = await call('/dashboard', { env });
@@ -254,7 +280,7 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
   const kvOnly = { PRODUCTIONS_DASHBOARD: trackedKv({ owners: JSON.stringify({}) }) };
   const r3 = await login('anything', kvOnly);
   const r4 = await login('anything', kvOnly, OWNER_A);
-  check('a store with no owners and no team password opens nothing', r3.res.status === 401 && r4.res.status === 401 && dataReads(kvOnly).length === 0);
+  check('a store with no owners opens nothing', r3.res.status === 401 && r4.res.status === 401 && dataReads(kvOnly).length === 0);
 }
 // 12. Only the Productions host serves it (Functions are shared with the other two sites).
 for (const host of ['https://joinwestpeek.com', 'https://westpeek.ventures', 'https://x.west-peek-community.pages.dev']) {
@@ -269,7 +295,7 @@ for (const host of ['https://joinwestpeek.com', 'https://westpeek.ventures', 'ht
 }
 // 13. A sign-in, Forgot it? or password change posted from another site is refused.
 {
-  const { res } = await call('/dashboard/login', { method: 'POST', form: { password: 'team-pass' }, origin: 'https://evil.example' });
+  const { res } = await call('/dashboard/login', { method: 'POST', form: { email: OWNER_A, password: A_PW }, origin: 'https://evil.example' });
   check('cross-site sign-in is refused', res.status === 403 && !res.headers.get('set-cookie'));
   const env = ENV();
   const { res: f } = await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_A }, origin: 'https://evil.example', env });
@@ -277,15 +303,18 @@ for (const host of ['https://joinwestpeek.com', 'https://westpeek.ventures', 'ht
 }
 // 14. A store that is not connected is said, never shown as all clear.
 {
-  const env = { ...ENV(), PRODUCTIONS_DASHBOARD: undefined };
-  const { cookie } = await login('team-pass', env);
+  const env = ENV();
+  const { cookie } = await login(A_PW, env, OWNER_A);
+  env.PRODUCTIONS_DASHBOARD.map.delete('team'); // the store holds the sign-in but no figures yet
   const { text } = await call('/dashboard', { cookie, env });
-  check('missing store is named', text.includes('not connected') && !text.includes('Nothing needs you'));
+  check('a store with no figures is named, never shown as all clear', /no figures to show/.test(text) && !text.includes('Nothing needs you'), text.slice(0, 200));
+  const gone = await call('/dashboard', { cookie, env: { ...env, PRODUCTIONS_DASHBOARD: undefined } });
+  check('a disconnected store shuts the dashboard', gone.res.status === 503 && !gone.text.includes(FIN_MARK));
 }
 // 15. Sending is off; the Cold Email Log says so.
 {
   check('cold email sending is off in code', COLD_EMAIL_SENDING === false);
-  const { cookie, env } = await login('team-pass');
+  const { cookie, env } = await login(A_PW, ENV(), OWNER_A);
   const { text } = await call('/dashboard', { cookie, env });
   check('Cold Email Log shows sending off and the cap', text.includes('Sending off') && text.includes('of 25 this week'));
 }
@@ -293,7 +322,7 @@ for (const host of ['https://joinwestpeek.com', 'https://westpeek.ventures', 'ht
 {
   const env = ENV();
   env.PRODUCTIONS_DASHBOARD = trackedKv({ team: JSON.stringify({ projects: [{ name: '<script>x</script>' }], waiting_on_client: [], proposals_out: [], agent_drafts: [], agent_log: [], opportunities: [], cold_email_log: [] }) });
-  const { cookie } = await login('team-pass', env);
+  const { cookie } = await login(A_PW, env, OWNER_A);
   const { text } = await call('/dashboard', { cookie, env });
   check('store text is escaped', !text.includes('<script>x') && text.includes('&lt;script&gt;'));
 }

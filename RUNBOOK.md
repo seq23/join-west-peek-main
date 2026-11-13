@@ -128,11 +128,14 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   (Scooter, 13 Nov 2026: "No dashboard page or data without the password. Private figures never in
   the repo or any public file: read server-side from a private store."). Server-rendered by
   `functions/dashboard/[[path]].js` → `functions/_lib/productions-dashboard.mjs`; Productions hosts
-  only (404 elsewhere). **Who signs in** (Scooter, 13 Nov 2026, after the first preview): the two
-  owners (Scooter and Sequoia) with their own firm email and their own password, seeing everything
-  including Money; the team with `PRODUCTIONS_DASHBOARD_PASSWORD` alone (email empty), everything
-  except Money. The old shared `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD` is read by nothing and opens
-  nothing. An owner's first password is a one-time password emailed to their own firm email by the
+  only (404 elsewhere). **Who signs in** (Scooter, 13 Nov 2026, after the second preview: "The
+  Productions dashboard is for Scooter only ... the owners list is Scooter alone, and nobody else can
+  be added except by Scooter asking"): Scooter alone, with his own firm email and his own password,
+  seeing everything including Money. There is no team sign-in, no team view and no shared password:
+  a password typed without an email opens nothing. The owners list is `OWNER_IDS` in
+  `functions/_lib/productions-dashboard.mjs` (`['scooter']`); a store record under any other id opens
+  nothing and `dashboard:owners` refuses it, so adding someone is a code change made only when
+  Scooter asks. The owner's first password is a one-time password emailed to their own firm email by the
   site's existing mail sender (Cloudflare email, then Resend, to that address only); signing in with
   it uses it up and the next screen makes them choose a password before anything is shown; unused, it
   stops working after 7 days. "Change password" on the dashboard; "Forgot it?" on the sign-in screen
@@ -222,7 +225,7 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
 - `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
 - `test:dashboard` — `node scripts/test_dashboard.mjs`
 - `dashboard:store` — `node scripts/dashboard_store.mjs --env preview|production --file <store JSON outside the repo>`: checks the file, finds or creates the KV namespace, binds it to west-peek-productions as `PRODUCTIONS_DASHBOARD` for that environment, writes `team`, `finance`, `meta`. Prints counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-- `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owners (`{"owners":[{"id","name","email"}]}`) into that environment's store under `owners` (an unchanged email keeps its password); with `--url`, proves the sign-in on that live site with a throwaway owner (signed out shows nothing; a one-time password forces a new password, then stops working; Money shows; an owner password without its email opens nothing) and removes it; with `--send`, only after the proof passes, presses "Forgot it?" for each owner so the site emails their one-time password, and reads back the channel. An owner with a password or an unused one already sent is skipped: one email each. Prints ids and counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owners (`{"owners":[{"id","name","email"}]}`, every id on `OWNER_IDS`, i.e. Scooter alone) into that environment's store under `owners`; the file is the whole list, so anyone else in the store is removed (an unchanged email keeps its password and session); with `--url`, proves the sign-in on that live site with a throwaway owner that opens for 30 minutes at most (signed out shows nothing; a one-time password forces a new password, then stops working; Money shows; a password typed without an email opens nothing; a record not on the owners list opens nothing with its own email and password; the store's owners are the file's) and removes it; with `--send`, only after the proof passes, presses "Forgot it?" for each owner so the site emails their one-time password, and reads back the channel. An owner with a password or an unused one already sent is skipped: one email each. Prints ids and counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
@@ -231,10 +234,9 @@ Per Pages project; set through `pages_env`, never by hand.
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
-- `west-peek-productions`: `PRODUCTIONS_DASHBOARD_PASSWORD` (the team password; secret, production and
-  preview). Owners need no secret: their records are in the private store (`dashboard:owners`).
-  `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD` is retired (read by nothing; delete it if set). With neither
-  the team password nor the store, /dashboard is shut and reads nothing (fail closed). One-time
+- `west-peek-productions`: the dashboard needs no password setting; Scooter's record is in the
+  private store (`dashboard:owners`). Without the store, /dashboard is shut and reads nothing (fail
+  closed). One-time
   passwords need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
   `RESEND_API_KEY` + `EMAIL_FROM`) for that environment.
   KV binding `PRODUCTIONS_DASHBOARD` is set by `npm run dashboard:store`, not by hand.

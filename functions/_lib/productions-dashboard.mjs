@@ -8,31 +8,34 @@
  * So this file holds SHAPES and WORDS only. Every name, date and figure the dashboard shows is
  * read at request time from the Workers KV namespace bound as PRODUCTIONS_DASHBOARD on the
  * west-peek-productions Pages project (loaded by `npm run dashboard:store`, which reads a file that
- * lives outside this public repo). Two keys, so the finance view cannot leak by accident:
- *   team     — projects, waiting on the client, proposals out, agent drafts, the Agent Log,
- *              the sales funnel (stages and opportunities, no values), the Cold Email Log.
- *   finance  — the tracker against the Blueprint's targets, pipeline values, invoices due, aged
- *              receivables, expected receipts, vendor obligations, project margin, rolling cash.
- *              Read ONLY for the owner role (Scooter and Sequoia); a team session never reads it.
+ * lives outside this public repo). The figures are kept under two keys, `team` (projects, waiting
+ * on the client, proposals out, agent drafts, the Agent Log, the sales funnel, the Cold Email Log)
+ * and `finance` (the tracker against the Blueprint's targets, pipeline values, invoices, aged
+ * receivables, expected receipts, vendor obligations, project margin, rolling cash). The key names
+ * are storage only: nobody signs in as a team any more.
  *
- * Who signs in (Scooter, 13 Nov 2026, after the first preview: "Each owner sets his or her own
- * dashboard password, and the first one is a one-time password"):
- *   Owners (Scooter and Sequoia) sign in with their own email and their own password and see
- *   everything, Money included. Their records live ONLY in the private store under the key
- *   `owners` ({ <id>: { name, email, pw, otp, gen, fails, last_issue } }); their addresses are
- *   never in this repo, a log or a public file. Passwords and one-time passwords are kept only as
- *   salted PBKDF2-SHA256 hashes. A one-time password is emailed to that owner's own address by
- *   the site's existing mail sender (Cloudflare email, then Resend, both to that address only),
- *   stops working the moment it is used to sign in (the next screen makes the owner choose a
- *   password before anything is shown), and stops working after 7 days unused.
- *   The team signs in with the team password alone (Pages secret PRODUCTIONS_DASHBOARD_PASSWORD),
- *   unchanged: everything except Money. The old shared owner password
- *   (PRODUCTIONS_DASHBOARD_OWNER_PASSWORD) is no longer read by anything: it opens nothing.
- * Sessions are an HMAC-signed cookie keyed from the team password and a random key kept in the
- * private store (`session_key`), so the team password alone cannot forge an owner session. An
- * owner cookie carries the owner's `gen`; choosing a password or using a one-time password bumps
- * it, which signs that owner's other sessions out. Wrong tries are rate-limited per connection and
- * per owner (5 wrong in 15 minutes locks that owner's sign-in for 15 minutes).
+ * Who signs in (Scooter, 13 Nov 2026, after the second preview): "The Productions dashboard is for
+ * Scooter only. Remove the team sign-in completely: no team password, no team view, no sign-in
+ * without an email. The only way in is Scooter's own email and his own password ... Sequoia is
+ * not an owner; the owners list is Scooter alone, and nobody else can be added except by Scooter
+ * asking."
+ *   So the only way in is an owner's own email and own password, and OWNER_IDS below is the whole
+ *   list of owners: ['scooter']. A record in the private store under any other id opens nothing,
+ *   so adding someone is a code change here, made only when Scooter asks. Scooter sees everything,
+ *   Money included. His record lives ONLY in the private store under the key `owners`
+ *   ({ scooter: { name, email, pw, otp, gen, fails, last_issue } }); his address is never in this
+ *   repo, a log or a public file. Passwords and one-time passwords are kept only as salted
+ *   PBKDF2-SHA256 hashes. A one-time password is emailed to his own address by the site's existing
+ *   mail sender (Cloudflare email, then Resend, both to that address only), stops working the
+ *   moment it is used to sign in (the next screen makes him choose a password before anything is
+ *   shown), and stops working after 7 days unused.
+ *   There is no team password and no shared owner password: no setting is read for either.
+ * Sessions are an HMAC-signed cookie keyed from a random key kept in the private store
+ * (`session_key`). The key string keeps the empty field the retired team password used to fill, so
+ * a session signed before this change still checks out (nobody is signed out by it). An owner
+ * cookie carries the owner's `gen`; choosing a password or using a one-time password bumps it,
+ * which signs that owner's other sessions out. Wrong tries are rate-limited per connection and per
+ * owner (5 wrong in 15 minutes locks that owner's sign-in for 15 minutes).
  *
  * Cold email sending is OFF in code (COLD_EMAIL_SENDING below): there is no sender anywhere in this
  * repo. The Cold Email Log shows what the store records; turning sending on is Scooter's go, after
@@ -55,6 +58,11 @@ export const FORGOT_GAP_SECONDS = 300;
 export const MIN_PASSWORD = 12;
 const PBKDF2_ITERATIONS = 100000;
 export const OWNERS_KEY = 'owners';
+/** The whole list of people who can open the dashboard (Scooter, 13 Nov 2026: "the owners list is
+ *  Scooter alone, and nobody else can be added except by Scooter asking"). */
+export const OWNER_IDS = Object.freeze(['scooter']);
+/** dashboard:owners proves the sign-in with a throwaway `proof-` owner; it opens only until this long after it was written. */
+export const PROOF_OWNER_MAX_MS = 30 * 60 * 1000;
 const SESSION_KEY_KEY = 'session_key';
 const TZ = 'America/Chicago';
 
@@ -154,10 +162,17 @@ export async function readOwners(env) {
   }
 }
 async function writeOwners(env, owners) { await kvOf(env).put(OWNERS_KEY, JSON.stringify(owners)); }
-function findOwner(owners, email) {
+/** Only an id on OWNER_IDS, or a live dashboard:owners proof record, is an owner; any other record opens nothing. */
+export function admitted(id, owner, now = Date.now()) {
+  if (!owner) return false;
+  if (OWNER_IDS.includes(id)) return true;
+  const until = Number(owner.proof_until);
+  return id.startsWith('proof-') && until > now && until - now <= PROOF_OWNER_MAX_MS;
+}
+function findOwner(owners, email, now = Date.now()) {
   const want = normalEmail(email);
   if (!want) return [null, null];
-  for (const [id, o] of Object.entries(owners || {})) if (o && normalEmail(o.email) === want) return [id, o];
+  for (const [id, o] of Object.entries(owners || {})) if (admitted(id, o, now) && normalEmail(o.email) === want) return [id, o];
   return [null, null];
 }
 
@@ -174,27 +189,29 @@ async function sessionSecret(env) {
   }
 }
 async function sign(env, payload) {
-  const raw = await sha256(`wpp-dashboard-v2|${env.PRODUCTIONS_DASHBOARD_PASSWORD || ''}|${await sessionSecret(env)}`);
+  // The empty field between the bars is where the retired team password used to go: kept, so a
+  // session signed before it was retired still checks out.
+  const raw = await sha256(`wpp-dashboard-v2||${await sessionSecret(env)}`);
   const key = await crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return b64url(await crypto.subtle.sign('HMAC', key, enc.encode(payload)));
 }
 
-/** The dashboard can open for someone: a team password, or a private store that can hold owners. */
+/** The dashboard can open only with a private store that holds the owner. */
 export function dashboardConfigured(env) {
-  return Boolean(env?.PRODUCTIONS_DASHBOARD_PASSWORD || kvOf(env));
+  return Boolean(kvOf(env));
 }
 
 const cookieAttrs = (age) => `Path=/dashboard; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`;
-/** who: 'team', or { id, gen, stage } for an owner ('choose' = must pick a password first). */
+/** who: { id, gen, stage } for an owner ('choose' = must pick a password first). */
 export async function sessionCookie(env, who, now = Date.now()) {
-  const age = who === 'team' || who.stage === 'full' ? SESSION_SECONDS : CHOOSE_SECONDS;
+  const age = who.stage === 'full' ? SESSION_SECONDS : CHOOSE_SECONDS;
   const exp = Math.floor(now / 1000) + age;
-  const head = who === 'team' ? 'team' : `owner~${who.id}~${who.gen}~${who.stage}`;
+  const head = `owner~${who.id}~${who.gen}~${who.stage}`;
   const payload = `${head}.${exp}`;
   return `${COOKIE}=${payload}.${await sign(env, payload)}; ${cookieAttrs(age)}`;
 }
 
-/** { role: 'team' } | { role: 'owner', id, owner, owners, stage } | null */
+/** { role: 'owner', id, owner, owners, stage } | null */
 export async function sessionFromRequest(env, request, now = Date.now()) {
   if (!dashboardConfigured(env)) return null;
   const header = request.headers.get('cookie') || '';
@@ -204,12 +221,11 @@ export async function sessionFromRequest(env, request, now = Date.now()) {
   if (!head || !/^\d+$/.test(exp || '') || !sig) return null;
   if (Number(exp) < Math.floor(now / 1000)) return null;
   if (!sameText(await sign(env, `${head}.${exp}`), sig)) return null;
-  if (head === 'team') return env.PRODUCTIONS_DASHBOARD_PASSWORD ? { role: 'team' } : null;
   const [kind, id, gen, stage] = head.split('~');
   if (kind !== 'owner' || !['full', 'choose'].includes(stage)) return null;
   const owners = await readOwners(env);
   const owner = owners?.[id];
-  if (!owner || String(owner.gen || 0) !== gen) return null;
+  if (!admitted(id, owner, now) || String(owner.gen || 0) !== gen) return null;
   if (stage === 'full' && !owner.pw) return null;
   return { role: 'owner', id, owner, owners, stage };
 }
@@ -299,13 +315,13 @@ export async function issueOneTimePassword(env, owners, id, origin, now = Date.n
 
 /* ------------------------------------------------------------------ store */
 
-/** { state: 'ok' | 'not_connected' | 'empty' | 'unreadable', team?, finance?, updated_at? } */
-export async function readStore(env, role) {
+/** { state: 'ok' | 'not_connected' | 'empty' | 'unreadable', team?, finance?, updated_at? } (read only for a signed-in owner) */
+export async function readStore(env) {
   const kv = env.PRODUCTIONS_DASHBOARD;
   if (!kv || typeof kv.get !== 'function') return { state: 'not_connected' };
   try {
     const [teamRaw, metaRaw, financeRaw] = await Promise.all([
-      kv.get('team'), kv.get('meta'), role === 'owner' ? kv.get('finance') : Promise.resolve(null)
+      kv.get('team'), kv.get('meta'), kv.get('finance')
     ]);
     if (!teamRaw) return { state: 'empty' };
     const meta = metaRaw ? JSON.parse(metaRaw) : {};
@@ -313,7 +329,7 @@ export async function readStore(env, role) {
       state: 'ok',
       updated_at: meta.updated_at || null,
       team: JSON.parse(teamRaw),
-      finance: role === 'owner' && financeRaw ? JSON.parse(financeRaw) : null
+      finance: financeRaw ? JSON.parse(financeRaw) : null
     };
   } catch (err) {
     console.error('dashboard store unreadable', err?.message || err);
@@ -369,11 +385,11 @@ function overdueInvoices(fin, now) {
   return (fin?.invoices || []).filter((i) => i.status !== 'paid' && i.due && daysSince(i.due, now) > 0);
 }
 
-export function renderDashboard({ role, store, now = Date.now() }) {
+export function renderDashboard({ store, now = Date.now() }) {
   const t = store.team || {};
   const f = store.finance;
   const drafts = (t.agent_drafts || []).filter((d) => d.status !== 'approved');
-  const overdue = role === 'owner' ? overdueInvoices(f, now) : [];
+  const overdue = overdueInvoices(f, now);
   const needs = drafts.length + overdue.length;
   const today = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(now));
   const parts = [];
@@ -427,8 +443,8 @@ export function renderDashboard({ role, store, now = Date.now() }) {
   const values = new Map((f?.pipeline_values || []).map((p) => [p.organization, p]));
   const funnelRows = FUNNEL_STAGES.map((stage) => {
     const here = opps.filter((o) => o.stage === stage);
-    const v = role === 'owner' ? sum(here.map((o) => values.get(o.organization) || {}), 'value') : null;
-    return `<li class="d-stage"><span class="d-stage__n">${here.length}</span><span class="d-stage__name">${esc(stage)}${role === 'owner' && v ? ` · ${money(v)}` : ''}</span>${here.length ? `<span class="d-subcell">${here.map((o) => esc(o.organization)).join(', ')}</span>` : ''}</li>`;
+    const v = sum(here.map((o) => values.get(o.organization) || {}), 'value');
+    return `<li class="d-stage"><span class="d-stage__n">${here.length}</span><span class="d-stage__name">${esc(stage)}${v ? ` · ${money(v)}` : ''}</span>${here.length ? `<span class="d-subcell">${here.map((o) => esc(o.organization)).join(', ')}</span>` : ''}</li>`;
   }).join('');
   const funnel = section('funnel', 'Sales', 'Sales funnel', 'The ten stages from the Blueprint. Each opportunity has an owner, a next action and a date.',
     `<ol class="d-funnel">${funnelRows}</ol>${table([
@@ -436,7 +452,7 @@ export function renderDashboard({ role, store, now = Date.now() }) {
       ['Stage', (r) => txt(r.stage)],
       ['Next action', (r) => `${txt(r.next_action)}<span class="d-subcell">${day(r.target_date)}</span>`],
       ['Owner', (r) => txt(r.owner)],
-      ...(role === 'owner' ? [['Value', (r) => money(values.get(r.organization)?.value)]] : [])
+      ['Value', (r) => money(values.get(r.organization)?.value)]
     ], opps, 'No opportunities are entered yet.')}`);
 
   const cold = t.cold_email_log || [];
@@ -454,20 +470,20 @@ export function renderDashboard({ role, store, now = Date.now() }) {
     ], cold, 'No cold emails have been sent. Sending is off.')}`);
 
   const sections = [projects, waiting, proposals, funnel, coldSec, draftsSec, activity];
-  if (role === 'owner') sections.splice(3, 0, f ? renderFinance(f, now) : section('money', 'Scooter and Sequoia only', 'Money', '', '<p class="d-warn">The finance part of the private store did not load, so nothing is shown here. This is not the same as zero.</p>'));
+  sections.splice(3, 0, f ? renderFinance(f, now) : section('money', 'Scooter only', 'Money', '', '<p class="d-warn">The finance part of the private store did not load, so nothing is shown here. This is not the same as zero.</p>'));
 
-  const tabs = [['#work', 'Work'], ['#funnel', 'Sales'], ...(role === 'owner' ? [['#money', 'Money']] : []), ['#drafts', 'Agents']]
+  const tabs = [['#work', 'Work'], ['#funnel', 'Sales'], ['#money', 'Money'], ['#drafts', 'Agents']]
     .map(([h, l]) => `<a href="${h}">${l}</a>`).join('');
 
   return page('Dashboard', `
     <header class="d-top">
-      <p class="d-label">West Peek Productions · ${role === 'owner' ? 'Scooter and Sequoia' : 'Team view'}</p>
+      <p class="d-label">West Peek Productions · Scooter</p>
       <h1>${line1}</h1>
       <p class="d-sub">${store.updated_at ? `Figures as of ${when(store.updated_at)} (Central).` : 'The store does not say when it was last updated.'}</p>
       ${banner}
     </header>
     ${sections.join('\n')}
-    ${accountActions(role)}
+    ${accountActions()}
     <nav class="d-tabs" aria-label="Dashboard sections">${tabs}</nav>`);
 }
 
@@ -520,7 +536,7 @@ function renderFinance(f, now) {
     ['Closing', (r) => (Number(r.closing) < 0 ? `<span class="d-late">${money(r.closing)}</span>` : money(r.closing))]
   ], f.cash_weeks || [], 'The weekly cash view needs bank cash and payables; neither is entered yet.')}`;
 
-  return section('money', 'Scooter and Sequoia only', 'Money', 'From each project binder’s Finance tabs. Never shown to the team view, clients or agents.',
+  return section('money', 'Scooter only', 'Money', 'From each project binder’s Finance tabs. Never shown to clients or agents.',
     tracker + invoices + agedSec + receipts + vendors + margin + cashSec);
 }
 
@@ -590,9 +606,9 @@ button,.d-btn{font:inherit;min-height:44px;padding:10px 18px;border-radius:999px
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 `;
 
-/** Sign out for everyone; Change password for an owner (Scooter, 13 Nov 2026). */
-function accountActions(role) {
-  return `<div class="d-out">${role === 'owner' ? '<a class="d-btn" href="/dashboard/password">Change password ›</a>' : ''}<form method="post" action="/dashboard/logout"><button type="submit">Sign out ›</button></form></div>`;
+/** Change password and Sign out (Scooter, 13 Nov 2026). */
+function accountActions() {
+  return `<div class="d-out"><a class="d-btn" href="/dashboard/password">Change password ›</a><form method="post" action="/dashboard/logout"><button type="submit">Sign out ›</button></form></div>`;
 }
 
 function page(title, body) {
@@ -601,14 +617,13 @@ function page(title, body) {
 
 export function renderLogin({ message = '', configured = true, email = '' } = {}) {
   if (!configured) {
-    return page('Dashboard', `<div class="d-login"><p class="d-label">West Peek Productions</p><h1>The dashboard is not switched on yet</h1><p class="d-sub">It opens once its private store or team password is set. Nothing is shown until then.</p></div>`);
+    return page('Dashboard', `<div class="d-login"><p class="d-label">West Peek Productions</p><h1>The dashboard is not switched on yet</h1><p class="d-sub">It opens once its private store is connected. Nothing is shown until then.</p></div>`);
   }
   return page('Sign in', `<form class="d-login" method="post" action="/dashboard/login">
     <p class="d-label">West Peek Productions</p><h1>Dashboard</h1>
     ${message ? `<p class="d-warn" role="alert">${esc(message)}</p>` : ''}
     <label for="em">Your email</label>
-    <input id="em" name="email" type="email" autocomplete="username" value="${esc(email)}" autofocus>
-    <p class="d-sub d-hint">Scooter and Sequoia: your own firm email. Team: leave this empty.</p>
+    <input id="em" name="email" type="email" autocomplete="username" value="${esc(email)}" required autofocus>
     <label for="pw">Password</label>
     <input id="pw" name="password" type="password" autocomplete="current-password" required>
     <button type="submit" class="d-primary">Open the dashboard ›</button>
@@ -634,12 +649,12 @@ export function renderChoose({ stage, message = '' }) {
 export function renderForgot({ sent = false, message = '' } = {}) {
   if (sent) {
     return page('Forgot it?', `<div class="d-login"><p class="d-label">West Peek Productions</p><h1>Check your firm email</h1>
-      <p class="d-sub">If that is Scooter's or Sequoia's firm email, a one-time password is on its way to it. It works once; then you choose your own.</p>
+      <p class="d-sub">If that is Scooter's firm email, a one-time password is on its way to it. It works once; then you choose your own.</p>
       <p class="d-sub d-alt"><a href="/dashboard">← Back to sign in</a></p></div>`);
   }
   return page('Forgot it?', `<form class="d-login" method="post" action="/dashboard/forgot">
     <p class="d-label">West Peek Productions</p><h1>Get a one-time password</h1>
-    <p class="d-sub">For Scooter and Sequoia. It goes to your own firm email only.</p>
+    <p class="d-sub">It goes to your own firm email only.</p>
     ${message ? `<p class="d-warn" role="alert">${esc(message)}</p>` : ''}
     <label for="em">Your firm email</label>
     <input id="em" name="email" type="email" autocomplete="username" required autofocus>
@@ -647,14 +662,14 @@ export function renderForgot({ sent = false, message = '' } = {}) {
     <p class="d-sub d-alt"><a href="/dashboard">← Back to sign in</a></p></form>`);
 }
 
-export function renderStoreState(state, role) {
+export function renderStoreState(state) {
   const words = {
     not_connected: 'The private store is not connected to this site yet, so there is nothing to show. Nothing here is a guess.',
     empty: 'The private store is connected but nothing has been loaded into it yet.',
     unreadable: 'The private store did not load just now. This is not the same as nothing to show: try again in a minute.'
   }[state];
-  return page('Dashboard', `<header class="d-top"><p class="d-label">West Peek Productions · ${role === 'owner' ? 'Scooter and Sequoia' : 'Team view'}</p><h1>The dashboard has no figures to show yet</h1><p class="d-warn">${esc(words)}</p></header>
-    ${accountActions(role)}`);
+  return page('Dashboard', `<header class="d-top"><p class="d-label">West Peek Productions · Scooter</p><h1>The dashboard has no figures to show yet</h1><p class="d-warn">${esc(words)}</p></header>
+    ${accountActions()}`);
 }
 
 /* ------------------------------------------------------------------ handler */
@@ -703,17 +718,11 @@ export async function handleDashboard({ request, env = {}, now = Date.now() }) {
     const typed = field(form, 'password');
     const wrong = (status = 401) => html(renderLogin({ email, message: 'That email and password did not open the dashboard. Try again, or use Forgot it?' }), status);
 
-    if (!email) {
-      // The team password, unchanged. Nothing else opens without an email.
-      const team = env.PRODUCTIONS_DASHBOARD_PASSWORD;
-      if (team && typed && sameBytes(await sha256(typed), await sha256(team))) {
-        return redirect('/dashboard', { 'set-cookie': await sessionCookie(env, 'team', now) });
-      }
-      return wrong();
-    }
+    // No sign-in without an email: a password on its own opens nothing (Scooter, 13 Nov 2026).
+    if (!email) { await hashSecret(typed); return wrong(); }
     const owners = await readOwners(env);
-    if (!owners) return html(renderLogin({ email, message: 'Owner sign-in is not available right now. Try again in a minute.' }), 503);
-    const [id, owner] = findOwner(owners, email);
+    if (!owners) return html(renderLogin({ email, message: 'Sign-in is not available right now. Try again in a minute.' }), 503);
+    const [id, owner] = findOwner(owners, email, now);
     if (!owner) { await hashSecret(typed); return wrong(); } // same work as a real check
     if (ownerLocked(owner, now)) return html(renderLogin({ email, message: 'Too many wrong tries for this email. Wait 15 minutes, or use Forgot it?' }), 429);
 
@@ -741,7 +750,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now() }) {
     if (await overLimit(request, 'forgot')) return html(renderForgot({ message: 'Too many tries from this connection. Wait 15 minutes and try again.' }), 429);
     const form = await formOf(request);
     const owners = await readOwners(env);
-    const [id] = findOwner(owners, field(form, 'email'));
+    const [id] = findOwner(owners, field(form, 'email'), now);
     // Sent only to the address on record for that owner, never to the address typed or any other.
     if (id) await issueOneTimePassword(env, owners, id, url.origin, now);
     return html(renderForgot({ sent: true }));
@@ -750,7 +759,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now() }) {
   if (post && path === '/dashboard/password') {
     if (foreignOrigin(request, url)) return html(renderLogin({ message: 'That came from another site and was refused.' }), 403);
     const s = await sessionFromRequest(env, request, now);
-    if (!s || s.role !== 'owner') return html(renderLogin({ configured }), configured ? 401 : 503);
+    if (!s) return html(renderLogin({ configured }), configured ? 401 : 503);
     const form = await formOf(request);
     const next = field(form, 'password');
     const again = (message, status = 400) => html(renderChoose({ stage: s.stage, message }), status);
@@ -774,12 +783,12 @@ export async function handleDashboard({ request, env = {}, now = Date.now() }) {
   const session = await sessionFromRequest(env, request, now);
   if (!session) return html(renderLogin({ configured }), configured ? 401 : 503);
   // An owner who signed in with a one-time password sees nothing until a password is chosen.
-  if (session.role === 'owner' && session.stage === 'choose' && path !== '/dashboard/password') return redirect('/dashboard/password');
+  if (session.stage === 'choose' && path !== '/dashboard/password') return redirect('/dashboard/password');
   if (path === '/dashboard/password') {
-    return session.role === 'owner' ? html(renderChoose({ stage: session.stage })) : redirect('/dashboard');
+    return html(renderChoose({ stage: session.stage }));
   }
   if (path !== '/dashboard') return redirect('/dashboard');
-  const store = await readStore(env, session.role);
-  if (store.state !== 'ok') return html(renderStoreState(store.state, session.role), store.state === 'unreadable' ? 503 : 200);
-  return html(renderDashboard({ role: session.role, store, now }));
+  const store = await readStore(env);
+  if (store.state !== 'ok') return html(renderStoreState(store.state), store.state === 'unreadable' ? 503 : 200);
+  return html(renderDashboard({ store, now }));
 }

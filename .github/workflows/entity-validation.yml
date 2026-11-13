@@ -32,7 +32,7 @@ jobs:
         run: node scripts/test_lead_delivery.mjs
 
       # Scooter, 13 Nov 2026: no dashboard page or data without the password; finance for
-      # Scooter and Sequoia only; sending off; no private figures in this repo.
+      # Scooter only (the owners list is Scooter alone); sending off; no private figures in this repo.
       - name: Productions dashboard gate
         run: node --check "functions/dashboard/[[path]].js" && node scripts/test_dashboard.mjs
 
