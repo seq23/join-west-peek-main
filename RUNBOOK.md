@@ -124,6 +124,17 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+- **The Productions dashboard is at westpeekproductions.com/dashboard, behind a password**
+  (Scooter, 13 Nov 2026: "No dashboard page or data without the password. Private figures never in
+  the repo or any public file: read server-side from a private store."). Server-rendered by
+  `functions/dashboard/[[path]].js` → `functions/_lib/productions-dashboard.mjs`; Productions hosts
+  only (404 elsewhere). Two passwords: `PRODUCTIONS_DASHBOARD_PASSWORD` (team view) and
+  `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD` (Scooter and Sequoia: adds the finance view, tracker and
+  pipeline values). Figures live only in the KV namespace bound as `PRODUCTIONS_DASHBOARD`
+  (keys `team`, `finance`, `meta`), loaded by `npm run dashboard:store` from a file that lives
+  outside this repo. Cold email sending is off in code (`COLD_EMAIL_SENDING`); there is no sender
+  here. Guard: `npm run test:dashboard`.
+
 ## Lead delivery and alarms
 **A lead has two independent ways out** (outage 2 Nov to 6 Nov 2026: the Resend key behind every
 form was deleted, every submission failed with 502, and only `console.error` knew). Code and the
@@ -177,6 +188,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | Script | Pins |
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
+| `scripts/test_dashboard.mjs` | /dashboard: no page or store read without a password; team never reads or sees finance; forged or stale cookies refused; other hosts 404; cross-site sign-in refused; missing store said, never shown as clear; sending off; store text escaped; no store file committed |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
@@ -198,6 +210,8 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
 - `validate:disclosure` — `node scripts/validate_disclosure.mjs`
 - `validate:forms` — `node scripts/validate_forms.mjs`
 - `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
+- `test:dashboard` — `node scripts/test_dashboard.mjs`
+- `dashboard:store` — `node scripts/dashboard_store.mjs --env preview|production --file <store JSON outside the repo>`: checks the file, finds or creates the KV namespace, binds it to west-peek-productions as `PRODUCTIONS_DASHBOARD` for that environment, writes `team`, `finance`, `meta`. Prints counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
@@ -206,3 +220,6 @@ Per Pages project; set through `pages_env`, never by hand.
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
+- `west-peek-productions`: `PRODUCTIONS_DASHBOARD_PASSWORD` and `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD`
+  (secrets, production and preview). Unset, /dashboard is shut and reads nothing (fail closed).
+  KV binding `PRODUCTIONS_DASHBOARD` is set by `npm run dashboard:store`, not by hand.
