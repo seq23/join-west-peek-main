@@ -19,6 +19,7 @@
     "mailer:deploy": "cd workers/forms-mailer && npx wrangler@4.151.0 deploy",
     "test:lead": "node scripts/test_lead_delivery.mjs",
     "test:dashboard": "node scripts/test_dashboard.mjs",
-    "dashboard:store": "node scripts/dashboard_store.mjs"
+    "dashboard:store": "node scripts/dashboard_store.mjs",
+    "dashboard:owners": "node scripts/dashboard_owners.mjs"
   }
 }

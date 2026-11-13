@@ -128,10 +128,20 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   (Scooter, 13 Nov 2026: "No dashboard page or data without the password. Private figures never in
   the repo or any public file: read server-side from a private store."). Server-rendered by
   `functions/dashboard/[[path]].js` → `functions/_lib/productions-dashboard.mjs`; Productions hosts
-  only (404 elsewhere). Two passwords: `PRODUCTIONS_DASHBOARD_PASSWORD` (team view) and
-  `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD` (Scooter and Sequoia: adds the finance view, tracker and
-  pipeline values). Figures live only in the KV namespace bound as `PRODUCTIONS_DASHBOARD`
-  (keys `team`, `finance`, `meta`), loaded by `npm run dashboard:store` from a file that lives
+  only (404 elsewhere). **Who signs in** (Scooter, 13 Nov 2026, after the first preview): the two
+  owners (Scooter and Sequoia) with their own firm email and their own password, seeing everything
+  including Money; the team with `PRODUCTIONS_DASHBOARD_PASSWORD` alone (email empty), everything
+  except Money. The old shared `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD` is read by nothing and opens
+  nothing. An owner's first password is a one-time password emailed to their own firm email by the
+  site's existing mail sender (Cloudflare email, then Resend, to that address only); signing in with
+  it uses it up and the next screen makes them choose a password before anything is shown; unused, it
+  stops working after 7 days. "Change password" on the dashboard; "Forgot it?" on the sign-in screen
+  sends a fresh one-time password to the owner's address on record only (at most one per 5 minutes).
+  Owner records (address, salted PBKDF2 hashes, `gen`) live only in the private store under `owners`,
+  loaded by `npm run dashboard:owners` from a file outside this repo; never in the repo or a log.
+  Wrong tries: 10 per connection and 5 per owner per 15 minutes.
+  Figures live only in the KV namespace bound as `PRODUCTIONS_DASHBOARD`
+  (keys `team`, `finance`, `meta`; plus `owners` and `session_key` for sign-in), loaded by `npm run dashboard:store` from a file that lives
   outside this repo. Cold email sending is off in code (`COLD_EMAIL_SENDING`); there is no sender
   here. Guard: `npm run test:dashboard`.
 
@@ -188,7 +198,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | Script | Pins |
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
-| `scripts/test_dashboard.mjs` | /dashboard: no page or store read without a password; team never reads or sees finance; forged or stale cookies refused; other hosts 404; cross-site sign-in refused; missing store said, never shown as clear; sending off; store text escaped; no store file committed |
+| `scripts/test_dashboard.mjs` | /dashboard: no page or store read without a password; owners sign in with their own email and password; a one-time password goes to the owner's own address only, is stored hashed, works once, forces a new password before anything shows, and expires after 7 days; the old shared owner password opens nothing; change password signs other sessions out; per-owner lockout; team never reads or sees finance; forged or stale cookies refused; other hosts 404; cross-site sign-in refused; missing store said, never shown as clear; sending off; store text escaped; no store file committed |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
@@ -212,6 +222,7 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
 - `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
 - `test:dashboard` — `node scripts/test_dashboard.mjs`
 - `dashboard:store` — `node scripts/dashboard_store.mjs --env preview|production --file <store JSON outside the repo>`: checks the file, finds or creates the KV namespace, binds it to west-peek-productions as `PRODUCTIONS_DASHBOARD` for that environment, writes `team`, `finance`, `meta`. Prints counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owners (`{"owners":[{"id","name","email"}]}`) into that environment's store under `owners` (an unchanged email keeps its password); with `--url`, proves the sign-in on that live site with a throwaway owner (signed out shows nothing; a one-time password forces a new password, then stops working; Money shows; an owner password without its email opens nothing) and removes it; with `--send`, only after the proof passes, presses "Forgot it?" for each owner so the site emails their one-time password, and reads back the channel. An owner with a password or an unused one already sent is skipped: one email each. Prints ids and counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
@@ -220,6 +231,10 @@ Per Pages project; set through `pages_env`, never by hand.
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
-- `west-peek-productions`: `PRODUCTIONS_DASHBOARD_PASSWORD` and `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD`
-  (secrets, production and preview). Unset, /dashboard is shut and reads nothing (fail closed).
+- `west-peek-productions`: `PRODUCTIONS_DASHBOARD_PASSWORD` (the team password; secret, production and
+  preview). Owners need no secret: their records are in the private store (`dashboard:owners`).
+  `PRODUCTIONS_DASHBOARD_OWNER_PASSWORD` is retired (read by nothing; delete it if set). With neither
+  the team password nor the store, /dashboard is shut and reads nothing (fail closed). One-time
+  passwords need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
+  `RESEND_API_KEY` + `EMAIL_FROM`) for that environment.
   KV binding `PRODUCTIONS_DASHBOARD` is set by `npm run dashboard:store`, not by hand.

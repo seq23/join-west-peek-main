@@ -15,24 +15,47 @@
  *              receivables, expected receipts, vendor obligations, project margin, rolling cash.
  *              Read ONLY for the owner role (Scooter and Sequoia); a team session never reads it.
  *
- * Two passwords, both Pages secrets on west-peek-productions (never committed):
- *   PRODUCTIONS_DASHBOARD_PASSWORD        — the team view (everything except finance).
- *   PRODUCTIONS_DASHBOARD_OWNER_PASSWORD  — Scooter and Sequoia: everything, finance included.
- * Neither set → the dashboard is shut (no form accepts anything, no data is read). Sessions are an
- * HMAC-signed cookie keyed from both passwords, so changing either password signs everyone out.
+ * Who signs in (Scooter, 13 Nov 2026, after the first preview: "Each owner sets his or her own
+ * dashboard password, and the first one is a one-time password"):
+ *   Owners (Scooter and Sequoia) sign in with their own email and their own password and see
+ *   everything, Money included. Their records live ONLY in the private store under the key
+ *   `owners` ({ <id>: { name, email, pw, otp, gen, fails, last_issue } }); their addresses are
+ *   never in this repo, a log or a public file. Passwords and one-time passwords are kept only as
+ *   salted PBKDF2-SHA256 hashes. A one-time password is emailed to that owner's own address by
+ *   the site's existing mail sender (Cloudflare email, then Resend, both to that address only),
+ *   stops working the moment it is used to sign in (the next screen makes the owner choose a
+ *   password before anything is shown), and stops working after 7 days unused.
+ *   The team signs in with the team password alone (Pages secret PRODUCTIONS_DASHBOARD_PASSWORD),
+ *   unchanged: everything except Money. The old shared owner password
+ *   (PRODUCTIONS_DASHBOARD_OWNER_PASSWORD) is no longer read by anything: it opens nothing.
+ * Sessions are an HMAC-signed cookie keyed from the team password and a random key kept in the
+ * private store (`session_key`), so the team password alone cannot forge an owner session. An
+ * owner cookie carries the owner's `gen`; choosing a password or using a one-time password bumps
+ * it, which signs that owner's other sessions out. Wrong tries are rate-limited per connection and
+ * per owner (5 wrong in 15 minutes locks that owner's sign-in for 15 minutes).
  *
  * Cold email sending is OFF in code (COLD_EMAIL_SENDING below): there is no sender anywhere in this
  * repo. The Cold Email Log shows what the store records; turning sending on is Scooter's go, after
  * he gives the inbox, the targets and the offer (dashboard brief, 13 Nov 2026).
  */
-import { siteForHost } from '../api/lead.js';
+import { siteForHost, sendViaCloudflare, sendViaResend } from '../api/lead.js';
 
 export const COLD_EMAIL_SENDING = false;
 export const COLD_EMAIL_WEEKLY_CAP = 25;
 export const COOKIE = 'wpp_dash';
 const SESSION_SECONDS = 12 * 3600;
+const CHOOSE_SECONDS = 30 * 60;
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_SECONDS = 900;
+export const OTP_DAYS = 7;
+export const OWNER_FAIL_LIMIT = 5;
+const OWNER_FAIL_WINDOW_SECONDS = 900;
+/** One fresh one-time password per owner per 5 minutes at most, however often "Forgot it?" is pressed. */
+export const FORGOT_GAP_SECONDS = 300;
+export const MIN_PASSWORD = 12;
+const PBKDF2_ITERATIONS = 100000;
+export const OWNERS_KEY = 'owners';
+const SESSION_KEY_KEY = 'session_key';
 const TZ = 'America/Chicago';
 
 export const FUNNEL_STAGES = [
@@ -64,65 +87,139 @@ export function storeProblems(doc) {
 /* ------------------------------------------------------------------ crypto */
 
 const enc = new TextEncoder();
-function b64url(bytes) {
+export function b64url(bytes) {
   let s = '';
   for (const b of new Uint8Array(bytes)) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-async function sha256(text) { return new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(text))); }
+function fromB64url(text) {
+  const s = atob(String(text).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+}
 function sameBytes(a, b) {
   if (a.length !== b.length) return false;
   let d = 0;
   for (let i = 0; i < a.length; i += 1) d |= a[i] ^ b[i];
   return d === 0;
 }
-async function hmacKey(env) {
-  const raw = await sha256(`wpp-dashboard-v1|${env.PRODUCTIONS_DASHBOARD_PASSWORD || ''}|${env.PRODUCTIONS_DASHBOARD_OWNER_PASSWORD || ''}`);
-  return crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-}
-async function sign(env, payload) { return b64url(await crypto.subtle.sign('HMAC', await hmacKey(env), enc.encode(payload))); }
+const sameText = (a, b) => sameBytes(enc.encode(String(a)), enc.encode(String(b)));
+async function sha256(text) { return new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(text))); }
 
+async function pbkdf2(secret, salt, iterations) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(String(secret)), 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromB64url(salt), iterations }, key, 256));
+}
+/** A salted hash of a password or one-time password: the only form either is ever stored in. */
+export async function hashSecret(secret) {
+  const salt = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  return { salt, hash: b64url(await pbkdf2(secret, salt, PBKDF2_ITERATIONS)), iterations: PBKDF2_ITERATIONS };
+}
+export async function secretMatches(secret, rec) {
+  if (!rec || !rec.salt || !rec.hash || !secret) return false;
+  return sameText(b64url(await pbkdf2(secret, rec.salt, rec.iterations || PBKDF2_ITERATIONS)), rec.hash);
+}
+
+/** One-time passwords: 16 characters from an alphabet with no look-alikes, shown in groups of 4. */
+const OTP_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export function newOneTimePassword() {
+  const out = [];
+  while (out.length < 16) {
+    for (const b of crypto.getRandomValues(new Uint8Array(32))) {
+      if (b < 248 && out.length < 16) out.push(OTP_ALPHABET[b % 31]); // 248 = 8 x 31: no bias
+    }
+  }
+  return out.join('').match(/.{4}/g).join('-');
+}
+/** What a typed one-time password is compared as: case, spaces and dashes do not matter. */
+export function normalOtp(typed) { return String(typed || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+const normalEmail = (e) => String(e || '').trim().toLowerCase();
+
+/* ------------------------------------------------------------------ owners (private store) */
+
+function kvOf(env) {
+  const kv = env?.PRODUCTIONS_DASHBOARD;
+  return kv && typeof kv.get === 'function' ? kv : null;
+}
+/** The owners map, {} when none are entered, null when the store cannot be read. */
+export async function readOwners(env) {
+  const kv = kvOf(env);
+  if (!kv) return null;
+  try {
+    const raw = await kv.get(OWNERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (err) {
+    console.error('dashboard owners unreadable', err?.message || err);
+    return null;
+  }
+}
+async function writeOwners(env, owners) { await kvOf(env).put(OWNERS_KEY, JSON.stringify(owners)); }
+function findOwner(owners, email) {
+  const want = normalEmail(email);
+  if (!want) return [null, null];
+  for (const [id, o] of Object.entries(owners || {})) if (o && normalEmail(o.email) === want) return [id, o];
+  return [null, null];
+}
+
+/** The random half of the session signing key, kept in the private store; made on first use. */
+async function sessionSecret(env) {
+  const kv = kvOf(env);
+  if (!kv) return '';
+  try {
+    let s = await kv.get(SESSION_KEY_KEY);
+    if (!s) { s = b64url(crypto.getRandomValues(new Uint8Array(32))); await kv.put(SESSION_KEY_KEY, s); }
+    return s;
+  } catch {
+    return '';
+  }
+}
+async function sign(env, payload) {
+  const raw = await sha256(`wpp-dashboard-v2|${env.PRODUCTIONS_DASHBOARD_PASSWORD || ''}|${await sessionSecret(env)}`);
+  const key = await crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return b64url(await crypto.subtle.sign('HMAC', key, enc.encode(payload)));
+}
+
+/** The dashboard can open for someone: a team password, or a private store that can hold owners. */
 export function dashboardConfigured(env) {
-  return Boolean(env?.PRODUCTIONS_DASHBOARD_PASSWORD || env?.PRODUCTIONS_DASHBOARD_OWNER_PASSWORD);
+  return Boolean(env?.PRODUCTIONS_DASHBOARD_PASSWORD || kvOf(env));
 }
 
-/** Which role a typed password opens: 'owner', 'team' or null. Compared as digests, constant time. */
-export async function roleForPassword(env, typed) {
-  const t = String(typed || '');
-  if (!t) return null;
-  const got = await sha256(t);
-  if (env.PRODUCTIONS_DASHBOARD_OWNER_PASSWORD && sameBytes(got, await sha256(env.PRODUCTIONS_DASHBOARD_OWNER_PASSWORD))) return 'owner';
-  if (env.PRODUCTIONS_DASHBOARD_PASSWORD && sameBytes(got, await sha256(env.PRODUCTIONS_DASHBOARD_PASSWORD))) return 'team';
-  return null;
+const cookieAttrs = (age) => `Path=/dashboard; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`;
+/** who: 'team', or { id, gen, stage } for an owner ('choose' = must pick a password first). */
+export async function sessionCookie(env, who, now = Date.now()) {
+  const age = who === 'team' || who.stage === 'full' ? SESSION_SECONDS : CHOOSE_SECONDS;
+  const exp = Math.floor(now / 1000) + age;
+  const head = who === 'team' ? 'team' : `owner~${who.id}~${who.gen}~${who.stage}`;
+  const payload = `${head}.${exp}`;
+  return `${COOKIE}=${payload}.${await sign(env, payload)}; ${cookieAttrs(age)}`;
 }
 
-export async function sessionCookie(env, role, now = Date.now()) {
-  const exp = Math.floor(now / 1000) + SESSION_SECONDS;
-  const payload = `${role}.${exp}`;
-  return `${COOKIE}=${payload}.${await sign(env, payload)}; Path=/dashboard; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_SECONDS}`;
-}
-
-export async function roleFromRequest(env, request, now = Date.now()) {
+/** { role: 'team' } | { role: 'owner', id, owner, owners, stage } | null */
+export async function sessionFromRequest(env, request, now = Date.now()) {
   if (!dashboardConfigured(env)) return null;
   const header = request.headers.get('cookie') || '';
   const m = header.split(/;\s*/).find((c) => c.startsWith(`${COOKIE}=`));
   if (!m) return null;
-  const [role, exp, sig] = m.slice(COOKIE.length + 1).split('.');
-  if (!['owner', 'team'].includes(role) || !/^\d+$/.test(exp || '') || !sig) return null;
+  const [head, exp, sig] = m.slice(COOKIE.length + 1).split('.');
+  if (!head || !/^\d+$/.test(exp || '') || !sig) return null;
   if (Number(exp) < Math.floor(now / 1000)) return null;
-  const want = await sign(env, `${role}.${exp}`);
-  if (!sameBytes(enc.encode(want), enc.encode(sig))) return null;
-  if (role === 'owner' && !env.PRODUCTIONS_DASHBOARD_OWNER_PASSWORD) return null;
-  if (role === 'team' && !env.PRODUCTIONS_DASHBOARD_PASSWORD) return null;
-  return role;
+  if (!sameText(await sign(env, `${head}.${exp}`), sig)) return null;
+  if (head === 'team') return env.PRODUCTIONS_DASHBOARD_PASSWORD ? { role: 'team' } : null;
+  const [kind, id, gen, stage] = head.split('~');
+  if (kind !== 'owner' || !['full', 'choose'].includes(stage)) return null;
+  const owners = await readOwners(env);
+  const owner = owners?.[id];
+  if (!owner || String(owner.gen || 0) !== gen) return null;
+  if (stage === 'full' && !owner.pw) return null;
+  return { role: 'owner', id, owner, owners, stage };
 }
 
-async function overLoginLimit(request) {
+async function overLimit(request, bucket) {
   const ip = request.headers.get('cf-connecting-ip');
   const cache = globalThis.caches?.default;
   if (!ip || !cache) return false;
   const win = Math.floor(Date.now() / 1000 / LOGIN_WINDOW_SECONDS);
-  const key = new Request(`https://dashboard-login-limit.invalid/${encodeURIComponent(ip)}/${win}`);
+  const key = new Request(`https://dashboard-login-limit.invalid/${bucket}/${encodeURIComponent(ip)}/${win}`);
   try {
     const hit = await cache.match(key);
     const count = hit ? Number(await hit.text()) || 0 : 0;
@@ -132,6 +229,67 @@ async function overLoginLimit(request) {
   } catch {
     return false;
   }
+}
+function ownerLocked(owner, now) {
+  const f = owner.fails;
+  return Boolean(f && f.count >= OWNER_FAIL_LIMIT && now - f.since < OWNER_FAIL_WINDOW_SECONDS * 1000);
+}
+function countFail(owner, now) {
+  const f = owner.fails && now - owner.fails.since < OWNER_FAIL_WINDOW_SECONDS * 1000 ? owner.fails : { count: 0, since: now };
+  owner.fails = { count: f.count + 1, since: f.since };
+}
+
+/* ------------------------------------------------------------------ the one-time password email */
+
+/**
+ * Scooter, 13 Nov 2026: the email "says only: the dashboard is ready to open, the link, that this
+ * password works once and they will choose their own on the first screen, and that nothing goes
+ * live without Scooter's yes. No apology and nothing about earlier."
+ */
+export function oneTimePasswordEmail({ link, code }) {
+  return {
+    subject: 'Your West Peek Productions dashboard is ready to open',
+    text: [
+      'The West Peek Productions dashboard is ready to open.',
+      '',
+      `Open it: ${link}`,
+      '',
+      'Sign in with this email address and this password:',
+      code,
+      '',
+      'This password works once. On the first screen you choose your own.',
+      '',
+      "Nothing goes live without Scooter's yes."
+    ].join('\n')
+  };
+}
+
+/** Send to the owner's own address only: Cloudflare email first, Resend if that did not deliver. */
+async function sendToOwner(env, to, mail) {
+  const cf = await sendViaCloudflare(env, { to, subject: mail.subject, text: mail.text });
+  if (cf.status === 'ok') return 'cloudflare';
+  const rs = await sendViaResend(env, { to, subject: mail.subject, text: mail.text });
+  if (rs.status === 'ok') return 'resend';
+  return cf.status === 'not_configured' && rs.status === 'not_configured' ? 'not_configured' : 'failed';
+}
+
+/**
+ * Issue a fresh one-time password to one owner and email it to their own address. Records the
+ * hash, the 7-day expiry and which channel carried it (`last_issue.by`); never the code itself.
+ * Returns 'cloudflare' | 'resend' | 'failed' | 'not_configured' | 'too_soon'.
+ */
+export async function issueOneTimePassword(env, owners, id, origin, now = Date.now()) {
+  const owner = owners[id];
+  if (owner.last_issue?.at && now - owner.last_issue.at < FORGOT_GAP_SECONDS * 1000) return 'too_soon';
+  const code = newOneTimePassword();
+  owner.otp = { ...(await hashSecret(normalOtp(code))), issued_at: now, expires_at: now + OTP_DAYS * 86400000 };
+  owner.last_issue = { at: now, by: 'sending' };
+  await writeOwners(env, owners);
+  const by = await sendToOwner(env, owner.email, oneTimePasswordEmail({ link: `${origin}/dashboard`, code }));
+  owner.last_issue = { at: now, by };
+  await writeOwners(env, owners);
+  console.log(`OUTPUT dashboard one-time password owner=${id} by=${by}`);
+  return by;
 }
 
 /* ------------------------------------------------------------------ store */
@@ -304,7 +462,7 @@ export function renderDashboard({ role, store, now = Date.now() }) {
       ${banner}
     </header>
     ${sections.join('\n')}
-    <form method="post" action="/dashboard/logout" class="d-out"><button type="submit">Sign out ›</button></form>
+    ${accountActions(role)}
     <nav class="d-tabs" aria-label="Dashboard sections">${tabs}</nav>`);
 }
 
@@ -402,7 +560,11 @@ td{padding:10px 8px;border-bottom:1px solid var(--ink-3);vertical-align:top;over
 .d-meter__track{position:relative;height:10px;background:var(--ink-3);border-radius:999px;margin-top:4px}
 .d-meter__track span{position:absolute;inset:0 auto 0 0;background:var(--orange);border-radius:999px}
 .d-meter__track i{position:absolute;top:-3px;width:2px;height:16px;background:var(--copy)}
-.d-out{margin:28px 0}
+.d-out{margin:28px 0;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.d-btn{display:inline-flex;align-items:center;text-decoration:none}
+.d-hint{margin:6px 0 0}
+.d-alt{margin-top:18px}
+.d-alt a{display:inline-block;padding:10px 0;min-height:44px}
 button,.d-btn{font:inherit;min-height:44px;padding:10px 18px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--white);cursor:pointer}
 .d-primary{background:var(--orange);border-color:var(--orange);color:var(--orange-ink);font-weight:700}
 .d-tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:4px;background:rgba(11,11,12,.95);border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
@@ -423,20 +585,61 @@ button,.d-btn{font:inherit;min-height:44px;padding:10px 18px;border-radius:999px
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 `;
 
+/** Sign out for everyone; Change password for an owner (Scooter, 13 Nov 2026). */
+function accountActions(role) {
+  return `<div class="d-out">${role === 'owner' ? '<a class="d-btn" href="/dashboard/password">Change password ›</a>' : ''}<form method="post" action="/dashboard/logout"><button type="submit">Sign out ›</button></form></div>`;
+}
+
 function page(title, body) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${esc(title)} · West Peek Productions</title><style>${CSS}</style></head><body><main>${body}</main></body></html>`;
 }
 
-export function renderLogin({ message = '', configured = true } = {}) {
+export function renderLogin({ message = '', configured = true, email = '' } = {}) {
   if (!configured) {
-    return page('Dashboard', `<div class="d-login"><p class="d-label">West Peek Productions</p><h1>The dashboard is not switched on yet</h1><p class="d-sub">It opens once its password is set. Nothing is shown until then.</p></div>`);
+    return page('Dashboard', `<div class="d-login"><p class="d-label">West Peek Productions</p><h1>The dashboard is not switched on yet</h1><p class="d-sub">It opens once its private store or team password is set. Nothing is shown until then.</p></div>`);
   }
   return page('Sign in', `<form class="d-login" method="post" action="/dashboard/login">
     <p class="d-label">West Peek Productions</p><h1>Dashboard</h1>
     ${message ? `<p class="d-warn" role="alert">${esc(message)}</p>` : ''}
+    <label for="em">Your email</label>
+    <input id="em" name="email" type="email" autocomplete="username" value="${esc(email)}" autofocus>
+    <p class="d-sub d-hint">Scooter and Sequoia: your own firm email. Team: leave this empty.</p>
     <label for="pw">Password</label>
-    <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus>
-    <button type="submit" class="d-primary">Open the dashboard ›</button></form>`);
+    <input id="pw" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" class="d-primary">Open the dashboard ›</button>
+    <p class="d-sub d-alt"><a href="/dashboard/forgot">Forgot it? ›</a></p></form>`);
+}
+
+export function renderChoose({ stage, message = '' }) {
+  const first = stage === 'choose';
+  return page('Choose your password', `<form class="d-login" method="post" action="/dashboard/password">
+    <p class="d-label">West Peek Productions</p><h1>${first ? 'Choose your own password' : 'Change your password'}</h1>
+    <p class="d-sub">${first ? 'The one-time password has now been used and will not work again. Choose the password you will sign in with from now on.' : 'Signs you out everywhere else.'}</p>
+    ${message ? `<p class="d-warn" role="alert">${esc(message)}</p>` : ''}
+    ${first ? '' : '<label for="cur">Your current password</label><input id="cur" name="current" type="password" autocomplete="current-password" required>'}
+    <label for="np">New password</label>
+    <input id="np" name="password" type="password" autocomplete="new-password" minlength="${MIN_PASSWORD}" required ${first ? 'autofocus' : ''}>
+    <p class="d-sub d-hint">At least ${MIN_PASSWORD} characters.</p>
+    <label for="np2">The same password again</label>
+    <input id="np2" name="confirm" type="password" autocomplete="new-password" minlength="${MIN_PASSWORD}" required>
+    <button type="submit" class="d-primary">${first ? 'Save it and open the dashboard ›' : 'Save the new password ›'}</button>
+    ${first ? '' : '<p class="d-sub d-alt"><a href="/dashboard">← Back to the dashboard</a></p>'}</form>`);
+}
+
+export function renderForgot({ sent = false, message = '' } = {}) {
+  if (sent) {
+    return page('Forgot it?', `<div class="d-login"><p class="d-label">West Peek Productions</p><h1>Check your firm email</h1>
+      <p class="d-sub">If that is Scooter's or Sequoia's firm email, a one-time password is on its way to it. It works once; then you choose your own.</p>
+      <p class="d-sub d-alt"><a href="/dashboard">← Back to sign in</a></p></div>`);
+  }
+  return page('Forgot it?', `<form class="d-login" method="post" action="/dashboard/forgot">
+    <p class="d-label">West Peek Productions</p><h1>Get a one-time password</h1>
+    <p class="d-sub">For Scooter and Sequoia. It goes to your own firm email only.</p>
+    ${message ? `<p class="d-warn" role="alert">${esc(message)}</p>` : ''}
+    <label for="em">Your firm email</label>
+    <input id="em" name="email" type="email" autocomplete="username" required autofocus>
+    <button type="submit" class="d-primary">Email me a one-time password ›</button>
+    <p class="d-sub d-alt"><a href="/dashboard">← Back to sign in</a></p></form>`);
 }
 
 export function renderStoreState(state, role) {
@@ -446,7 +649,7 @@ export function renderStoreState(state, role) {
     unreadable: 'The private store did not load just now. This is not the same as nothing to show: try again in a minute.'
   }[state];
   return page('Dashboard', `<header class="d-top"><p class="d-label">West Peek Productions · ${role === 'owner' ? 'Scooter and Sequoia' : 'Team view'}</p><h1>The dashboard has no figures to show yet</h1><p class="d-warn">${esc(words)}</p></header>
-    <form method="post" action="/dashboard/logout" class="d-out"><button type="submit">Sign out ›</button></form>`);
+    ${accountActions(role)}`);
 }
 
 /* ------------------------------------------------------------------ handler */
@@ -469,32 +672,109 @@ function foreignOrigin(request, url) {
   try { return new URL(origin).host !== url.host; } catch { return true; }
 }
 
+async function formOf(request) {
+  try { return await request.formData(); } catch { return new FormData(); }
+}
+const field = (form, name) => String(form.get(name) || '');
+
 export async function handleDashboard({ request, env = {}, now = Date.now() }) {
   const url = new URL(request.url);
   // The three Pages projects share functions/: the dashboard exists on the Productions host only.
   if (siteForHost(url.hostname) !== 'productions') return new Response('Not found', { status: 404, headers: { 'cache-control': 'no-store' } });
   const path = url.pathname.replace(/\/+$/, '') || '/dashboard';
   const configured = dashboardConfigured(env);
+  const post = request.method === 'POST';
 
-  if (request.method === 'POST' && path === '/dashboard/logout') {
-    return redirect('/dashboard', { 'set-cookie': `${COOKIE}=; Path=/dashboard; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
+  if (post && path === '/dashboard/logout') {
+    return redirect('/dashboard', { 'set-cookie': `${COOKIE}=; ${cookieAttrs(0)}` });
   }
-  if (request.method === 'POST' && path === '/dashboard/login') {
+
+  if (post && path === '/dashboard/login') {
     if (!configured) return html(renderLogin({ configured: false }), 503);
     if (foreignOrigin(request, url)) return html(renderLogin({ message: 'That sign-in came from another site and was refused.' }), 403);
-    if (await overLoginLimit(request)) return html(renderLogin({ message: 'Too many tries from this connection. Wait 15 minutes and try again.' }), 429);
-    let typed = '';
-    try { typed = (await request.formData()).get('password'); } catch { typed = ''; }
-    const role = await roleForPassword(env, typed);
-    if (!role) return html(renderLogin({ message: 'That password did not open the dashboard. Try again.' }), 401);
-    return redirect('/dashboard', { 'set-cookie': await sessionCookie(env, role, now) });
+    if (await overLimit(request, 'login')) return html(renderLogin({ message: 'Too many tries from this connection. Wait 15 minutes and try again.' }), 429);
+    const form = await formOf(request);
+    const email = field(form, 'email').trim();
+    const typed = field(form, 'password');
+    const wrong = (status = 401) => html(renderLogin({ email, message: 'That email and password did not open the dashboard. Try again, or use Forgot it?' }), status);
+
+    if (!email) {
+      // The team password, unchanged. Nothing else opens without an email.
+      const team = env.PRODUCTIONS_DASHBOARD_PASSWORD;
+      if (team && typed && sameBytes(await sha256(typed), await sha256(team))) {
+        return redirect('/dashboard', { 'set-cookie': await sessionCookie(env, 'team', now) });
+      }
+      return wrong();
+    }
+    const owners = await readOwners(env);
+    if (!owners) return html(renderLogin({ email, message: 'Owner sign-in is not available right now. Try again in a minute.' }), 503);
+    const [id, owner] = findOwner(owners, email);
+    if (!owner) { await hashSecret(typed); return wrong(); } // same work as a real check
+    if (ownerLocked(owner, now)) return html(renderLogin({ email, message: 'Too many wrong tries for this email. Wait 15 minutes, or use Forgot it?' }), 429);
+
+    if (await secretMatches(typed, owner.pw)) {
+      if (owner.fails) { delete owner.fails; await writeOwners(env, owners); }
+      return redirect('/dashboard', { 'set-cookie': await sessionCookie(env, { id, gen: owner.gen || 0, stage: 'full' }, now) });
+    }
+    if (owner.otp && now < owner.otp.expires_at && await secretMatches(normalOtp(typed), owner.otp)) {
+      // Used: it stops working at this moment, and the next screen is choosing a password.
+      owner.otp = null;
+      owner.gen = (owner.gen || 0) + 1;
+      delete owner.fails;
+      await writeOwners(env, owners);
+      return redirect('/dashboard/password', { 'set-cookie': await sessionCookie(env, { id, gen: owner.gen, stage: 'choose' }, now) });
+    }
+    countFail(owner, now);
+    await writeOwners(env, owners);
+    return wrong();
   }
+
+  if (path === '/dashboard/forgot') {
+    if (!post) return html(renderForgot({}));
+    if (!configured || !kvOf(env)) return html(renderForgot({ message: 'One-time passwords are not available right now. Try again later.' }), 503);
+    if (foreignOrigin(request, url)) return html(renderForgot({ message: 'That request came from another site and was refused.' }), 403);
+    if (await overLimit(request, 'forgot')) return html(renderForgot({ message: 'Too many tries from this connection. Wait 15 minutes and try again.' }), 429);
+    const form = await formOf(request);
+    const owners = await readOwners(env);
+    const [id] = findOwner(owners, field(form, 'email'));
+    // Sent only to the address on record for that owner, never to the address typed or any other.
+    if (id) await issueOneTimePassword(env, owners, id, url.origin, now);
+    return html(renderForgot({ sent: true }));
+  }
+
+  if (post && path === '/dashboard/password') {
+    if (foreignOrigin(request, url)) return html(renderLogin({ message: 'That came from another site and was refused.' }), 403);
+    const s = await sessionFromRequest(env, request, now);
+    if (!s || s.role !== 'owner') return html(renderLogin({ configured }), configured ? 401 : 503);
+    const form = await formOf(request);
+    const next = field(form, 'password');
+    const again = (message, status = 400) => html(renderChoose({ stage: s.stage, message }), status);
+    if (s.stage === 'full' && !(await secretMatches(field(form, 'current'), s.owner.pw))) {
+      countFail(s.owner, now);
+      await writeOwners(env, s.owners);
+      return again('Your current password was not right.', 401);
+    }
+    if (next.length < MIN_PASSWORD) return again(`The new password needs at least ${MIN_PASSWORD} characters.`);
+    if (next !== field(form, 'confirm')) return again('The two passwords were not the same. Type them again.');
+    s.owner.pw = await hashSecret(next);
+    s.owner.otp = null;
+    s.owner.gen = (s.owner.gen || 0) + 1;
+    delete s.owner.fails;
+    await writeOwners(env, s.owners);
+    return redirect('/dashboard', { 'set-cookie': await sessionCookie(env, { id: s.id, gen: s.owner.gen, stage: 'full' }, now) });
+  }
+
   if (request.method !== 'GET' && request.method !== 'HEAD') return html(renderLogin({ configured }), 405, { allow: 'GET, POST' });
 
-  const role = await roleFromRequest(env, request, now);
-  if (!role) return html(renderLogin({ configured }), configured ? 401 : 503);
+  const session = await sessionFromRequest(env, request, now);
+  if (!session) return html(renderLogin({ configured }), configured ? 401 : 503);
+  // An owner who signed in with a one-time password sees nothing until a password is chosen.
+  if (session.role === 'owner' && session.stage === 'choose' && path !== '/dashboard/password') return redirect('/dashboard/password');
+  if (path === '/dashboard/password') {
+    return session.role === 'owner' ? html(renderChoose({ stage: session.stage })) : redirect('/dashboard');
+  }
   if (path !== '/dashboard') return redirect('/dashboard');
-  const store = await readStore(env, role);
-  if (store.state !== 'ok') return html(renderStoreState(store.state, role), store.state === 'unreadable' ? 503 : 200);
-  return html(renderDashboard({ role, store, now }));
+  const store = await readStore(env, session.role);
+  if (store.state !== 'ok') return html(renderStoreState(store.state, session.role), store.state === 'unreadable' ? 503 : 200);
+  return html(renderDashboard({ role: session.role, store, now }));
 }
