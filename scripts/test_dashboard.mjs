@@ -74,10 +74,11 @@ function ENV(over) {
 const HOST = 'https://westpeekproductions.com';
 const NOW = Date.parse('2026-11-13T16:00:00Z');
 
-async function call(path, { method = 'GET', env = ENV(), cookie, form, origin, host = HOST, now = NOW } = {}) {
+async function call(path, { method = 'GET', env = ENV(), cookie, form, origin, fetchSite, host = HOST, now = NOW } = {}) {
   const headers = new Headers();
   if (cookie) headers.set('cookie', cookie);
   if (origin) headers.set('origin', origin);
+  if (fetchSite) headers.set('sec-fetch-site', fetchSite);
   let body;
   if (form) { body = new URLSearchParams(form); headers.set('content-type', 'application/x-www-form-urlencoded'); }
   const res = await handleDashboard({ request: new Request(`${host}${path}`, { method, headers, body }), env, now });
@@ -310,6 +311,26 @@ for (const host of ['https://joinwestpeek.com', 'https://westpeek.ventures', 'ht
   const env = ENV();
   const { res: f } = await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_A }, origin: 'https://evil.example', env });
   check('cross-site Forgot it? is refused and sends nothing', f.status === 403 && env.sent.length === 0);
+}
+// 13b. A sign-in typed into the dashboard's own page opens it, with the Origin a browser really sends.
+// Fetch spec: a same-origin form POST from a page whose Referrer-Policy is no-referrer carries
+// "Origin: null" (13 Nov 2026: every real sign-in was refused while every test passed, because the
+// tests sent the site's own origin by hand).
+{
+  const browserOrigin = (policy, pageOrigin) => (String(policy).trim().toLowerCase() === 'no-referrer' ? 'null' : pageOrigin);
+  for (const host of [HOST, 'https://work-x.west-peek-productions.pages.dev']) {
+    const env = ENV();
+    const page = await call('/dashboard', { host, env });
+    const origin = browserOrigin(page.res.headers.get('referrer-policy'), host);
+    const { res } = await call('/dashboard/login', { method: 'POST', host, env, origin, form: { email: OWNER_A, password: A_PW } });
+    check(`a browser sign-in from ${host}'s own page opens the dashboard`, res.status === 303 && /set-cookie/i.test([...res.headers.keys()].join()), `status ${res.status}, origin ${origin}`);
+  }
+  const old = await call('/dashboard/login', { method: 'POST', origin: 'null', fetchSite: 'same-origin', form: { email: OWNER_A, password: A_PW } });
+  check('a page served before the fix (Origin null, Sec-Fetch-Site same-origin) still signs in', old.res.status === 303);
+  const blind = await call('/dashboard/login', { method: 'POST', origin: 'null', form: { email: OWNER_A, password: A_PW } });
+  check('Origin null with no word from the browser is still refused', blind.res.status === 403);
+  const cross = await call('/dashboard/login', { method: 'POST', origin: 'null', fetchSite: 'cross-site', form: { email: OWNER_A, password: A_PW } });
+  check('Sec-Fetch-Site cross-site is refused', cross.res.status === 403);
 }
 // 14. A store that is not connected is said, never shown as all clear.
 {

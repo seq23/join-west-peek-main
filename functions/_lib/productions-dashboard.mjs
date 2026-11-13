@@ -680,13 +680,22 @@ const SECURITY_HEADERS = {
   'x-robots-tag': 'noindex, nofollow',
   'x-frame-options': 'DENY',
   'x-content-type-options': 'nosniff',
-  'referrer-policy': 'no-referrer',
+  // same-origin, never no-referrer: under no-referrer a browser posts the sign-in form with
+  // "Origin: null", and the foreign-origin check below refused every real sign-in (13 Nov 2026,
+  // Scooter on his iPhone: "That sign-in came from another site and was refused."). same-origin
+  // still sends nothing to any other site.
+  'referrer-policy': 'same-origin',
   'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 };
 function html(body, status = 200, extra = {}) { return new Response(body, { status, headers: { ...SECURITY_HEADERS, ...extra } }); }
 function redirect(location, extra = {}) { return new Response(null, { status: 303, headers: { ...SECURITY_HEADERS, location, ...extra } }); }
 
 function foreignOrigin(request, url) {
+  // The browser's own word that the form came from this site wins (a page served before the
+  // referrer-policy fix still posts "Origin: null").
+  const fetchSite = request.headers.get('sec-fetch-site');
+  if (fetchSite === 'same-origin') return false;
+  if (fetchSite === 'cross-site' || fetchSite === 'same-site') return true;
   const origin = request.headers.get('origin');
   if (!origin) return false;
   try { return new URL(origin).host !== url.host; } catch { return true; }
