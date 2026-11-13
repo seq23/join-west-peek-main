@@ -172,6 +172,21 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
   const again = await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env, origin: HOST, now: NOW + 60000 });
   check('a second Forgot it? within 5 minutes sends nothing more', again.res.status === 200 && env.sent.length === 1);
 
+  // A send that did not deliver does not start the gap: once the sender exists, the next try goes out.
+  {
+    const bare = ENV();
+    delete bare.FORMS_MAILER; delete bare.FORMS_MAILER_SECRET;
+    const logs0 = [console.log, console.error];
+    console.log = () => {}; console.error = () => {};
+    await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env: bare, origin: HOST });
+    const undelivered = owners(bare).sequoia.last_issue?.by;
+    const withSender = { ...ENV(), PRODUCTIONS_DASHBOARD: bare.PRODUCTIONS_DASHBOARD };
+    await call('/dashboard/forgot', { method: 'POST', form: { email: OWNER_B }, env: withSender, origin: HOST, now: NOW + 60000 });
+    [console.log, console.error] = logs0;
+    check('an undelivered one-time password is recorded as not_configured', undelivered === 'not_configured', String(undelivered));
+    check('a Forgot it? right after an undelivered one sends at once', withSender.sent.length === 1 && withSender.sent[0].to === OWNER_B && owners(withSender).sequoia.last_issue?.by === 'cloudflare');
+  }
+
   const first = await login(code.toLowerCase(), env, OWNER_B);
   check('the one-time password signs in straight to choosing a password', first.res.status === 303 && first.res.headers.get('location') === '/dashboard/password' && first.cookie.includes('~choose.'), first.cookie);
   const before = dataReads(env).length;

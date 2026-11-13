@@ -280,7 +280,12 @@ async function sendToOwner(env, to, mail) {
  */
 export async function issueOneTimePassword(env, owners, id, origin, now = Date.now()) {
   const owner = owners[id];
-  if (owner.last_issue?.at && now - owner.last_issue.at < FORGOT_GAP_SECONDS * 1000) return 'too_soon';
+  // The gap guards the owner's inbox, so only an email that went out starts it. A send that did
+  // not deliver (no mail sender yet, a failed channel) leaves nothing to space out: the next
+  // Forgot it? tries again at once (13 Nov 2026: the preview had no sender, and a resend minutes
+  // after it was set would otherwise have been held as 'too_soon' and read as still undelivered).
+  const delivered = ['cloudflare', 'resend', 'sending'].includes(owner.last_issue?.by);
+  if (delivered && owner.last_issue?.at && now - owner.last_issue.at < FORGOT_GAP_SECONDS * 1000) return 'too_soon';
   const code = newOneTimePassword();
   owner.otp = { ...(await hashSecret(normalOtp(code))), issued_at: now, expires_at: now + OTP_DAYS * 86400000 };
   owner.last_issue = { at: now, by: 'sending' };
