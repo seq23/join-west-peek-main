@@ -184,6 +184,21 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
 
+## Porter may run
+
+Derived by Porter from this repo's `package.json` because the RUNBOOK had no such section. Edit it freely — a human's list here wins over the derivation, and a job that needs a data-op the repo lacks writes the script and names it here in the same PR.
+
+- `build` — `node scripts/build.mjs community && node scripts/build.mjs ventures && node scripts/build.mjs productions`
+- `build:community` — `node scripts/build.mjs community`
+- `build:productions` — `node scripts/build.mjs productions`
+- `build:ventures` — `node scripts/build.mjs ventures`
+- `test:lead` — `node scripts/test_lead_delivery.mjs`
+- `validate` — `npm run build && npm run test:lead && npm run validate:forms && npm run validate:disclosure && npm run validate:ventures-isolation && npm run validate:community-site`
+- `validate:community-site` — `node scripts/validate_community_site.mjs`
+- `validate:disclosure` — `node scripts/validate_disclosure.mjs`
+- `validate:forms` — `node scripts/validate_forms.mjs`
+- `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
+
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
 - All three site projects (production): `RESEND_API_KEY` (vault `WP_FORMS_RESEND_API_KEY`), service
