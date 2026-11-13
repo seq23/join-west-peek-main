@@ -172,6 +172,16 @@ const codeIn = (mail) => (mail?.text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4
   const { cookie: oc } = await login(A_PW, env, OWNER_A);
   const { res: r3 } = await call('/dashboard', { cookie: oc, env: { ...env, PRODUCTIONS_DASHBOARD: fresh } });
   check('a session signed with another store\'s key is refused', r3.status === 401);
+  // Scooter is not signed out by the team sign-in's removal: a cookie signed the way the previous
+  // code signed it (no team password set) still opens. Built by hand from the old formula.
+  const enc = new TextEncoder();
+  const sessionKey = await env.PRODUCTIONS_DASHBOARD.get('session_key');
+  const raw = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`wpp-dashboard-v2||${sessionKey}`)));
+  const hk = await crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const payload = `owner~scooter~0~full.${Math.floor(Date.now() / 1000) + 3600}`;
+  const sigOld = Buffer.from(await crypto.subtle.sign('HMAC', hk, enc.encode(payload))).toString('base64url');
+  const kept = await call('/dashboard', { cookie: `wpp_dash=${payload}.${sigOld}`, env });
+  check('a session signed before the team sign-in was removed still opens', kept.res.status === 200 && kept.text.includes(FIN_MARK), String(kept.res.status));
 }
 // 7. The one-time password: emailed to that owner's own address only, used once, forces a password.
 {
