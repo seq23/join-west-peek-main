@@ -170,6 +170,51 @@ check('storeProblems refuses an unknown funnel stage', storeProblems({ team: { o
   check('no dashboard store file is committed to this public repo', hits.length === 0, hits.join(', '));
 }
 
+// 14. dashboard:store survives a passing Cloudflare 503 (13 Nov 2026: one 503 on GET
+//     pages/projects failed the first preview load) and still stops on a real refusal.
+{
+  const { createServer } = await import('node:http');
+  const { spawn } = await import('node:child_process');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { TEAM_LISTS, FINANCE_LISTS } = await import('../functions/_lib/productions-dashboard.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'wpp-store-'));
+  const file = join(dir, 'store.json');
+  writeFileSync(file, JSON.stringify({
+    team: Object.fromEntries(TEAM_LISTS.map((k) => [k, []])),
+    finance: Object.fromEntries(FINANCE_LISTS.map((k) => [k, []]))
+  }));
+  const run = async (failures) => {
+    const left = { ...failures };
+    const writes = [];
+    const server = createServer((req, res) => {
+      const key = `${req.method} ${req.url.split('?')[0].replace(/^\/accounts\/acct/, '')}`;
+      const send = (status, result) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: status < 400, result, errors: status < 400 ? [] : [{ code: status }] })); };
+      if (left[key]?.length) return send(left[key].shift(), null);
+      if (key === 'GET /storage/kv/namespaces') return send(200, [{ id: 'ns1', title: 'west-peek-productions-dashboard-preview' }]);
+      if (key === 'GET /pages/projects/west-peek-productions') return send(200, { deployment_configs: { preview: { kv_namespaces: { PRODUCTIONS_DASHBOARD: { namespace_id: 'ns1' } } } } });
+      if (key === 'PUT /storage/kv/namespaces/ns1/bulk') { writes.push(key); return send(200, null); }
+      return send(404, null);
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const out = await new Promise((r) => {
+      const p = spawn(process.execPath, ['scripts/dashboard_store.mjs', '--env', 'preview', '--file', file], {
+        env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_BASE: `http://127.0.0.1:${server.address().port}`, DASHBOARD_STORE_RETRY_MS: '1,1,1,1' }
+      });
+      let text = '';
+      p.stdout.on('data', (d) => { text += d; });
+      p.stderr.on('data', (d) => { text += d; });
+      p.on('close', (status) => r({ status, text }));
+    });
+    server.close();
+    return { ...out, writes };
+  };
+  const passing = await run({ 'GET /pages/projects/west-peek-productions': [503] });
+  check('dashboard:store retries a passing Cloudflare 503 and writes the store', passing.status === 0 && passing.writes.length === 1 && passing.text.includes('OUTPUT dashboard:store'), passing.text.trim());
+  const refused = await run({ 'GET /pages/projects/west-peek-productions': [403] });
+  check('dashboard:store stops on a refusal without writing', refused.status === 1 && refused.writes.length === 0, refused.text.trim());
+}
+
 if (cases === 0) { console.error('test_dashboard: NAMED STOP - zero cases ran'); process.exit(2); }
 if (failures.length) {
   console.error(`test_dashboard: ${failures.length} of ${cases} failed\n - ${failures.join('\n - ')}`);

@@ -44,10 +44,30 @@ const token = process.env.CLOUDFLARE_API_TOKEN;
 const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 if (!token || !account) stop(2, 'NAMED STOP dashboard:store: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are needed');
 
-const API = `https://api.cloudflare.com/client/v4/accounts/${account}`;
+// CLOUDFLARE_API_BASE exists only so scripts/test_dashboard.mjs can point this at a local fake.
+const API = `${process.env.CLOUDFLARE_API_BASE || 'https://api.cloudflare.com/client/v4'}/accounts/${account}`;
+// Cloudflare's API answers 429 and 5xx now and then (13 Nov 2026: one 503 on GET pages/projects
+// failed the first preview load). Those are retried with backoff; every call here is idempotent
+// (GETs, a PATCH to the same binding, a bulk PUT of the same three keys). The namespace POST is
+// guarded by the lookup before it; KV titles are unique, so a retried create that already
+// landed is refused, never duplicated, and the next run finds it.
+const TRANSIENT = (s) => s === 429 || s >= 500;
+const WAITS_MS = (process.env.DASHBOARD_STORE_RETRY_MS || '2000,5000,10000,20000').split(',').map(Number);
 async function cf(path, init = {}) {
-  const res = await fetch(`${API}${path}`, { ...init, headers: { authorization: `Bearer ${token}`, ...(init.body && typeof init.body === 'string' ? { 'content-type': 'application/json' } : {}), ...init.headers } });
-  const body = await res.json().catch(() => ({}));
+  let res;
+  let body;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(`${API}${path}`, { ...init, headers: { authorization: `Bearer ${token}`, ...(init.body && typeof init.body === 'string' ? { 'content-type': 'application/json' } : {}), ...init.headers } });
+      body = await res.json().catch(() => ({}));
+    } catch (e) {
+      res = { ok: false, status: 0 };
+      body = { errors: [{ code: e.code || 'network' }] };
+    }
+    if (!(TRANSIENT(res.status) || res.status === 0) || attempt >= WAITS_MS.length) break;
+    console.error(`dashboard:store: Cloudflare ${init.method || 'GET'} ${path.split('?')[0]} answered ${res.status}; retry ${attempt + 1}/${WAITS_MS.length}`);
+    await new Promise((r) => setTimeout(r, WAITS_MS[attempt]));
+  }
   if (!res.ok || body.success === false) {
     stop(1, `dashboard:store: Cloudflare ${init.method || 'GET'} ${path.split('?')[0]} answered ${res.status} ${(body.errors || []).map((e) => e.code).join(',')}`);
   }

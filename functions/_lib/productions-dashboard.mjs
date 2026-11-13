@@ -43,8 +43,8 @@ export const FUNNEL_STAGES = [
 
 /* ------------------------------------------------------------------ store shape */
 
-const TEAM_LISTS = ['projects', 'waiting_on_client', 'proposals_out', 'agent_drafts', 'agent_log', 'opportunities', 'cold_email_log'];
-const FINANCE_LISTS = ['targets', 'revenue_model', 'pipeline_values', 'invoices', 'expected_receipts', 'vendor_obligations', 'project_margin', 'cash_weeks'];
+export const TEAM_LISTS = ['projects', 'waiting_on_client', 'proposals_out', 'agent_drafts', 'agent_log', 'opportunities', 'cold_email_log'];
+export const FINANCE_LISTS = ['targets', 'revenue_model', 'pipeline_values', 'invoices', 'expected_receipts', 'vendor_obligations', 'project_margin', 'cash_weeks'];
 
 /** Returns a list of problems; [] means the document can be stored. Shared with dashboard:store. */
 export function storeProblems(doc) {
