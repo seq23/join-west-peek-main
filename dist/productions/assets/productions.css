@@ -60,8 +60,9 @@ h1, h2, h3 { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margi
   .wpp-brand span { font-size: 14px; }
   .wpp-nav { order: 3; width: 100%; margin: 0 calc(var(--gutter) * -1); padding: 0 var(--gutter) 2px; overflow-x: auto; scrollbar-width: none; gap: 2px; }
   .wpp-nav::-webkit-scrollbar { display: none; }
-  .wpp-nav a { padding: 7px 10px; font-size: 14px; white-space: nowrap; }
-  .wpp-nav .wpp-nav__cta { margin-left: auto; }
+  .wpp-nav a { padding: 7px 8px; font-size: 14px; white-space: nowrap; flex: 0 0 auto; }
+  .wpp-nav .wpp-nav__cta { margin-left: auto; padding: 7px 14px; }
+  .wpp-nav::after { content: ""; flex: 0 0 var(--gutter); }
 }
 
 /* ------------------------------------------------------------ Buttons and type helpers */
@@ -90,7 +91,7 @@ h1, h2, h3 { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margi
 .wpp-hero::before { content: ""; position: absolute; right: -18vw; top: -22vw; width: 62vw; height: 62vw; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 133, 0, .20), rgba(255, 133, 0, 0)); pointer-events: none; }
 .wpp-hero h1 { font-size: clamp(56px, 11vw, 148px); line-height: .92; letter-spacing: -0.045em; margin-bottom: 28px; max-width: 11ch; }
 .wpp-hero h1 .wpp-o { display: inline-block; }
-.wpp-hero__sub { font-size: clamp(24px, 3.2vw, 38px); font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; margin: 0 0 22px; max-width: 24ch; }
+.wpp-hero__sub { font-size: clamp(24px, 3.2vw, 38px); font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; margin: 0 0 22px; max-width: 32ch; }
 .wpp-hero__actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 36px; }
 
 /* The gap: the work vs. how it is told. */
