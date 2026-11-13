@@ -8,10 +8,11 @@
  * never committed. The script:
  *   1. checks the file's shape with storeProblems() (the same rules the dashboard reads by);
  *   2. finds or creates the KV namespace "west-peek-productions-dashboard-<env>";
- *   3. makes sure the west-peek-productions Pages project binds it as PRODUCTIONS_DASHBOARD for that
- *      environment (takes effect on the next deployment of that environment);
- *   4. writes three keys: team, finance, meta. Finance is its own key so a team session never
- *      reads it.
+ *   3. writes three keys: team, finance, meta. Finance is its own key so a team session never
+ *      reads it;
+ *   4. makes sure the west-peek-productions Pages project binds it as PRODUCTIONS_DASHBOARD for that
+ *      environment (takes effect on the next deployment of that environment). Writing comes first so
+ *      a Pages API outage cannot cost the load; a failure here says the figures are already in.
  * It prints counts only, never a value. Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
  * (the firm's, injected by the runner); without them it is a NAMED STOP, exit 2.
  */
@@ -52,8 +53,10 @@ const API = `${process.env.CLOUDFLARE_API_BASE || 'https://api.cloudflare.com/cl
 // guarded by the lookup before it; KV titles are unique, so a retried create that already
 // landed is refused, never duplicated, and the next run finds it.
 const TRANSIENT = (s) => s === 429 || s >= 500;
-const WAITS_MS = (process.env.DASHBOARD_STORE_RETRY_MS || '2000,5000,10000,20000').split(',').map(Number);
-async function cf(path, init = {}) {
+// A second preview load (13 Nov 2026) met a Cloudflare "Workers API availability" incident: the
+// Pages project endpoint answered 503 for the whole 37-second window, so the window is now ~4 minutes.
+const WAITS_MS = (process.env.DASHBOARD_STORE_RETRY_MS || '2000,5000,10000,20000,40000,60000,90000').split(',').map(Number);
+async function cf(path, init = {}, onFail) {
   let res;
   let body;
   for (let attempt = 0; ; attempt++) {
@@ -69,6 +72,7 @@ async function cf(path, init = {}) {
     await new Promise((r) => setTimeout(r, WAITS_MS[attempt]));
   }
   if (!res.ok || body.success === false) {
+    if (onFail) onFail(res.status);
     stop(1, `dashboard:store: Cloudflare ${init.method || 'GET'} ${path.split('?')[0]} answered ${res.status} ${(body.errors || []).map((e) => e.code).join(',')}`);
   }
   return body.result;
@@ -80,17 +84,6 @@ const namespaces = await cf('/storage/kv/namespaces?per_page=100');
 let ns = namespaces.find((n) => n.title === title);
 if (!ns) { ns = await cf('/storage/kv/namespaces', { method: 'POST', body: JSON.stringify({ title }) }); nsState = 'created'; }
 
-const project = await cf(`/pages/projects/${PROJECT}`);
-const bound = project?.deployment_configs?.[env]?.kv_namespaces?.[BINDING]?.namespace_id;
-let bindingState = 'present';
-if (bound !== ns.id) {
-  await cf(`/pages/projects/${PROJECT}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ deployment_configs: { [env]: { kv_namespaces: { [BINDING]: { namespace_id: ns.id } } } } })
-  });
-  bindingState = bound ? 'replaced' : 'added';
-}
-
 const meta = { updated_at: doc.updated_at || new Date().toISOString(), loaded_at: new Date().toISOString() };
 await cf(`/storage/kv/namespaces/${ns.id}/bulk`, {
   method: 'PUT',
@@ -100,6 +93,20 @@ await cf(`/storage/kv/namespaces/${ns.id}/bulk`, {
     { key: 'meta', value: JSON.stringify(meta) }
   ])
 });
+
+// The figures are in the store now. Binding it to the Pages project is the second step; when only
+// that step fails, say exactly that, so a re-run is known to be safe and the data is not re-guessed.
+const bindingFailed = (status) => console.error(`dashboard:store: the figures ARE loaded into ${title} (3 keys); binding it to ${PROJECT} as ${BINDING} did not finish (Cloudflare answered ${status}). Re-run the same command: every step is safe to repeat.`);
+const project = await cf(`/pages/projects/${PROJECT}`, {}, bindingFailed);
+const bound = project?.deployment_configs?.[env]?.kv_namespaces?.[BINDING]?.namespace_id;
+let bindingState = 'present';
+if (bound !== ns.id) {
+  await cf(`/pages/projects/${PROJECT}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deployment_configs: { [env]: { kv_namespaces: { [BINDING]: { namespace_id: ns.id } } } } })
+  }, bindingFailed);
+  bindingState = bound ? 'replaced' : 'added';
+}
 
 const rows = (part) => Object.values(doc[part]).filter(Array.isArray).reduce((a, l) => a + l.length, 0);
 console.log(`OUTPUT dashboard:store env=${env} namespace=${nsState} binding=${bindingState} keys=3 team_rows=${rows('team')} finance_rows=${rows('finance')}${bindingState === 'present' ? '' : ' (binding takes effect on the next deployment)'}`);

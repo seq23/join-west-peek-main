@@ -184,7 +184,7 @@ check('storeProblems refuses an unknown funnel stage', storeProblems({ team: { o
     team: Object.fromEntries(TEAM_LISTS.map((k) => [k, []])),
     finance: Object.fromEntries(FINANCE_LISTS.map((k) => [k, []]))
   }));
-  const run = async (failures) => {
+  const run = async (failures, opts = {}) => {
     const left = { ...failures };
     const writes = [];
     const server = createServer((req, res) => {
@@ -192,6 +192,8 @@ check('storeProblems refuses an unknown funnel stage', storeProblems({ team: { o
       const send = (status, result) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: status < 400, result, errors: status < 400 ? [] : [{ code: status }] })); };
       if (left[key]?.length) return send(left[key].shift(), null);
       if (key === 'GET /storage/kv/namespaces') return send(200, [{ id: 'ns1', title: 'west-peek-productions-dashboard-preview' }]);
+      if (key === 'GET /pages/projects/west-peek-productions' && opts.unbound) return send(200, { deployment_configs: { preview: {} } });
+      if (key === 'PATCH /pages/projects/west-peek-productions') { writes.push(key); return send(200, {}); }
       if (key === 'GET /pages/projects/west-peek-productions') return send(200, { deployment_configs: { preview: { kv_namespaces: { PRODUCTIONS_DASHBOARD: { namespace_id: 'ns1' } } } } });
       if (key === 'PUT /storage/kv/namespaces/ns1/bulk') { writes.push(key); return send(200, null); }
       return send(404, null);
@@ -211,8 +213,12 @@ check('storeProblems refuses an unknown funnel stage', storeProblems({ team: { o
   };
   const passing = await run({ 'GET /pages/projects/west-peek-productions': [503] });
   check('dashboard:store retries a passing Cloudflare 503 and writes the store', passing.status === 0 && passing.writes.length === 1 && passing.text.includes('OUTPUT dashboard:store'), passing.text.trim());
-  const refused = await run({ 'GET /pages/projects/west-peek-productions': [403] });
-  check('dashboard:store stops on a refusal without writing', refused.status === 1 && refused.writes.length === 0, refused.text.trim());
+  const refused = await run({ 'GET /storage/kv/namespaces': [403] });
+  check('dashboard:store stops on a refusal without writing', refused.status === 1 && refused.writes.length === 0 && !refused.text.includes('OUTPUT'), refused.text.trim());
+  const outage = await run({ 'GET /pages/projects/west-peek-productions': [503, 503, 503, 503, 503] });
+  check('dashboard:store loads the figures before a lasting Pages outage and says only the binding is left', outage.status === 1 && outage.writes.length === 1 && outage.text.includes('figures ARE loaded') && !outage.text.includes('OUTPUT'), outage.text.trim());
+  const unbound = await run({}, { unbound: true });
+  check('dashboard:store writes the figures and then adds a missing binding', unbound.status === 0 && unbound.writes.join() === 'PUT /storage/kv/namespaces/ns1/bulk,PATCH /pages/projects/west-peek-productions' && unbound.text.includes('binding=added'), unbound.text.trim());
 }
 
 if (cases === 0) { console.error('test_dashboard: NAMED STOP - zero cases ran'); process.exit(2); }
