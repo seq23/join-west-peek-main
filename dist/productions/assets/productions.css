@@ -84,6 +84,7 @@ h1, h2, h3 { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margi
 .wpp-section--paper .wpp-eyebrow { color: #b45300; }
 .wpp-section--paper .wpp-eyebrow::before { background: #b45300; }
 .wpp-section h2 { font-size: clamp(34px, 5vw, 60px); }
+h2.wpp-eyebrow, .wpp-section h2.wpp-eyebrow { font-size: 13px; line-height: 1.6; letter-spacing: .14em; }
 .wpp-head { max-width: 820px; margin-bottom: clamp(36px, 5vw, 60px); }
 
 /* ------------------------------------------------------------ Home hero */
@@ -188,7 +189,7 @@ h1, h2, h3 { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margi
 .wpp-founder__caption { margin-top: 14px; font-size: 15px; color: var(--muted); }
 .wpp-founder__caption strong { display: block; color: var(--white); font-size: 18px; }
 .wpp-founder__copy p { font-size: 19px; line-height: 1.65; color: var(--copy); }
-.wpp-founder__copy p:first-child { font-size: clamp(22px, 2.4vw, 28px); line-height: 1.4; color: var(--white); font-weight: 500; }
+.wpp-founder__copy h2 + p { font-size: clamp(22px, 2.4vw, 28px); line-height: 1.4; color: var(--white); font-weight: 500; }
 @media (max-width: 820px) { .wpp-founder { grid-template-columns: 1fr; } .wpp-founder__photo { max-width: 360px; } }
 
 .wpp-principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
