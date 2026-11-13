@@ -204,15 +204,18 @@ check('storeProblems refuses an unknown funnel stage', storeProblems({ team: { o
         env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_BASE: `http://127.0.0.1:${server.address().port}`, DASHBOARD_STORE_RETRY_MS: '1,1,1,1' }
       });
       let text = '';
+      let err = '';
       p.stdout.on('data', (d) => { text += d; });
-      p.stderr.on('data', (d) => { text += d; });
-      p.on('close', (status) => r({ status, text }));
+      p.stderr.on('data', (d) => { text += d; err += d; });
+      p.on('close', (status) => r({ status, text, err }));
     });
     server.close();
     return { ...out, writes };
   };
   const passing = await run({ 'GET /pages/projects/west-peek-productions': [503] });
   check('dashboard:store retries a passing Cloudflare 503 and writes the store', passing.status === 0 && passing.writes.length === 1 && passing.text.includes('OUTPUT dashboard:store'), passing.text.trim());
+  const lastErr = passing.err.trim().split('\n').pop();
+  check('dashboard:store ends stderr with the OUTPUT line after retries, so a one-line record reads as success', lastErr.startsWith('OUTPUT dashboard:store') && passing.err.includes('retry 1/'), lastErr);
   const refused = await run({ 'GET /storage/kv/namespaces': [403] });
   check('dashboard:store stops on a refusal without writing', refused.status === 1 && refused.writes.length === 0 && !refused.text.includes('OUTPUT'), refused.text.trim());
   const outage = await run({ 'GET /pages/projects/west-peek-productions': [503, 503, 503, 503, 503] });

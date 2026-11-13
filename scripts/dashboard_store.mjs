@@ -109,4 +109,9 @@ if (bound !== ns.id) {
 }
 
 const rows = (part) => Object.values(doc[part]).filter(Array.isArray).reduce((a, l) => a + l.length, 0);
-console.log(`OUTPUT dashboard:store env=${env} namespace=${nsState} binding=${bindingState} keys=3 team_rows=${rows('team')} finance_rows=${rows('finance')}${bindingState === 'present' ? '' : ' (binding takes effect on the next deployment)'}`);
+const done = `OUTPUT dashboard:store env=${env} namespace=${nsState} binding=${bindingState} keys=3 team_rows=${rows('team')} finance_rows=${rows('finance')}${bindingState === 'present' ? '' : ' (binding takes effect on the next deployment)'}`;
+// The success line ends BOTH streams. The job runner records one line per run; on 13 Nov 2026 a
+// successful preview load (exit 0) was recorded as its last retry line ("answered 503; retry 5/7"),
+// which read as a failure. Retry lines go to stderr, so the OUTPUT line must close stderr too.
+console.log(done);
+console.error(done);
