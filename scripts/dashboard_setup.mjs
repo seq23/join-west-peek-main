@@ -19,7 +19,8 @@
  * Two steps make the environment work the moment setup ends (review, 14 Nov 2026: production would
  * otherwise answer "not set up" until some unrelated push, with nobody able to sign in):
  *   3b. production with no owner row: copies Scooter's owner record (address, name, password hash;
- *       never sessions or codes) from the preview database, where he already exists. None there →
+ *       never sessions or codes) from the preview database, or, before his first preview sign-in,
+ *       from the pre-v1.0 KV `owners` record bound to preview. None in either →
  *       NAMED STOP owner_missing, exit 2: run dashboard:owners --env production --file <owners JSON>.
  *   3c. when a binding or the key changed (or with --redeploy): waits for that environment's newest
  *       deployment to finish, then redeploys that same commit so it carries them, and waits for it.
@@ -113,13 +114,26 @@ if (env === 'production') {
   if (!have) {
     const pvName = `${PROJECT}-dashboard-preview`;
     const pv = (await cf(`/d1/database?name=${encodeURIComponent(pvName)}`) || []).find((d) => d.name === pvName);
-    const rows = pv ? ((await cf(`/d1/database/${pv.uuid}/query`, { method: 'POST', body: JSON.stringify({ sql: 'SELECT id, name, email, pw FROM owner', params: [] }) }, { soft: true })) || [])?.[0]?.results || [] : [];
+    let rows = pv ? ((await cf(`/d1/database/${pv.uuid}/query`, { method: 'POST', body: JSON.stringify({ sql: 'SELECT id, name, email, pw FROM owner', params: [] }) }, { soft: true })) || [])?.[0]?.results || [] : [];
+    let from = 'preview';
+    // The preview database copies his pre-v1.0 KV record only on its first sign-in; until then the
+    // KV `owners` record bound to preview (the same source the site imports from) is read instead.
+    const ns = project?.deployment_configs?.preview?.kv_namespaces?.PRODUCTIONS_DASHBOARD?.namespace_id;
+    if (!rows.some((x) => OWNER_IDS.includes(x.id)) && ns) {
+      let kv = null;
+      try {
+        const r = await fetch(`${API}/storage/kv/namespaces/${ns}/values/owners`, { headers: { authorization: `Bearer ${token}` } });
+        kv = r.ok ? JSON.parse(await r.text()) : null;
+      } catch { kv = null; }
+      rows = Object.entries(kv || {}).map(([id, o]) => ({ id, name: o?.name, email: o?.email, pw: o?.pw ? JSON.stringify(o.pw) : null }));
+      from = 'preview_kv';
+    }
     let copied = 0;
     for (const r of rows.filter((x) => OWNER_IDS.includes(x.id) && /@/.test(String(x.email || '')))) {
       await query('INSERT OR IGNORE INTO owner (id, name, email, pw, gen, updated_at) VALUES (?,?,?,?,0,?)', [r.id, r.name || null, r.email, r.pw || null, Date.now()]);
       copied += 1;
     }
-    ownerState = copied ? `copied_from_preview(${copied})` : 'missing';
+    ownerState = copied ? `copied_from_${from}(${copied})` : 'missing';
   }
   done.push(`owner ${ownerState}`);
 }

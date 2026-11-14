@@ -447,7 +447,8 @@ const realFetch = globalThis.fetch;
     }
     if (u.pathname.endsWith('/db-prod/query')) return q(prod);
     if (u.pathname.endsWith('/db-pv/query')) return q(pv);
-    if (u.pathname.endsWith('/pages/projects/west-peek-productions') && req.method === 'GET') return send(200, { success: true, result: { deployment_configs: { production: {} } } });
+    if (u.pathname.endsWith('/pages/projects/west-peek-productions') && req.method === 'GET') return send(200, { success: true, result: { deployment_configs: { production: {}, preview: { kv_namespaces: { PRODUCTIONS_DASHBOARD: { namespace_id: 'ns-pv' } } } } } });
+    if (u.pathname.endsWith('/storage/kv/namespaces/ns-pv/values/owners')) { res.writeHead(200); return res.end(JSON.stringify({ scooter: { name: 'Owner', email: 'kv-owner@example.test', pw: { h: 'kv' }, otp: { code: 'never-copied' } }, intruder: { email: 'x@example.test' } })); }
     if (u.pathname.endsWith('/pages/projects/west-peek-productions') && req.method === 'PATCH') { calls.patch += 1; return send(200, { success: true, result: {} }); }
     if (u.pathname.endsWith('/deployments') && u.searchParams.get('env') === 'production') {
       calls.polls += 1; // the merge's own deployment is still building on the first look
@@ -460,16 +461,23 @@ const realFetch = globalThis.fetch;
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const { spawn } = await import('node:child_process');
-  const out = await new Promise((resolveRun) => {
+  const runProd = () => new Promise((resolveRun) => {
     const p = spawn(process.execPath, ['scripts/dashboard_setup.mjs', '--env', 'production'], { env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'a', CLOUDFLARE_API_BASE: base, DASHBOARD_SETUP_FAST: '1' } });
     let o = ''; p.stdout.on('data', (d) => { o += d; }); p.on('close', () => resolveRun(o));
   });
-  server.close();
+  const out = await runProd();
   const rows = (await prod.prepare('SELECT id, email, pw FROM owner').all()).results || [];
   check('dashboard:setup production binds the database and the key', calls.patch === 1, out.trim());
   check('…waits for the building deployment, then redeploys that same commit', calls.retried.join(',') === 'merge-commit-deploy' && calls.polls >= 2 && /redeploy done\(fresh-de\)/.test(out), out.trim());
   check('…copies only the owner on the owners list from preview, with his password', rows.length === 1 && rows[0].id === 'scooter' && rows[0].email === 'owner@example.test' && rows[0].pw === '{"h":"x"}' && /owner copied_from_preview\(1\)/.test(out), JSON.stringify(rows.map((r) => r.id)));
   check('…and never prints the owner address', !/owner@example\.test/.test(out));
+  // Before his first preview sign-in the preview database is empty: the KV record bound to preview is read.
+  await prod.prepare('DELETE FROM owner').run();
+  await pv.prepare('DELETE FROM owner').run();
+  const kvOut = await runProd();
+  server.close();
+  const kvRows = (await prod.prepare('SELECT id, email, pw, otp FROM owner').all()).results || [];
+  check('…falls back to the preview KV owner record, owners list only, never its one-time code', kvRows.length === 1 && kvRows[0].email === 'kv-owner@example.test' && kvRows[0].pw === '{"h":"kv"}' && !kvRows[0].otp && /owner copied_from_preview_kv\(1\)/.test(kvOut), kvOut.trim());
 }
 
 if (failures.length) {
