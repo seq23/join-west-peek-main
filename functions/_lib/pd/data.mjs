@@ -17,8 +17,8 @@
  * A SAMPLE session (preview only) reads and writes the `sample_sheet` table instead: synthetic rows,
  * no real names, the same write-then-re-read path. It never touches a connection.
  */
-import { dbOf, ensureSchema } from './schema.mjs';
-import { accessToken, connectionRow, docusignHost, markConnection } from './providers.mjs';
+import { BACKUP_TABLES, dbOf, ensureSchema } from './schema.mjs';
+import { accessToken, connectionRow, docusignHost, markConnection, wideGoogleScopes } from './providers.mjs';
 import { daysSince, isoDay, num, toTime } from './core.mjs';
 
 export const FUNNEL_STAGES = [
@@ -34,14 +34,21 @@ export const STALE_MS = 2 * 3600000;
 export const GROUPS = {
   work: { label: 'Work sheet', makeTitle: 'West Peek Productions · Dashboard · Work' },
   money: { label: 'Money sheet (Scooter only)', makeTitle: 'West Peek Productions · Dashboard · Money (Scooter only)' },
+  tracker: { label: 'Your deal tracker', makeTitle: null },
   inquiries: { label: 'Inquiry form responses', makeTitle: null }
 };
+/** The group a kind is read from now: his own deal tracker, once named, wins over the Work sheet's Deals tab. */
+export const groupFor = (kind, sources = {}) => (KINDS[kind].altGroup && sources[KINDS[kind].altGroup] ? KINDS[kind].altGroup : KINDS[kind].group);
 
 const ID = ['ID', 'Row ID'];
 export const KINDS = {
   projects: { group: 'work', tabs: ['Projects', 'Project register'], cols: { id: [...ID, 'Project ID'], name: ['Project', 'Name'], client: ['Client', 'Organization'], status: ['Status', 'Where it is'], milestone: ['Next milestone', 'Milestone'], milestone_date: ['Milestone date', 'Due', 'When'], lead: ['Lead'], binder: ['Binder', 'Binder link'], folder: ['Drive folder', 'Folder'], contacts: ['Contacts'], approvers: ['Approval owners', 'Approvers'], sow_envelope: ['SOW envelope', 'DocuSign envelope', 'Envelope ID'], deliverables: ['Deliverables'], email: ['Client email', 'Contact email'] } },
   waiting: { group: 'work', tabs: ['Waiting on client', 'Waiting'], cols: { id: ID, project: ['Project ID', 'Project'], item: ['Waiting for', 'Item'], since: ['Since', 'Asked on'], owner: ['Who chases', 'Owner'], status: ['Status'], received: ['Received on'], email: ['Contact email', 'Email'] } },
-  deals: { group: 'work', tabs: ['Deals', 'CRM', 'Pipeline'], cols: { id: ID, org: ['Organization', 'Client'], stage: ['Stage'], owner: ['Owner'], next_action: ['Next action'], next_date: ['Next date', 'Date'], proposal_sent: ['Proposal sent'], follow_up: ['Follow up', 'Follow-up', 'Follow up on'], email: ['Contact email', 'Email'] } },
+  // His existing tracker is read as it is laid out (Scooter, 14 Nov 2026: "make it read and update
+  // that tracker without creating a second pipeline or changing the original records"): the tab is
+  // found by its columns, the header row may sit below a title, and a tracker with no ID column is
+  // keyed by its organization name (`keyFrom`), so no column is ever added to his sheet.
+  deals: { group: 'work', altGroup: 'tracker', keyFrom: 'org', layout: ['org', 'stage'], tabs: ['Deals', 'CRM', 'Pipeline', 'Deal tracker', 'Sales tracker', 'Sales pipeline', 'Tracker', 'Leads', 'Prospects', 'Opportunities'], cols: { id: ID, org: ['Organization', 'Organisation', 'Organization name', 'Company', 'Company name', 'Client', 'Client name', 'Account', 'Prospect', 'Org'], stage: ['Stage', 'Pipeline stage', 'Deal stage', 'Funnel stage', 'Sales stage', 'Status', 'Step'], owner: ['Owner', 'Deal owner', 'Assigned to', 'Rep', 'Who'], contact: ['Contact', 'Contact name', 'Primary contact', 'Decision maker'], next_action: ['Next action', 'Next step', 'Next steps', 'Action'], next_date: ['Next date', 'Next action date', 'Next step date', 'Due', 'Due date', 'Date'], proposal_sent: ['Proposal sent', 'Proposal date', 'Proposal sent on'], follow_up: ['Follow up', 'Follow-up', 'Follow up on', 'Follow-up date', 'Follow up date'], value: ['Value', 'Deal value', 'Estimated value', 'Est. value', 'Budget'], source: ['Source', 'Lead source', 'How they heard', 'Referral'], last_contact: ['Last contact', 'Last touch', 'Last contacted'], notes: ['Notes', 'Note', 'Comments'], email: ['Contact email', 'Email', 'Email address'] } },
   drafts: { group: 'work', tabs: ['Agent drafts', 'Drafts'], cols: { id: ID, project: ['Project'], document: ['Document', 'Draft'], link: ['Link'], agent: ['Agent'], drafted: ['Drafted', 'Date'], status: ['Status'] } },
   activity: { group: 'work', tabs: ['Agent activity', 'Agent log', 'Activity'], idless: true, cols: { at: ['When', 'Date', 'Timestamp'], agent: ['Agent'], project: ['Project'], document: ['Document'], action: ['Action', 'Did'], approver: ['Approver', 'Approved by'] } },
   cold: { group: 'work', tabs: ['Cold email log'], idless: true, cols: { date: ['Date'], org: ['Organization'], recipient: ['Recipient', 'To'], subject: ['Subject'], status: ['Status'], replies: ['Replies'] } },
@@ -72,29 +79,62 @@ export const TEMPLATE_HEADERS = {
 const norm = (s) => String(s || '').toLowerCase().replace(/^finance\s*[-:·]?\s*/, '').replace(/[^a-z0-9]/g, '');
 export const spreadsheetIdFrom = (link) => (String(link || '').match(/\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/) || String(link || '').match(/^([A-Za-z0-9_-]{30,})$/) || [])[1] || '';
 
-/** Rows from a values grid (row 1 = headers). Each row: { ...keys, _row, _id }. */
+/** One organization, one key: "The Sample Org, Inc." and "sample org" are the same record. */
+export function orgKey(name) {
+  return String(name || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
+    .replace(/^the /, '').replace(/ (inc|llc|ltd|co|corp|corporation|company|pbc)$/, '').trim().replace(/ /g, '-').slice(0, 100);
+}
+
+/** Which of this kind's columns a header line names: exact names first, then a header that starts with one. */
+function headerIndex(def, line) {
+  const head = (line || []).map(norm);
+  const idx = {};
+  const used = new Set();
+  for (const pass of ['exact', 'prefix']) {
+    for (const [key, names] of Object.entries(def.cols)) {
+      if (idx[key] !== undefined) continue;
+      const want = names.map(norm);
+      const i = head.findIndex((h, j) => h && !used.has(j) && (pass === 'exact' ? want.includes(h) : want.some((w) => w.length >= 5 && h.startsWith(w))));
+      if (i > -1) { idx[key] = i; used.add(i); }
+    }
+  }
+  return idx;
+}
+const HEADER_SCAN = 10;
+
+/**
+ * Rows from a values grid. The header row is whichever of the top ten names the most of this kind's
+ * columns (a tracker often has a title line above it). Each row: { ...keys, _row (the sheet's own
+ * row number), _id }. A kind with `keyFrom` and no ID in the row is keyed by that column's value.
+ */
 export function parseGrid(kind, grid) {
   const def = KINDS[kind];
-  const head = (grid[0] || []).map(norm);
-  const idx = {};
-  for (const [key, names] of Object.entries(def.cols)) {
-    const i = head.findIndex((h) => names.map(norm).includes(h));
-    if (i > -1) idx[key] = i;
+  let headerRow = 0;
+  let idx = headerIndex(def, grid[0]);
+  for (let r = 1; r < Math.min(grid.length, HEADER_SCAN); r += 1) {
+    const t = headerIndex(def, grid[r]);
+    if (Object.keys(t).length > Object.keys(idx).length) { headerRow = r; idx = t; }
   }
   const rows = [];
   const seen = new Set();
-  for (let r = 1; r < grid.length; r += 1) {
+  for (let r = headerRow + 1; r < grid.length; r += 1) {
     const line = grid[r] || [];
     if (!line.some((v) => String(v ?? '').trim())) continue;
     const row = { _row: r + 1 };
     for (const [key, i] of Object.entries(idx)) row[key] = String(line[i] ?? '').trim();
-    const id = def.idless ? `r${r + 1}` : row.id;
+    let id = def.idless ? `r${r + 1}` : row.id;
+    if (!id && def.keyFrom && orgKey(row[def.keyFrom])) {
+      const base = `k:${orgKey(row[def.keyFrom])}`;
+      id = base;
+      for (let n = 2; seen.has(id); n += 1) id = `${base}~${n}`;
+    }
     if (!id || seen.has(id)) continue;
     seen.add(id);
     row._id = id;
     rows.push(row);
   }
-  return { rows, idx, missingId: !def.idless && idx.id === undefined };
+  const recognised = !def.layout || def.layout.every((k) => idx[k] !== undefined);
+  return { rows, idx, headerRow, headers: (grid[headerRow] || []).map((h) => String(h ?? '').trim()), recognised, missingId: !def.idless && !def.keyFrom && idx.id === undefined };
 }
 
 /* ------------------------------------------------------------------ Google Sheets */
@@ -125,6 +165,59 @@ function findTab(kind, tabs) {
   return tabs.find((t) => want.includes(norm(t))) || null;
 }
 
+/**
+ * The tab a kind reads. For deals the tab must carry an organization and a stage column, wherever
+ * it sits: a named tab first, then every other tab of that spreadsheet not claimed by another kind
+ * (so a Projects tab with Client and Status is never read as deals). A recognised tab with rows wins
+ * over an empty one (an empty Deals tab made by "Create it for me" never hides his real tracker).
+ */
+async function pickTab(env, kind, spreadsheetId, tabs, siblings) {
+  const named = findTab(kind, tabs);
+  if (!KINDS[kind].layout) return named ? { tab: named, parsed: parseGrid(kind, await readTab(env, spreadsheetId, named)) } : null;
+  const claimed = new Set(siblings.filter((k) => k !== kind).flatMap((k) => (KINDS[k].tabs || []).map(norm)));
+  const order = [...(named ? [named] : []), ...tabs.filter((t) => t !== named && !claimed.has(norm(t)))].slice(0, 12);
+  let empty = null;
+  let fallback = null;
+  let first = null;
+  for (const tab of order) {
+    const parsed = parseGrid(kind, await readTab(env, spreadsheetId, tab));
+    if (parsed.recognised && parsed.rows.length) return { tab, parsed };
+    if (parsed.recognised && !empty) empty = { tab, parsed };
+    if (tab === named) fallback = { tab, parsed };
+    if (!first && parsed.headers.some(Boolean)) first = parsed;
+  }
+  // Nothing recognised: no tab is read, but the columns seen are kept so the Deals page can name them.
+  return empty || fallback || { tab: null, parsed: first, looked: order };
+}
+
+/** The stage dropdown on his tracker's Stage column, when it has one (his own words, his order). */
+async function stageListFromSheet(env, spreadsheetId, tab, col, headerRow) {
+  try {
+    const range = `${q(tab)}!${colLetter(col)}${headerRow + 2}:${colLetter(col)}${headerRow + 40}`;
+    const r = await gfetch(env, `${SHEETS}/${spreadsheetId}?ranges=${encodeURIComponent(range)}&fields=sheets.data.rowData.values.dataValidation`);
+    for (const row of r.sheets?.[0]?.data?.[0]?.rowData || []) {
+      for (const v of row.values || []) {
+        const c = v.dataValidation?.condition;
+        if (c?.type === 'ONE_OF_LIST') { const list = (c.values || []).map((x) => String(x.userEnteredValue || '').trim()).filter(Boolean); if (list.length >= 2) return list; }
+      }
+    }
+  } catch { /* no dropdown read: the stages come from the rows */ }
+  return null;
+}
+
+/**
+ * The stages a deal can be moved to, in order: his Stage column's dropdown when it has one; the ten
+ * funnel stages when every stage his rows use is one of them; otherwise his own stage words, in the
+ * order they first appear. `ordered` says whether "next stage" means anything.
+ */
+export function stageOptions(deals, listed = null) {
+  if (listed?.length >= 2) return { stages: listed, ordered: true };
+  const seen = [...new Set(deals.map((d) => String(d.stage || '').trim()).filter(Boolean))];
+  const funnel = FUNNEL_STAGES.map((x) => x.toLowerCase());
+  if (seen.every((x) => funnel.includes(x.toLowerCase()))) return { stages: FUNNEL_STAGES, ordered: true };
+  return { stages: seen, ordered: false };
+}
+
 /* ------------------------------------------------------------------ sample rows (preview only) */
 
 const DAY = 86400000;
@@ -145,7 +238,8 @@ export function sampleRows(now = Date.now()) {
     deals: [
       { id: 'SD1', org: 'Sample Org D', stage: 'Discovery', owner: 'Sample Lead', next_action: 'Sample follow-up call', next_date: d(3), proposal_sent: '', follow_up: '', email: '' },
       { id: 'SD2', org: 'Sample Org E', stage: 'Proposal', owner: 'Sample Lead', next_action: 'Sample proposal follow-up', next_date: d(-1), proposal_sent: d(-10), follow_up: d(-1), email: 'sample-e@example.test' },
-      { id: 'SD3', org: 'Sample Org F', stage: 'Relationship identified', owner: 'Sample Lead', next_action: 'Sample intro', next_date: d(7), proposal_sent: '', follow_up: '', email: '' }
+      { id: 'SD3', org: 'Sample Org F', stage: 'Relationship identified', owner: 'Sample Lead', next_action: 'Sample intro', next_date: d(7), proposal_sent: '', follow_up: '', email: '' },
+      { id: 'SD4', org: 'Sample Org A', stage: 'Delivery handoff', owner: 'Sample Lead', next_action: 'Sample wrap call', next_date: d(12), proposal_sent: d(-50), follow_up: '', email: 'sample-a@example.test' }
     ],
     drafts: [
       { id: 'SA1', project: 'SP1', document: 'Sample client update draft', link: 'https://docs.google.com/document/d/sample-draft-one', agent: 'Sample client-update assistant', drafted: d(-1), status: 'Waiting' }
@@ -176,16 +270,24 @@ export function sampleRows(now = Date.now()) {
       { id: 'r3', measure: 'Invoiced', actual: '8500', target: '60000' },
       { id: 'r4', measure: 'Collected', actual: '4300', target: '60000' }
     ],
-    inquiries: [{ id: 'r2', at: d(-1), name: 'Sample Person', org: 'Sample Org G', email: 'sample-g@example.test', initiative: 'Sample annual gathering' }]
+    inquiries: [
+      { id: 'r2', at: d(-60), name: 'Sample Person A', org: 'Sample Org A', email: 'sample-a@example.test', initiative: 'Sample donor film' },
+      { id: 'r3', at: d(-21), name: 'Sample Person E', org: 'Sample Org E', email: 'sample-e@example.test', initiative: 'Sample member summit' },
+      { id: 'r4', at: d(-1), name: 'Sample Person', org: 'Sample Org G', email: 'sample-g@example.test', initiative: 'Sample annual gathering' }
+    ]
   };
 }
+const SAMPLE_VERSION = 2;
+/** Fills the sample sheet once per sample version; rows already there (and moved) are kept. */
 async function ensureSample(db, now) {
-  const have = await db.prepare('SELECT COUNT(*) AS n FROM sample_sheet').first();
-  if (Number(have?.n) > 0) return;
+  const have = await db.prepare("SELECT value FROM setting WHERE key = 'sample_version'").first();
+  const count = await db.prepare('SELECT COUNT(*) AS n FROM sample_sheet').first();
+  if (Number(count?.n) > 0 && have && JSON.parse(have.value) === SAMPLE_VERSION) return;
   const stmts = [];
   for (const [kind, rows] of Object.entries(sampleRows(now))) {
-    for (const r of rows) stmts.push(db.prepare('INSERT OR REPLACE INTO sample_sheet (kind, row_id, data) VALUES (?,?,?)').bind(kind, r.id, JSON.stringify(r)));
+    for (const r of rows) stmts.push(db.prepare('INSERT OR IGNORE INTO sample_sheet (kind, row_id, data) VALUES (?,?,?)').bind(kind, r.id, JSON.stringify(r)));
   }
+  stmts.push(db.prepare("INSERT OR REPLACE INTO setting (key, value) VALUES ('sample_version', ?)").bind(JSON.stringify(SAMPLE_VERSION)));
   await db.batch(stmts);
 }
 
@@ -215,7 +317,7 @@ export async function loadView(env, { sample }, now = Date.now()) {
   const sources = {};
   for (const r of (await db.prepare('SELECT * FROM source').all()).results || []) sources[r.kind] = r;
   const settings = {};
-  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run') OR key LIKE 'disconnected:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
+  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run') OR key LIKE 'disconnected:%' OR key LIKE 'layout:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
   for (const list of Object.values(rows)) list.sort((a, b) => (a._row || 0) - (b._row || 0));
   return { sample: false, rows, sync, sources, settings };
 }
@@ -224,6 +326,14 @@ export async function loadView(env, { sample }, now = Date.now()) {
 
 async function setSetting(db, key, value) {
   await db.prepare('INSERT INTO setting (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(key, JSON.stringify(value)).run();
+}
+/** Forgets the kept copy of these kinds (a sheet he stopped using, or Money switched off). */
+export async function purgeKinds(db, kinds, status = null) {
+  if (!kinds.length) return;
+  await db.batch([
+    ...kinds.map((k) => db.prepare('DELETE FROM row_cache WHERE kind = ?').bind(k)),
+    ...kinds.map((k) => (status ? db.prepare('INSERT INTO sync_state (kind, synced_at, status, error, rows, origins) VALUES (?,NULL,?,NULL,0,NULL) ON CONFLICT(kind) DO UPDATE SET status=excluded.status, rows=0, origins=NULL').bind(k, status) : db.prepare('DELETE FROM sync_state WHERE kind = ?').bind(k)))
+  ]);
 }
 export async function getSetting(env, key) {
   const db = dbOf(env);
@@ -245,13 +355,16 @@ export async function syncAll(env, now = Date.now()) {
   const sources = {};
   for (const r of (await db.prepare('SELECT * FROM source').all()).results || []) sources[r.kind] = r;
 
+  const moneyOff = (await db.prepare("SELECT value FROM choice WHERE key = 'money'").first())?.value === 'off';
+  if (moneyOff) await purgeKinds(db, Object.keys(KINDS).filter((k) => KINDS[k].group === 'money'), 'off');
+
   if (google) {
     let googleOk = true;
     const binderIds = [];
-    for (const group of ['work', 'money', 'inquiries']) {
+    for (const group of ['work', 'tracker', 'money', 'inquiries']) {
       const src = sources[group];
-      const kinds = Object.keys(KINDS).filter((k) => KINDS[k].group === group);
-      if (!src) continue;
+      const kinds = Object.keys(KINDS).filter((k) => groupFor(k, sources) === group && !(moneyOff && KINDS[k].group === 'money'));
+      if (!src || !kinds.length) continue;
       let tabs;
       try {
         ({ tabs } = await sheetTabs(env, src.spreadsheet_id));
@@ -264,14 +377,23 @@ export async function syncAll(env, now = Date.now()) {
       for (const kind of kinds) {
         const origins = [];
         const all = [];
-        const tab = findTab(kind, tabs);
         try {
+          const picked = await pickTab(env, kind, src.spreadsheet_id, tabs, kinds);
+          const tab = picked?.tab || null;
           if (tab) {
-            const parsed = parseGrid(kind, await readTab(env, src.spreadsheet_id, tab));
+            const { parsed } = picked;
             origins.push({ id: src.spreadsheet_id, tab, title: `${src.title || GROUPS[group].label} · ${tab}` });
             for (const r of parsed.rows) all.push({ r, o: origins.at(-1), id: r._id });
             if (kind === 'projects') for (const p of parsed.rows) { const b = spreadsheetIdFrom(p.binder); if (b) binderIds.push(b); }
             if (parsed.missingId) out.notes.push(`${kind}:no_id_column`);
+          }
+          if (KINDS[kind].layout) {
+            // What the dashboard made of his tracker, said on the Deals page (column names only, never a value).
+            const parsed = picked?.parsed;
+            const columns = parsed ? Object.fromEntries(Object.entries(parsed.idx).map(([k, i]) => [k, parsed.headers[i]])) : {};
+            const listed = tab && parsed?.recognised && parsed.idx.stage !== undefined ? await stageListFromSheet(env, src.spreadsheet_id, tab, parsed.idx.stage, parsed.headerRow) : null;
+            await setSetting(db, `layout:${kind}`, { group, id: src.spreadsheet_id, title: src.title || '', tab, headerRow: parsed ? parsed.headerRow + 1 : null, recognised: Boolean(parsed?.recognised), columns, headers: (parsed?.headers || []).filter(Boolean).slice(0, 20), looked: picked?.looked || null, stages: listed, keyed: Boolean(parsed && parsed.idx.id === undefined) });
+            if (!parsed?.recognised) out.notes.push(`${kind}:layout_not_recognised`);
           }
           if (KINDS[kind].binder) {
             for (const b of [...new Set(binderIds)]) {
@@ -309,7 +431,7 @@ export async function syncAll(env, now = Date.now()) {
   const docusign = await connectionRow(env, 'docusign');
   if (docusign) {
     try {
-      const token = await accessToken(env, 'docusign');
+      const token = await accessToken(env, 'docusign', now);
       if (!docusign.meta?.base_uri || !docusign.meta?.account_id) {
         const r = await fetch(`https://${docusignHost(docusign.meta?.server)}/oauth/userinfo`, { headers: { authorization: `Bearer ${token}` } });
         const u = await r.json().catch(() => ({}));
@@ -334,7 +456,7 @@ export async function syncAll(env, now = Date.now()) {
   // Dropbox: a light check that the connection still answers (search runs live).
   if (await connectionRow(env, 'dropbox')) {
     try {
-      const token = await accessToken(env, 'dropbox');
+      const token = await accessToken(env, 'dropbox', now);
       const res = await fetch('https://api.dropboxapi.com/2/users/get_current_account', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
       await markConnection(env, 'dropbox', res.ok ? { status: 'ok', synced: now } : { status: 'broken', error: 'needs_reconnect' });
       if (res.ok) out.ok += 1; else out.failed += 1;
@@ -346,7 +468,7 @@ export async function syncAll(env, now = Date.now()) {
     const c = await connectionRow(env, tool);
     if (!c) continue;
     try {
-      const token = await accessToken(env, tool);
+      const token = await accessToken(env, tool, now);
       let amount = null;
       if (tool === 'quickbooks') {
         const query = encodeURIComponent("select * from Account where AccountType = 'Bank'");
@@ -377,12 +499,28 @@ export async function syncAll(env, now = Date.now()) {
 export async function setSource(env, group, link, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
+  if (!GROUPS[group]) return { ok: false, why: 'not_a_sheet_link' };
   const id = spreadsheetIdFrom(link);
   if (!id) return { ok: false, why: 'not_a_sheet_link' };
   let title = '';
   try { ({ title } = await sheetTabs(env, id)); } catch (err) { return { ok: false, why: err.message === 'needs_reconnect' ? 'needs_google' : 'cannot_open_sheet' }; }
   await db.prepare('INSERT INTO source (kind, spreadsheet_id, title, updated_at) VALUES (?,?,?,?) ON CONFLICT(kind) DO UPDATE SET spreadsheet_id=excluded.spreadsheet_id, title=excluded.title, updated_at=excluded.updated_at').bind(group, id, title, now).run();
   return { ok: true, title };
+}
+
+/** Stops reading a sheet: its row is removed and the copy of everything read from it is forgotten. */
+export async function removeSource(env, group) {
+  const db = dbOf(env);
+  await ensureSchema(db);
+  if (!GROUPS[group]) return false;
+  const before = {};
+  for (const r of (await db.prepare('SELECT * FROM source').all()).results || []) before[r.kind] = r;
+  const after = { ...before };
+  delete after[group];
+  await db.prepare('DELETE FROM source WHERE kind = ?').bind(group).run();
+  await purgeKinds(db, Object.keys(KINDS).filter((k) => groupFor(k, before) === group || !after[groupFor(k, after)]));
+  if (group === 'tracker' || !after[groupFor('deals', after)]) await db.prepare("DELETE FROM setting WHERE key = 'layout:deals'").run();
+  return true;
 }
 
 /** Creates his Work or Money spreadsheet with every tab and header row, then names it as the source. */
@@ -402,7 +540,7 @@ export const sheetUrl = (id) => (id ? `https://docs.google.com/spreadsheets/d/${
 /* ------------------------------------------------------------------ quick actions */
 
 /** What each quick action writes. Values are what lands in the sheet cell. */
-export function actionChanges(action, row, now = Date.now()) {
+export function actionChanges(action, row, now = Date.now(), stages = stageOptions([row])) {
   switch (action) {
     case 'received': return { status: 'Received', received: isoDay(now) };
     case 'paid': return { status: 'Paid', paid_on: isoDay(now) };
@@ -410,14 +548,17 @@ export function actionChanges(action, row, now = Date.now()) {
     case 'changes': return { status: 'Changes asked' };
     case 'skip': return { status: 'Skipped' };
     case 'stage': {
-      const i = FUNNEL_STAGES.findIndex((s) => s.toLowerCase() === String(row.stage || '').toLowerCase());
-      if (i === -1 || i >= FUNNEL_STAGES.length - 1) return null;
-      return { stage: FUNNEL_STAGES[i + 1] };
+      if (!stages.ordered) return null;
+      const i = stages.stages.findIndex((s) => s.toLowerCase() === String(row.stage || '').toLowerCase());
+      if (i === -1 || i >= stages.stages.length - 1) return null;
+      return { stage: stages.stages[i + 1] };
     }
     default: return null;
   }
 }
 export const ACTION_KINDS = { received: 'waiting', paid: 'invoices', approve: 'drafts', changes: 'drafts', skip: 'drafts', stage: 'deals' };
+const DATE_KEYS = new Set(['received', 'paid_on', 'next_date']);
+const sameCell = (k, a, b) => (DATE_KEYS.has(k) ? toTime(a) === toTime(b) : String(a ?? '').trim() === String(b ?? '').trim());
 
 async function logAction(db, entry) {
   const r = await db.prepare('INSERT INTO action_log (at, owner_id, sample, kind, row_id, action, outcome, detail, link) VALUES (?,?,?,?,?,?,?,?,?) RETURNING id')
@@ -425,82 +566,188 @@ async function logAction(db, entry) {
   return r?.id;
 }
 
+/** The stages for his deals: the dropdown read from his tracker at the last sync, or his rows. */
+async function dealStages(db, sample) {
+  const rows = sample
+    ? ((await db.prepare("SELECT data FROM sample_sheet WHERE kind = 'deals'").all()).results || [])
+    : ((await db.prepare("SELECT data FROM row_cache WHERE kind = 'deals'").all()).results || []);
+  const layout = sample ? null : await db.prepare("SELECT value FROM setting WHERE key = 'layout:deals'").first();
+  return stageOptions(rows.map((r) => JSON.parse(r.data)), layout ? JSON.parse(layout.value).stages : null);
+}
+
 /**
- * Writes one quick action to the row's source, re-reads it, and logs what was SEEN.
- * Returns { id (action_log), outcome: 'saved' | 'failed', detail }.
+ * Writes changes to ONE row of its own sheet, found again by its ID (or, in a tracker with no ID
+ * column, by its organization), then re-reads it; only what the sheet now shows counts as saved.
+ * Only the cells named in `changes` are written; no row or column is ever added or removed. A
+ * column his sheet does not have is skipped (status and stage are required where they are the point).
  */
+async function writeRow(env, db, { kind, rowId, changes, base, label, session }, now) {
+  const fail = async (detail) => ({ id: await logAction(db, { ...base, outcome: 'failed', detail }), outcome: 'failed', detail });
+  if (session.sample) {
+    const r = await db.prepare('SELECT data FROM sample_sheet WHERE kind = ? AND row_id = ?').bind(kind, rowId).first();
+    if (!r) return fail('row_not_found');
+    const row = JSON.parse(r.data);
+    await db.prepare('UPDATE sample_sheet SET data = ? WHERE kind = ? AND row_id = ?').bind(JSON.stringify({ ...row, ...changes }), kind, rowId).run();
+    const back = JSON.parse((await db.prepare('SELECT data FROM sample_sheet WHERE kind = ? AND row_id = ?').bind(kind, rowId).first()).data);
+    const ok = Object.entries(changes).every(([k, v]) => sameCell(k, back[k], v));
+    return { id: await logAction(db, { ...base, outcome: ok ? 'saved' : 'failed', detail: ok ? `${label}|Sample sheet` : 'not_confirmed' }), outcome: ok ? 'saved' : 'failed' };
+  }
+  const cached = await db.prepare('SELECT origin, data FROM row_cache WHERE kind = ? AND row_id = ?').bind(kind, rowId).first();
+  if (!cached) return fail('row_not_found');
+  const origin = JSON.parse(cached.origin);
+  const row = JSON.parse(cached.data);
+  try {
+    const parsed = parseGrid(kind, await readTab(env, origin.id, origin.tab));
+    const live = parsed.rows.find((r) => r._id === origin.sheet_row_id);
+    if (!live) return fail('row_not_in_sheet');
+    const data = [];
+    const written = {};
+    for (const [key, value] of Object.entries(changes)) {
+      const col = parsed.idx[key];
+      if (col === undefined) { if (key === 'status' || key === 'stage') return fail(`no_${key}_column`); continue; }
+      if (sameCell(key, live[key], value)) continue;
+      data.push({ range: `${q(origin.tab)}!${colLetter(col)}${live._row}`, values: [[value]] });
+      written[key] = value;
+    }
+    if (!data.length) return fail(Object.keys(changes).some((k) => parsed.idx[k] !== undefined) ? 'nothing_to_change' : 'no_columns');
+    await gfetch(env, `${SHEETS}/${origin.id}/values:batchUpdate`, { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) });
+    // Re-read: only what the sheet now says counts as saved.
+    const after = parseGrid(kind, await readTab(env, origin.id, origin.tab)).rows.find((r) => r._id === origin.sheet_row_id);
+    const ok = after && Object.entries(written).every(([k, v]) => sameCell(k, after[k], v));
+    if (ok) await db.prepare('UPDATE row_cache SET data = ?, synced_at = ? WHERE kind = ? AND row_id = ?').bind(JSON.stringify({ ...after, _id: row._id }), now, kind, rowId).run();
+    return { id: await logAction(db, { ...base, outcome: ok ? 'saved' : 'failed', detail: ok ? `${label}|${origin.title}` : 'not_confirmed' }), outcome: ok ? 'saved' : 'failed' };
+  } catch (err) {
+    return fail(err.message === 'needs_reconnect' ? 'needs_reconnect' : err.reason || 'write_failed');
+  }
+}
+
+async function currentRow(db, kind, rowId, sample) {
+  const r = sample
+    ? await db.prepare('SELECT data FROM sample_sheet WHERE kind = ? AND row_id = ?').bind(kind, rowId).first()
+    : await db.prepare('SELECT data FROM row_cache WHERE kind = ? AND row_id = ?').bind(kind, rowId).first();
+  return r ? JSON.parse(r.data) : null;
+}
+
+/** One quick action. Returns { id (action_log), outcome: 'saved' | 'failed', detail }. */
 export async function runAction(env, { action, rowId, session }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
   const kind = ACTION_KINDS[action];
   const base = { at: now, owner: session.ownerId, sample: session.sample, kind, rowId, action };
   if (!kind) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'unknown_action' }), outcome: 'failed', detail: 'unknown_action' };
-
-  if (session.sample) {
-    const r = await db.prepare('SELECT data FROM sample_sheet WHERE kind = ? AND row_id = ?').bind(kind, rowId).first();
-    const row = r ? JSON.parse(r.data) : null;
-    const changes = row && actionChanges(action, row, now);
-    if (!changes) return { id: await logAction(db, { ...base, outcome: 'failed', detail: row ? 'nothing_to_change' : 'row_not_found' }), outcome: 'failed', detail: row ? 'nothing_to_change' : 'row_not_found' };
-    await db.prepare('UPDATE sample_sheet SET data = ? WHERE kind = ? AND row_id = ?').bind(JSON.stringify({ ...row, ...changes }), kind, rowId).run();
-    const back = JSON.parse((await db.prepare('SELECT data FROM sample_sheet WHERE kind = ? AND row_id = ?').bind(kind, rowId).first()).data);
-    const ok = Object.entries(changes).every(([k, v]) => back[k] === v);
-    return { id: await logAction(db, { ...base, outcome: ok ? 'saved' : 'failed', detail: ok ? Object.values(changes)[0] : 'not_confirmed' }), outcome: ok ? 'saved' : 'failed' };
-  }
-
-  const cached = await db.prepare('SELECT origin, data FROM row_cache WHERE kind = ? AND row_id = ?').bind(kind, rowId).first();
-  if (!cached) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'row_not_found' }), outcome: 'failed', detail: 'row_not_found' };
-  const origin = JSON.parse(cached.origin);
-  const row = JSON.parse(cached.data);
-  const changes = actionChanges(action, row, now);
+  const row = await currentRow(db, kind, rowId, session.sample);
+  if (!row) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'row_not_found' }), outcome: 'failed', detail: 'row_not_found' };
+  const changes = actionChanges(action, row, now, kind === 'deals' ? await dealStages(db, session.sample) : undefined);
   if (!changes) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'nothing_to_change' }), outcome: 'failed', detail: 'nothing_to_change' };
+  return writeRow(env, db, { kind, rowId, changes, base, label: Object.values(changes)[0], session }, now);
+}
+
+/**
+ * The deal form on a record: stage, next action and next date, written to the same row of his
+ * tracker (only the cells that changed; a column his tracker does not have is left alone).
+ */
+export async function updateDeal(env, { rowId, fields, session }, now = Date.now()) {
+  const db = dbOf(env);
+  await ensureSchema(db);
+  const base = { at: now, owner: session.ownerId, sample: session.sample, kind: 'deals', rowId, action: 'deal' };
+  const row = await currentRow(db, 'deals', rowId, session.sample);
+  if (!row) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'row_not_found' }), outcome: 'failed' };
+  const { stages } = await dealStages(db, session.sample);
+  const changes = {};
+  const stage = String(fields.stage ?? '').trim();
+  if (stage && stage !== row.stage) {
+    if (!stages.some((x) => x === stage)) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'unknown_stage' }), outcome: 'failed' };
+    changes.stage = stage;
+  }
+  const action = String(fields.next_action ?? '').trim().slice(0, 300);
+  if (fields.next_action !== undefined && action !== String(row.next_action || '')) changes.next_action = action;
+  const date = String(fields.next_date ?? '').trim();
+  if (fields.next_date !== undefined && date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'bad_date' }), outcome: 'failed' };
+  if (fields.next_date !== undefined && !sameCell('next_date', date, row.next_date) && !(date === '' && !row.next_date)) changes.next_date = date;
+  if (!Object.keys(changes).length) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'nothing_to_change' }), outcome: 'failed' };
+  const words = { stage: 'stage', next_action: 'next action', next_date: 'next date' };
+  return writeRow(env, db, { kind: 'deals', rowId, changes, base, label: `${row.org || 'the deal'}: ${Object.keys(changes).map((k) => words[k]).join(', ')}`, session }, now);
+}
+
+/**
+ * An inquiry becomes a deal in HIS tracker: one new row appended below his last one (never a second
+ * pipeline, never a change to an existing row), filled only in the columns his tracker has. Then it
+ * re-reads the tab and only a row that is really there counts.
+ */
+export async function addDealFromInquiry(env, { journey, session }, now = Date.now()) {
+  const db = dbOf(env);
+  await ensureSchema(db);
+  const base = { at: now, owner: session.ownerId, sample: session.sample, kind: 'deals', rowId: journey.key, action: 'add_deal' };
+  const fail = async (detail) => ({ id: await logAction(db, { ...base, outcome: 'failed', detail }), outcome: 'failed' });
+  const inq = journey.inquiries.at(-1) || {};
+  const { stages } = await dealStages(db, session.sample);
+  const values = { org: journey.name, stage: stages[0] || FUNNEL_STAGES[0], contact: inq.name || '', email: inq.email || '', source: 'Website inquiry', next_action: 'Reply to the inquiry', next_date: isoDay(now) };
+  if (session.sample) {
+    const id = `SD-${orgKey(journey.name).slice(0, 20)}`;
+    await db.prepare('INSERT OR IGNORE INTO sample_sheet (kind, row_id, data) VALUES (?,?,?)').bind('deals', id, JSON.stringify({ id, owner: 'Sample Lead', proposal_sent: '', follow_up: '', ...values })).run();
+    return { id: await logAction(db, { ...base, outcome: 'saved', detail: `${journey.name}: added to the tracker|Sample sheet` }), outcome: 'saved' };
+  }
+  const layoutRow = await db.prepare("SELECT value FROM setting WHERE key = 'layout:deals'").first();
+  const layout = layoutRow ? JSON.parse(layoutRow.value) : null;
+  if (!layout?.recognised || !layout.tab) return fail('no_tracker');
   try {
-    const grid = await readTab(env, origin.id, origin.tab);
-    const parsed = parseGrid(kind, grid);
-    const live = parsed.rows.find((r) => r._id === origin.sheet_row_id);
-    if (!live) throw Object.assign(new Error('row_moved'), { reason: 'row_not_in_sheet' });
-    const data = [];
-    for (const [key, value] of Object.entries(changes)) {
-      const col = parsed.idx[key];
-      if (col === undefined) { if (key === 'status' || key === 'stage') throw Object.assign(new Error('no_column'), { reason: `no_${key}_column` }); continue; }
-      data.push({ range: `${q(origin.tab)}!${colLetter(col)}${live._row}`, values: [[value]] });
+    const grid = await readTab(env, layout.id, layout.tab);
+    const parsed = parseGrid('deals', grid);
+    if (parsed.rows.some((r) => orgKey(r.org) === journey.key)) return fail('already_in_tracker');
+    const line = new Array(parsed.headers.length).fill('');
+    if (parsed.idx.id !== undefined) {
+      const ids = parsed.rows.map((r) => String(r.id || '').match(/^([A-Za-z-]*)(\d+)$/)).filter(Boolean);
+      const top = ids.sort((a, b) => Number(b[2]) - Number(a[2]))[0];
+      line[parsed.idx.id] = top ? `${top[1]}${Number(top[2]) + 1}` : `WEB-${isoDay(now).replace(/-/g, '')}`;
     }
-    await gfetch(env, `${SHEETS}/${origin.id}/values:batchUpdate`, { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) });
-    // Re-read: only what the sheet now says counts as saved.
-    const after = parseGrid(kind, await readTab(env, origin.id, origin.tab)).rows.find((r) => r._id === origin.sheet_row_id);
-    const ok = after && Object.entries(changes).every(([k, v]) => parsed.idx[k] === undefined || (k.endsWith('_on') || k === 'received' ? toTime(after[k]) === toTime(v) : after[k] === v));
-    if (ok) await db.prepare('UPDATE row_cache SET data = ?, synced_at = ? WHERE kind = ? AND row_id = ?').bind(JSON.stringify({ ...after, _id: row._id }), now, kind, rowId).run();
-    return { id: await logAction(db, { ...base, outcome: ok ? 'saved' : 'failed', detail: ok ? `${Object.values(changes)[0]}|${origin.title}` : 'not_confirmed' }), outcome: ok ? 'saved' : 'failed' };
+    for (const [k, v] of Object.entries(values)) if (parsed.idx[k] !== undefined) line[parsed.idx[k]] = v;
+    const range = `${q(layout.tab)}!A${parsed.headerRow + 1}`;
+    await gfetch(env, `${SHEETS}/${layout.id}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, { method: 'POST', body: JSON.stringify({ values: [line] }) });
+    const after = parseGrid('deals', await readTab(env, layout.id, layout.tab)).rows.find((r) => orgKey(r.org) === journey.key);
+    if (!after) return fail('not_confirmed');
+    await syncAll(env, now).catch(() => null);
+    return { id: await logAction(db, { ...base, outcome: 'saved', detail: `${journey.name}: added to the tracker|${layout.title ? `${layout.title} · ` : ''}${layout.tab}` }), outcome: 'saved' };
   } catch (err) {
-    const detail = err.message === 'needs_reconnect' ? 'needs_reconnect' : err.reason || 'write_failed';
-    return { id: await logAction(db, { ...base, outcome: 'failed', detail }), outcome: 'failed', detail };
+    return fail(err.message === 'needs_reconnect' ? 'needs_reconnect' : err.reason || 'write_failed');
   }
 }
 
-/** A Gmail DRAFT reminder (never sent). Returns the action_log id. */
-export async function draftReminder(env, { kind, rowId, session }, now = Date.now()) {
+/**
+ * A reminder opens in HIS Gmail, written and ready; he presses Send himself. The dashboard holds no
+ * Gmail permission at all (Scooter, 14 Nov 2026: the Google access "currently allow[s] broader file
+ * access and email sending than this needs").
+ */
+export function composeLink(kind, row) {
+  const what = kind === 'invoices' ? `invoice ${row.id} (due ${row.due})` : kind === 'deals' ? 'the proposal we sent' : `${row.item}`;
+  const subject = kind === 'invoices' ? `Reminder: invoice ${row.id}` : kind === 'deals' ? 'Following up on our proposal' : `Reminder: ${row.item}`;
+  const body = `Hi,\n\nA quick reminder about ${what}. When you have a moment, could you let me know where it stands?\n\nThank you,\nScooter`;
+  return `https://mail.google.com/mail/?${new URLSearchParams({ view: 'cm', fs: '1', to: row.email || '', su: subject, body })}`;
+}
+
+/* ------------------------------------------------------------------ notes (his own, on each record) */
+
+export const NOTE_MAX = 4000;
+/** Saves his note on a lead or client. Every save is kept; the newest is the note. */
+export async function saveNote(env, { subject, text, session }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
-  const base = { at: now, owner: session.ownerId, sample: session.sample, kind, rowId, action: 'remind' };
-  const src = session.sample
-    ? await db.prepare('SELECT data FROM sample_sheet WHERE kind = ? AND row_id = ?').bind(kind, rowId).first()
-    : await db.prepare('SELECT data FROM row_cache WHERE kind = ? AND row_id = ?').bind(kind, rowId).first();
-  const row = src ? JSON.parse(src.data) : null;
-  if (!row) return logAction(db, { ...base, outcome: 'failed', detail: 'row_not_found' });
-  const what = kind === 'invoices' ? `invoice ${row.id} (due ${row.due})` : kind === 'deals' ? 'the proposal we sent' : `${row.item}`;
-  const text = `Hi,\n\nA quick reminder about ${what}. When you have a moment, could you let me know where it stands?\n\nThank you,\nScooter`;
-  const subject = kind === 'invoices' ? `Reminder: invoice ${row.id}` : kind === 'deals' ? 'Following up on our proposal' : `Reminder: ${row.item}`;
-  if (session.sample) return logAction(db, { ...base, outcome: 'saved', detail: 'sample_draft' });
-  try {
-    const raw = [`To: ${row.email || ''}`, `Subject: ${subject}`, 'Content-Type: text/plain; charset=utf-8', '', text].join('\r\n');
-    const b64 = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    const token = await accessToken(env, 'google');
-    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ message: { raw: b64 } }) });
-    const d = await res.json().catch(() => ({}));
-    if (!res.ok || !d.id) throw Object.assign(new Error('draft_failed'), { reason: res.status === 403 ? 'needs_reconnect' : 'draft_failed' });
-    return logAction(db, { ...base, outcome: 'saved', detail: 'draft', link: `https://mail.google.com/mail/u/0/#drafts?compose=${d.message?.id || ''}` });
-  } catch (err) {
-    return logAction(db, { ...base, outcome: 'failed', detail: err.message === 'needs_reconnect' ? 'needs_reconnect' : err.reason || 'draft_failed' });
-  }
+  const base = { at: now, owner: session.ownerId, sample: session.sample, kind: 'note', rowId: subject, action: 'note' };
+  if (!/^[a-z0-9~-]{1,120}$/.test(String(subject || ''))) return logAction(db, { ...base, outcome: 'failed', detail: 'row_not_found' });
+  const body = String(text || '').replace(/\r\n/g, '\n').trim().slice(0, NOTE_MAX);
+  const r = await db.prepare('INSERT INTO note (subject, sample, owner_id, at, text) VALUES (?,?,?,?,?) RETURNING id').bind(subject, session.sample ? 1 : 0, session.ownerId, now, body).first();
+  const back = await db.prepare('SELECT text FROM note WHERE id = ?').bind(r?.id ?? -1).first();
+  const ok = back && back.text === body;
+  return logAction(db, { ...base, outcome: ok ? 'saved' : 'failed', detail: ok ? (body ? 'note' : 'note_cleared') : 'not_confirmed' });
+}
+/** The newest note for every record: { subject: { text, at } }. */
+export async function latestNotes(env, sample) {
+  const db = dbOf(env);
+  await ensureSchema(db);
+  const rows = (await db.prepare('SELECT n.subject, n.text, n.at FROM note n JOIN (SELECT subject, MAX(id) AS id FROM note WHERE sample = ? GROUP BY subject) m ON n.id = m.id').bind(sample ? 1 : 0).all()).results || [];
+  return Object.fromEntries(rows.filter((r) => r.text).map((r) => [r.subject, { text: r.text, at: Number(r.at) }]));
+}
+export async function noteHistory(env, subject, sample) {
+  return ((await dbOf(env).prepare('SELECT text, at FROM note WHERE subject = ? AND sample = ? ORDER BY id DESC LIMIT 20').bind(subject, sample ? 1 : 0).all()).results || []).map((r) => ({ text: r.text, at: Number(r.at) }));
 }
 
 export async function readAction(env, id) {
@@ -522,7 +769,8 @@ export async function ticks(env, sample) {
 export const CHOICES = {
   accounting: { label: 'Your accounting tool', options: { quickbooks: 'QuickBooks', xero: 'Xero', sheets: 'Stay in Sheets' } },
   bank_cash: { label: 'Where cash now comes from', options: { accounting: 'From the accounting tool', sheet: 'From the Cash tab of the Money sheet' } },
-  crm: { label: 'Where deals are kept', options: { sheets: 'A light Sheets CRM (the Deals tab, recommended)', tool: 'A named CRM tool' } },
+  crm: { label: 'Where deals are kept', options: { sheets: 'My tracker in Google Sheets (recommended)', tool: 'A named CRM tool' } },
+  money: { label: 'Money in the dashboard', options: { on: 'Show my money figures', off: 'Keep money out for now' } },
   shared_drive: { label: 'The "West Peek OS" Shared Drive', options: { yes: 'Yes, set it up', not_now: 'Not now' } },
   agent_seat: { label: 'A Workspace seat for agents (paid)', options: { yes: 'Yes, I will buy one', no: 'No' } },
   developer_view: { label: 'A developer view for Sequoia, without Money', options: { yes: 'Yes', no: 'No' } },
@@ -537,6 +785,8 @@ export async function makeChoice(env, { key, value, session }, now = Date.now())
   if (!CHOICES[key]?.options[value] || session.sample) return false;
   const db = dbOf(env);
   await db.prepare('INSERT INTO choice (key, value, at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, at=excluded.at').bind(key, value, now).run();
+  // Keep money out: the kept copy of every money row is deleted at once, not at the next sync.
+  if (key === 'money' && value === 'off') await purgeKinds(db, Object.keys(KINDS).filter((k) => KINDS[k].group === 'money'), 'off');
   await logAction(db, { at: now, owner: session.ownerId, sample: false, action: `choice:${key}`, outcome: 'saved', detail: value });
   return true;
 }
@@ -638,7 +888,7 @@ export function todayItems(view, { connections, ticked, now = Date.now() }) {
   for (const i of r.invoices) {
     const late = daysSince(i.due, now);
     if (!/paid/i.test(i.status || '') && late !== null && late > 0 && !/draft/i.test(i.status || '')) {
-      items.push({ key: `inv:${i._id}:${i.due}`, kind: 'invoices', rowId: i._id, title: `Invoice ${i.id || ''} · ${i.client || ''}`.trim(), sub: `${late} day${late === 1 ? '' : 's'} overdue`, tone: late >= 14 ? 'red' : 'gold', action: 'chase', money: num(i.amount) });
+      items.push({ key: `inv:${i._id}:${i.due}`, kind: 'invoices', rowId: i._id, title: `Invoice ${i.id || ''} · ${i.client || ''}`.trim(), sub: `${late} day${late === 1 ? '' : 's'} overdue`, tone: late >= 14 ? 'red' : 'gold', action: 'chase', mail: composeLink('invoices', i), money: num(i.amount) });
     }
   }
   for (const w of r.waiting) {
@@ -648,7 +898,7 @@ export function todayItems(view, { connections, ticked, now = Date.now() }) {
   }
   for (const p of r.deals) {
     const d = daysSince(p.follow_up, now);
-    if (p.proposal_sent && d !== null && d > 0 && !/signed|deposit|handoff/i.test(p.stage || '')) items.push({ key: `deal:${p._id}:${p.follow_up}`, kind: 'deals', rowId: p._id, title: `Proposal · ${p.org || ''}`, sub: `Follow-up was due ${d} day${d === 1 ? '' : 's'} ago`, tone: d >= 7 ? 'red' : 'gold', action: 'chase' });
+    if (p.proposal_sent && d !== null && d > 0 && !/signed|deposit|handoff/i.test(p.stage || '')) items.push({ key: `deal:${p._id}:${p.follow_up}`, kind: 'deals', rowId: p._id, title: `Proposal · ${p.org || ''}`, sub: `Follow-up was due ${d} day${d === 1 ? '' : 's'} ago`, tone: d >= 7 ? 'red' : 'gold', action: 'chase', mail: composeLink('deals', p) });
   }
   for (const a of r.drafts) {
     if (!/^(|waiting|new|to approve)$/i.test(String(a.status || '').trim())) continue;
@@ -658,6 +908,8 @@ export function todayItems(view, { connections, ticked, now = Date.now() }) {
   for (const c of connections.filter((x) => x.status === 'broken')) {
     items.unshift({ key: `conn:${c.provider}:${c.last_error}`, kind: 'connection', rowId: c.provider, title: `${c.provider === 'google' ? 'Google' : c.provider[0].toUpperCase() + c.provider.slice(1)} stopped syncing`, sub: 'Reconnect it to bring the numbers back up to date', tone: 'red', action: 'reconnect' });
   }
+  const g = connections.find((x) => x.provider === 'google');
+  if (g && wideGoogleScopes(g.scopes).length) items.push({ key: `wide:google:${g.connected_at}`, kind: 'connection', rowId: 'google', title: 'Google still allows more than the dashboard needs', sub: 'Narrow it to sheets, file names and calendar events: one tap, then approve on Google', tone: 'gold', action: 'access' });
   for (const [key, at] of Object.entries(view.settings || {})) {
     const provider = key.startsWith('disconnected:') ? key.slice(13) : '';
     if (!provider || connections.some((c) => c.provider === provider)) continue;
@@ -673,4 +925,118 @@ export function todayItems(view, { connections, ticked, now = Date.now() }) {
 export function projectName(view, idOrName) {
   const p = view.rows.projects.find((x) => x._id === idOrName || x.id === idOrName);
   return p ? p.name || p.client || idOrName : idOrName || '';
+}
+
+/* ------------------------------------------------------------------ lead to client to cash */
+
+export const JOURNEY_STEPS = ['Inquiry', 'Deal', 'Signed', 'Client', 'Invoiced', 'Paid'];
+const SIGNED = /signed|deposit|handoff|won|closed won|contract/i;
+const LOST = /lost|dead|declined|no go|not a fit|closed lost/i;
+
+/**
+ * One record per organization, from the first inquiry to the last payment, joined by organization
+ * name (and by contact email for an inquiry whose organization was typed differently). Nothing is
+ * copied anywhere: each part is still the row of its own sheet.
+ */
+export function journeys(view, { notes = {}, now = Date.now() } = {}) {
+  const r = view.rows;
+  const map = new Map();
+  const at = (name) => {
+    const key = orgKey(name);
+    if (!key) return null;
+    if (!map.has(key)) map.set(key, { key, name: String(name).trim(), inquiries: [], deals: [], projects: [], invoices: [], receipts: [] });
+    return map.get(key);
+  };
+  const byEmail = new Map();
+  for (const d of r.deals) { const j = at(d.org); if (j) { j.deals.push(d); if (d.email) byEmail.set(d.email.toLowerCase(), j); } }
+  for (const p of r.projects) { const j = at(p.client || p.name); if (j) { j.projects.push(p); if (p.email) byEmail.set(p.email.toLowerCase(), j); } }
+  for (const i of r.invoices) at(i.client)?.invoices.push(i);
+  for (const x of r.receipts) at(x.client)?.receipts.push(x);
+  for (const i of r.inquiries) {
+    const known = map.get(orgKey(i.org)) || byEmail.get(String(i.email || '').toLowerCase());
+    (known || at(i.org || i.name))?.inquiries.push(i);
+  }
+  const envelopes = view.settings?.envelopes || {};
+  const list = [...map.values()].map((j) => {
+    j.name = j.deals[0]?.org || j.projects[0]?.client || j.inquiries[0]?.org || j.name;
+    const deal = j.deals[0] || null;
+    const signedBy = j.projects.map((p) => envelopes[p.sow_envelope]?.status).includes('completed') ? 'DocuSign' : deal && SIGNED.test(deal.stage || '') ? 'tracker' : '';
+    const amount = (i) => num(i.amount) || 0;
+    const invoiced = j.invoices.reduce((a, i) => a + amount(i), 0);
+    const paidRows = j.invoices.filter((i) => /paid/i.test(i.status || ''));
+    const paid = paidRows.reduce((a, i) => a + amount(i), 0);
+    const openRows = j.invoices.filter((i) => !/paid/i.test(i.status || '') && !/draft/i.test(i.status || ''));
+    const overdue = openRows.filter((i) => (daysSince(i.due, now) ?? 0) > 0);
+    const lost = deal && LOST.test(deal.stage || '') && !j.projects.length && !j.invoices.length;
+    let step = 0;
+    if (j.inquiries.length) step = 1;
+    if (deal) step = 2;
+    if (signedBy) step = 3;
+    if (j.projects.length) step = 4;
+    if (j.invoices.length) step = 5;
+    if (j.invoices.length && !openRows.length && paidRows.length) step = 6;
+    const where = lost ? `Closed · ${deal.stage}` : step === 6 ? 'Paid in full'
+      : step === 5 ? (overdue.length ? `${overdue.length} invoice${overdue.length === 1 ? '' : 's'} overdue` : `Invoiced · ${openRows.length} open`)
+        : step === 4 ? `Client · ${j.projects[0].status || 'project on the go'}`
+          : step === 3 ? 'Signed' : step === 2 ? `Deal · ${deal.stage || 'no stage yet'}` : 'New inquiry';
+    const next = overdue.length ? { text: `Chase invoice ${overdue[0].id || ''}`.trim(), date: overdue[0].due, tone: 'red' }
+      : deal?.next_action ? { text: deal.next_action, date: deal.next_date, tone: (daysSince(deal.next_date, now) ?? -1) > 0 ? 'gold' : '' }
+        : step === 1 ? { text: 'Reply, and add them to your tracker', date: j.inquiries.at(-1)?.at, tone: 'gold' } : null;
+    const when = Math.max(0, ...j.inquiries.map((i) => toTime(i.at) || 0), ...j.invoices.map((i) => toTime(i.due) || 0), ...j.deals.map((d) => toTime(d.next_date) || 0));
+    return { ...j, deal, signedBy, invoiced, paid, open: invoiced - paid - j.invoices.filter((i) => /draft/i.test(i.status || '')).reduce((a, i) => a + amount(i), 0), openRows, overdue, step, lost, where, next, when, note: notes[j.key] || null };
+  });
+  const rank = (j) => (j.overdue.length ? 0 : j.next?.tone === 'gold' ? 1 : j.lost ? 3 : 2);
+  return list.sort((a, b) => rank(a) - rank(b) || b.when - a.when || a.name.localeCompare(b.name));
+}
+/** Which list a record belongs to on the Lead to cash screen. */
+export const JOURNEY_FILTERS = {
+  all: { label: 'All', test: () => true },
+  leads: { label: 'Leads', test: (j) => j.step <= 2 && !j.lost },
+  clients: { label: 'Clients', test: (j) => j.step >= 3 },
+  owed: { label: 'Owed', test: (j) => j.openRows.length > 0 }
+};
+
+/* ------------------------------------------------------------------ who can open what, and what is kept */
+
+/**
+ * Who can open each connected sheet, live from Google (names, links and sharing only; never a
+ * file's contents): the sheets he named plus up to ten binders his Projects tab links.
+ */
+export async function fileAccess(env, view, { sample }) {
+  if (sample) return { files: [{ label: 'Sample work sheet', name: 'Sample work sheet', ok: true, owners: ['Sample Lead'], people: [], anyone: false, domain: '' }], failed: 0 };
+  if (!(await connectionRow(env, 'google'))) return { files: [], failed: 0, notConnected: true };
+  const wanted = [];
+  for (const [g, s] of Object.entries(view.sources || {})) if (GROUPS[g]) wanted.push({ id: s.spreadsheet_id, label: GROUPS[g].label });
+  const binders = [...new Set(view.rows.projects.map((p) => spreadsheetIdFrom(p.binder)).filter(Boolean))].slice(0, 10);
+  for (const b of binders) if (!wanted.some((w) => w.id === b)) wanted.push({ id: b, label: 'Client binder' });
+  const files = [];
+  let failed = 0;
+  for (const w of wanted) {
+    try {
+      const f = await gfetch(env, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(w.id)}?${new URLSearchParams({ fields: 'name,webViewLink,shared,owners(displayName,emailAddress),permissions(type,role,emailAddress,domain,displayName)', supportsAllDrives: 'true' })}`);
+      const perms = f.permissions || null;
+      files.push({
+        label: w.label, name: f.name || '', link: f.webViewLink || sheetUrl(w.id), ok: true,
+        owners: (f.owners || []).map((o) => o.displayName || o.emailAddress).filter(Boolean),
+        people: perms ? perms.filter((x) => x.type === 'user' || x.type === 'group').filter((x) => x.role !== 'owner').map((x) => ({ who: x.displayName || x.emailAddress || 'Someone', email: x.emailAddress || '', role: { writer: 'can edit', commenter: 'can comment', reader: 'can view', organizer: 'manages', fileOrganizer: 'manages' }[x.role] || x.role })) : null,
+        anyone: perms ? perms.some((x) => x.type === 'anyone') : null,
+        domain: perms ? (perms.find((x) => x.type === 'domain')?.domain || '') : ''
+      });
+    } catch (err) {
+      failed += 1;
+      files.push({ label: w.label, name: '', link: sheetUrl(w.id), ok: false, why: err.message === 'needs_reconnect' ? 'needs_reconnect' : err.status === 403 || err.status === 401 ? 'not_allowed' : 'no_answer' });
+    }
+  }
+  return { files, failed };
+}
+
+/** How many rows each table holds right now (counts only, never a value). */
+export async function storedCounts(env) {
+  const db = dbOf(env);
+  await ensureSchema(db);
+  const out = {};
+  for (const t of BACKUP_TABLES) {
+    try { out[t] = Number((await db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).first())?.n) || 0; } catch { out[t] = null; }
+  }
+  return out;
 }

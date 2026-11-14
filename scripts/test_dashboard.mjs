@@ -14,7 +14,7 @@
 import { fakeD1 } from './lib/fake_d1.mjs';
 import { handleDashboard, hashSecret, COLD_EMAIL_SENDING, MIGRATIONS } from '../functions/_lib/productions-dashboard.mjs';
 import { OWNER_IDS, SAMPLE_EMAIL, SAMPLE_PASSWORD, OWNER_FAIL_LIMIT } from '../functions/_lib/pd/auth.mjs';
-import { ensureSchema, resetSchemaMemo, BACKUP_TABLES } from '../functions/_lib/pd/schema.mjs';
+import { ensureSchema, resetSchemaMemo, BACKUP_TABLES, TABLE_WORDS } from '../functions/_lib/pd/schema.mjs';
 import { encryptJson } from '../functions/_lib/pd/core.mjs';
 import { backup, restore } from '../workers/productions-dashboard/src/index.js';
 
@@ -42,7 +42,7 @@ function fakeGoogle() {
         title: 'Work test sheet',
         tabs: {
           Projects: [['ID', 'Project', 'Client', 'Status', 'Next milestone', 'Milestone date'], ['P1', MARK, 'Client A', 'In delivery', 'Cut', '2026-11-16']],
-          'Waiting on client': [['ID', 'Project ID', 'Waiting for', 'Since', 'Status', 'Contact email'], ['W1', 'P1', 'Logo files', '2026-10-28', 'Waiting', 'client-a@example.test'], ['W2', 'P1', 'Speaker list', '2026-11-10', 'Waiting', '']],
+          'Waiting on client': [['ID', 'Project ID', 'Waiting for', 'Since', 'Status', 'Contact email'], ['W1', 'P1', 'Logo files', '2026-10-28', 'Waiting', 'client-a@example.test'], ['W2', 'P1', 'Speaker list', '2026-11-10', 'Waiting', 'client-a@example.test']],
           Deals: [['ID', 'Organization', 'Stage', 'Owner'], ['D1', 'Org A', 'Discovery', 'Lead']],
           'Agent drafts': [['ID', 'Project', 'Document', 'Status'], ['A1', 'P1', 'Update draft', 'Waiting']]
         }
@@ -61,6 +61,12 @@ function fakeGoogle() {
       return json({ access_token: 'ACCESS-TOKEN-PLAIN', refresh_token: 'REFRESH-TOKEN-PLAIN', expires_in: 3600, id_token: `x.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.y`, scope: 'openid email' });
     }
     if (u.host === 'gmail.googleapis.com') { g.drafts.push(JSON.parse(init.body)); return json({ id: 'd1', message: { id: 'm1' } }); }
+    if (u.host === 'www.googleapis.com' && u.pathname.startsWith('/drive/v3/files/')) {
+      const id = decodeURIComponent(u.pathname.split('/').pop());
+      const sheet = g.sheets[id];
+      if (!sheet) return json({ error: { status: 'NOT_FOUND' } }, 404);
+      return json({ name: sheet.title, webViewLink: `https://docs.google.com/spreadsheets/d/${id}/edit`, owners: [{ displayName: 'Owner A' }], permissions: sheet.perms || [{ type: 'user', role: 'owner', emailAddress: OWNER }] });
+    }
     if (u.host === 'sheets.googleapis.com') {
       const [, , , id, rest] = u.pathname.split('/');
       const sheet = g.sheets[id];
@@ -72,9 +78,17 @@ function fakeGoogle() {
             const m = d.range.match(/^'(.+)'!([A-Z]+)(\d+)$/);
             const tab = sheet.tabs[m[1].replace(/''/g, "'")];
             const col = m[2].charCodeAt(0) - 65;
+            g.cellsWritten = (g.cellsWritten || 0) + 1;
             tab[Number(m[3]) - 1][col] = d.values[0][0];
           }
         }
+        return json({});
+      }
+      if (rest === 'values' && u.pathname.endsWith(':append')) {
+        const range = decodeURIComponent(u.pathname.split('/values/')[1]);
+        const tab = sheet.tabs[range.match(/^'(.+)'!/)[1].replace(/''/g, "'")];
+        g.appended = (g.appended || 0) + 1;
+        for (const line of JSON.parse(init.body).values) tab.push(line);
         return json({});
       }
       if (rest === 'values') {
@@ -321,9 +335,15 @@ const realFetch = globalThis.fetch;
   const second = await signIn(env, OWNER, PW);
   check('…and shows on a second device', /Solution and budget/.test((await call(env, '/dashboard/deals', { cookie: second.cookie })).text));
 
+  // Reminders open, written, in his own Gmail; the dashboard holds no Gmail access (14 Nov 2026).
   const before = g.calls.length;
   await call(env, '/dashboard/act', { method: 'POST', cookie: s.cookie, form: { action: 'remind', kind: 'waiting', row: 'W2', back: '/dashboard' } });
-  check('a reminder is a Gmail draft, never a send', g.drafts.length === 1 && g.calls.slice(before).every((c) => !/send/.test(c)));
+  const conn0 = await call(env, '/dashboard/connections', { cookie: s.cookie });
+  const scope = new URL(start.location).searchParams.get('scope').split(' ');
+  check('Google is asked for no Gmail, no Drive file contents and no calendar settings', !scope.some((x) => /gmail|auth\/drive\.readonly|auth\/calendar\.readonly/.test(x)) && scope.includes('https://www.googleapis.com/auth/spreadsheets') && scope.includes('https://www.googleapis.com/auth/drive.metadata.readonly') && scope.includes('https://www.googleapis.com/auth/calendar.events.readonly'), scope.join(' '));
+  check('a reminder never reaches Gmail from the server', g.drafts.length === 0 && g.calls.slice(before).every((c) => !/gmail/.test(c)) && conn0.status === 200);
+  const clientPage = await call(env, '/dashboard/work/P1', { cookie: s.cookie });
+  check('a reminder is a link that opens his own Gmail, written', /href="https:\/\/mail\.google\.com\/mail\/\?view=cm&amp;fs=1&amp;to=client-a%40example\.test/.test(clientPage.text) && !/value="remind"/.test(clientPage.text));
 
   await call(env, '/dashboard/tick', { method: 'POST', cookie: s.cookie, form: { item: 'draft:A1' } });
   check('a ticked Today item stays hidden after a reload', !(await call(env, '/dashboard', { cookie: s.cookie })).text.includes('Update draft'));
@@ -357,6 +377,102 @@ const realFetch = globalThis.fetch;
   const nk = await signIn(noKey, OWNER, PW);
   check('without the token key nothing can be connected', (await call(noKey, '/dashboard/connect', { method: 'POST', cookie: nk.cookie, form: { provider: 'google' } })).location === '/dashboard/connections?m=no_token_key');
   globalThis.fetch = realFetch;
+}
+
+// His existing tracker, read as it is laid out, one view from lead to cash, notes, and the narrower
+// Google access (Scooter, 14 Nov 2026). The tracker has a title line, no ID column and its own column
+// names; reading it adds nothing to it, a change writes only the cells changed, an inquiry joins it
+// as one appended row, and notes never touch it.
+{
+  const g = fakeGoogle();
+  const TRACKER = 'TRACKERSHEETID000000000000001';
+  const pipeline = [['Productions pipeline 2026'], [], ['Company', 'Pipeline Stage', 'Next Step', 'Next Step Date', 'Notes', 'Contact email'], ['Org B', 'Proposal', 'Send deck', '11/20/2026', 'Original note', 'org-b@example.test'], ['Org C', 'Discovery', '', '', '', '']];
+  g.sheets[TRACKER] = { title: 'Tracker test', tabs: { 'Read me': [['How to use this sheet']], '2026 Pipeline': pipeline }, perms: [{ type: 'user', role: 'owner', emailAddress: OWNER }, { type: 'anyone', role: 'reader' }, { type: 'user', role: 'writer', emailAddress: 'helper-a@example.test', displayName: 'Helper A' }] };
+  g.sheets.FORMSHEETID0000000000000000001 = { title: 'Form test', tabs: { 'Form responses 1': [['Timestamp', 'Name', 'Organization', 'Email'], ['11/10/2026', 'Person B', 'Org B, Inc.', 'org-b@example.test'], ['11/12/2026', 'Person Z', 'Org Z', 'org-z@example.test']] } };
+  globalThis.fetch = g.fetch;
+  try {
+    const env = ENV({ google: true });
+    await seedOwner(env);
+    const s = await signIn(env, OWNER, PW);
+    const start = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'google' } });
+    await call(env, `/dashboard/oauth/callback?state=${new URL(start.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
+    await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'work', link: 'https://docs.google.com/spreadsheets/d/WORKSHEETID00000000000000001/edit' } });
+    await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${TRACKER}/edit` } });
+    await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'inquiries', link: 'https://docs.google.com/spreadsheets/d/FORMSHEETID0000000000000000001/edit' } });
+    const snapshot = JSON.stringify(pipeline);
+    const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
+    check('tracker: a tab found by its columns, under a title line, with no ID column, is read', /Deals · 2/.test(deals.text) && /Org B/.test(deals.text) && /Org C/.test(deals.text) && !/Org A/.test(deals.text), (deals.text.match(/Deals · \d+/) || [''])[0]);
+    check('tracker: the page says how it is read, column by column', /How your tracker is read/.test(deals.text) && /2026 Pipeline, column names on row 3/.test(deals.text) && /<span>Company<\/span><span>organization<\/span>/.test(deals.text));
+    check('tracker: reading it changes nothing in it', JSON.stringify(pipeline) === snapshot && !g.appended);
+
+    const before = g.cellsWritten || 0;
+    const up = await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-b', stage: 'Negotiation', next_action: 'Call about the deck', next_date: '2026-11-21', back: '/dashboard/flow/org-b' } });
+    const upShown = await call(env, up.location, { cookie: s.cookie });
+    const rowB = pipeline.find((r) => r[0] === 'Org B');
+    check('tracker: Save to my tracker writes stage, next step and date on his row, confirmed', rowB[1] === 'Negotiation' && rowB[2] === 'Call about the deck' && rowB[3] === '2026-11-21' && /Saved and checked/.test(upShown.text), JSON.stringify(rowB));
+    check('tracker: only the three changed cells are written; no row or column added', (g.cellsWritten - before) === 3 && pipeline.length === 5 && pipeline.every((r, i) => i < 2 || r.length === 6) && rowB[0] === 'Org B' && rowB[4] === 'Original note');
+    pipeline.splice(3, 0, ['Org D', 'Discovery', '', '', '', '']);
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
+    pipeline.splice(3, 0, ['Org E', 'Discovery', '', '', '', '']);
+    await call(env, '/dashboard/act', { method: 'POST', cookie: s.cookie, form: { action: 'stage', row: 'k:org-b', back: '/dashboard/deals' } });
+    check('tracker: a row moved by a new row above it is still found by its organization', pipeline.find((r) => r[0] === 'Org B')[1] === 'Signed agreement' && pipeline.find((r) => r[0] === 'Org E')[1] === 'Discovery');
+    const second = await signIn(env, OWNER, PW);
+    check('tracker: the change shows on a second device', /Signed agreement/.test((await call(env, '/dashboard/deals', { cookie: second.cookie })).text));
+
+    const flow = await call(env, '/dashboard/flow', { cookie: s.cookie });
+    check('lead to cash: one line per organization, the inquiry joined to its deal', /href="\/dashboard\/flow\/org-b">Org B ›/.test(flow.text) && /Org Z ›/.test(flow.text) && /New inquiry/.test(flow.text) && (flow.text.match(/Org B ›/g) || []).length === 1);
+    const recB = await call(env, '/dashboard/flow/org-b', { cookie: s.cookie });
+    check('lead to cash: the record carries the inquiry, the deal form and the notes', /Person B/.test(recB.text) && /action="\/dashboard\/deal"/.test(recB.text) && /action="\/dashboard\/note"/.test(recB.text) && /Signed/.test(recB.text));
+
+    const rows0 = pipeline.length;
+    const add = await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-z', back: '/dashboard/flow/org-z' } });
+    const added = pipeline.at(-1);
+    check('lead to cash: an inquiry joins his tracker as ONE appended row, nothing else changed', pipeline.length === rows0 + 1 && g.appended === 1 && added[0] === 'Org Z' && added[5] === 'org-z@example.test' && /Saved and checked/.test((await call(env, add.location, { cookie: s.cookie })).text), JSON.stringify(added));
+    const again = await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-z', back: '/dashboard/flow/org-z' } });
+    check('lead to cash: it is never added twice', pipeline.length === rows0 + 1 && again.status === 303);
+
+    const n1 = await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-b', text: 'Board meets in March', back: '/dashboard/flow/org-b' } });
+    check('notes: saving a note is confirmed', /Note saved/.test((await call(env, n1.location, { cookie: s.cookie })).text));
+    await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-b', text: 'Board moved to April', back: '/dashboard/flow/org-b' } });
+    const onPhone = await call(env, '/dashboard/flow/org-b', { cookie: second.cookie });
+    check('notes: the newest note shows after a reload and on a second device, with the earlier one kept', /Board moved to April/.test(onPhone.text) && /Earlier versions · 1/.test(onPhone.text) && /Board meets in March/.test(onPhone.text));
+    check('notes: never written into his tracker', pipeline.find((r) => r[0] === 'Org B')[4] === 'Original note' && !JSON.stringify(pipeline).includes('Board'));
+    check('notes: Lead to cash shows the note line', /Note: Board moved to April/.test((await call(env, '/dashboard/flow', { cookie: s.cookie })).text));
+
+    // Access: what Google allows, who can open each sheet, what is kept.
+    await env.PRODUCTIONS_DB.prepare("UPDATE connection SET scopes = ? WHERE provider = 'google'").bind('openid https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/calendar.readonly').run();
+    check('access: a wider earlier grant is a gold item on Today', /Google still allows more than the dashboard needs/.test((await call(env, '/dashboard', { cookie: s.cookie })).text));
+    const acc = await call(env, '/dashboard/access', { cookie: s.cookie });
+    check('access: the wider grant is named in plain words with Narrow', /Write and send email as you/.test(acc.text) && /action="\/dashboard\/google\/narrow"/.test(acc.text));
+    check('access: who can open each connected sheet, live from Google', /Tracker test/.test(acc.text) && /Anyone with the link can open it/.test(acc.text) && /Helper A \(helper-a@example\.test\) can edit/.test(acc.text));
+    check('access: every kept table is described, with counts', BACKUP_TABLES.every((t) => TABLE_WORDS[t]) && /Your notes on each lead and client, every saved version<\/span><span>2 rows/.test(acc.text));
+    const revokedBefore = g.revoked.length;
+    const nar = await call(env, '/dashboard/google/narrow', { method: 'POST', cookie: s.cookie });
+    const nScope = nar.location ? new URL(nar.location).searchParams.get('scope') : '';
+    check('access: Narrow withdraws the old grant at Google, then asks only for the narrow set', g.revoked.length === revokedBefore + 1 && /^https:\/\/accounts\.google\.com\//.test(nar.location || '') && !/gmail|drive\.readonly/.test(nScope), nScope);
+    await call(env, `/dashboard/oauth/callback?state=${new URL(nar.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
+    check('access: after narrowing, the named sheets are kept and the gold item is gone', !/still allows more/.test((await call(env, '/dashboard', { cookie: s.cookie })).text) && /Deals · 5/.test((await call(env, '/dashboard/deals', { cookie: s.cookie })).text));
+
+    // Keep money out: the copy is deleted at once and a sync does not bring it back.
+    await env.PRODUCTIONS_DB.prepare("INSERT INTO row_cache (kind,row_id,origin,data,synced_at) VALUES ('invoices','I1','{}',?,?)").bind(JSON.stringify({ id: 'I1', client: 'Org B', amount: '100', due: '2026-11-01', status: 'Sent' }), NOW).run();
+    await call(env, '/dashboard/choice', { method: 'POST', cookie: s.cookie, form: { key: 'money', value: 'off', back: '/dashboard/access#limit' } });
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
+    const moneyLeft = Number((await env.PRODUCTIONS_DB.prepare("SELECT COUNT(*) AS n FROM row_cache WHERE kind IN ('invoices','receipts','vendors','margin','cash','tracker')").first()).n);
+    check('access: Keep money out deletes the money copy and keeps it out', moneyLeft === 0 && /Money is kept out of the dashboard/.test((await call(env, '/dashboard/money', { cookie: s.cookie })).text));
+
+    // Stop using the tracker: deals fall back to the Work sheet's Deals tab; nothing of the tracker is kept.
+    await call(env, '/dashboard/source/remove', { method: 'POST', cookie: s.cookie, form: { group: 'tracker' } });
+    const fb = await call(env, '/dashboard/deals', { cookie: s.cookie });
+    check('sources: Stop using a sheet forgets its rows; deals come from the Work sheet again', /Org A/.test(fb.text) && !/Org Z/.test(fb.text));
+
+    // A tracker whose columns cannot be read says so, naming the columns it saw.
+    g.sheets[TRACKER].tabs = { Sheet1: [['Foo', 'Bar'], ['x', 'y']] };
+    await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${TRACKER}/edit` } });
+    const bad = await call(env, '/dashboard/deals', { cookie: s.cookie });
+    check('tracker: unrecognised columns are said, with the columns seen, never a silent zero', /columns were not recognised/.test(bad.text) && /Columns seen: Foo, Bar/.test(bad.text));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 }
 
 // Money: incomplete costs show no margin.

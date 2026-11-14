@@ -4,8 +4,9 @@
  * Words are outcome words: never "store", "Agent Log", "Phase 2" or "firm email".
  */
 import { ageWords, daysSince, esc, httpsOnly, isoDay, money, num, todayLabel, toTime, usDay, usTime } from './core.mjs';
-import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, FUNNEL_STAGES, GROUPS, KINDS, STALE_MS, projectName, sheetUrl } from './data.mjs';
-import { KEY_FIELDS, PROVIDERS } from './providers.mjs';
+import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, GROUPS, JOURNEY_FILTERS, JOURNEY_STEPS, KINDS, NOTE_MAX, STALE_MS, composeLink, groupFor, orgKey, projectName, sheetUrl, stageOptions } from './data.mjs';
+import { GOOGLE_SCOPE_WORDS, KEY_FIELDS, PROVIDERS, RETIRED_GOOGLE_SCOPES, wideGoogleScopes } from './providers.mjs';
+import { BACKUP_TABLES, TABLE_WORDS } from './schema.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
 
 const HELP = '/dashboard/help';
@@ -41,6 +42,10 @@ function sec(id, title, inner, sub = '') {
 }
 function act(action, row, label, back, { primary = false, kind = '' } = {}) {
   return `<form method="post" action="/dashboard/act" class="d-inline"><input type="hidden" name="action" value="${esc(action)}"><input type="hidden" name="row" value="${esc(row)}">${kind ? `<input type="hidden" name="kind" value="${esc(kind)}">` : ''}<input type="hidden" name="back" value="${esc(back)}"><button type="submit" class="${primary ? 'd-primary' : ''}">${esc(label)}</button></form>`;
+}
+/** A reminder written and ready in his own Gmail; he presses Send. The dashboard sends nothing. */
+function mailLink(kind, row, label) {
+  return `<a class="d-btn d-primary" href="${esc(composeLink(kind, row))}" target="_blank" rel="noopener noreferrer">${esc(label)} ↗</a>`;
 }
 const gap = (t = 'not entered yet') => `<span class="d-gap">${esc(t)}</span>`;
 const val = (v) => (v === null || v === undefined || v === '' ? gap() : esc(v));
@@ -147,6 +152,13 @@ details.d-fold[open] summary::after{content:'⌄'}
 .d-helpdoc h2{margin-top:26px}
 .d-helpdoc li{margin:6px 0}
 code{overflow-wrap:anywhere}
+.d-steps{list-style:none;margin:8px 0;padding:0;display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.d-steps li{font-size:12px;color:var(--muted);text-align:center;padding-top:10px;border-top:4px solid var(--ink-3);overflow-wrap:anywhere}
+.d-steps li.on{color:var(--white);border-top-color:var(--orange)}
+.d-note{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--ink-2);border-radius:12px;padding:10px 12px;margin:6px 0;color:var(--copy)}
+.d-form textarea{width:100%;font:inherit;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--ink-2);color:var(--white);min-height:120px}
+.d-grid2{display:grid;grid-template-columns:1fr;gap:0 12px}
+@media (min-width:620px){.d-grid2{grid-template-columns:1fr 1fr}}
 .d-helpdoc code{background:var(--ink-3);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
 @media (max-width:620px){.d-row{flex-wrap:wrap}.d-row__main{flex:1 1 70%}.d-row__act{flex:1 1 100%;justify-content:flex-start;padding-left:20px}.d-row--today{flex-wrap:nowrap;align-items:center}.d-row--today .d-row__main{flex:1 1 auto}.d-row--today .d-row__act{flex:none;flex-wrap:nowrap;justify-content:flex-end;align-items:center;padding-left:0}.d-row--today .d-row__act button,.d-row--today .d-row__act .d-btn{padding:9px 12px;white-space:nowrap}}
 @media (min-width:760px){body{font-size:16px}main{padding:0 24px 24px}}
@@ -154,7 +166,7 @@ code{overflow-wrap:anywhere}
 `;
 
 export function page(title, body, { tab = null, counts = null, sample = false, signedIn = false, head = '' } = {}) {
-  const tabs = signedIn ? `<nav class="d-tabs" aria-label="Dashboard">${[['today', '/dashboard', 'Today'], ['work', '/dashboard/work', 'Work'], ['money', '/dashboard/money', 'Money'], ['agents', '/dashboard/agents', 'Agents']].map(([k, h, l]) => {
+  const tabs = signedIn ? `<nav class="d-tabs" aria-label="Dashboard">${[['today', '/dashboard', 'Today'], ['work', '/dashboard/flow', 'Work'], ['money', '/dashboard/money', 'Money'], ['agents', '/dashboard/agents', 'Agents']].map(([k, h, l]) => {
     const n = counts?.[k] ?? 0;
     return `<a href="${h}"${tab === k ? ' aria-current="page"' : ''}>${l}<b class="${n ? '' : 'zero'}" aria-label="${n} to look at">${n}</b></a>`;
   }).join('')}</nav>` : '';
@@ -171,13 +183,17 @@ export function flashBox(a) {
     nothing_to_change: 'There was nothing to change on that row.',
     no_status_column: 'Your sheet has no Status column on that tab, so nothing was changed.',
     no_stage_column: 'Your sheet has no Stage column, so nothing was changed.',
+    no_columns: 'Your tracker has none of those columns, so nothing was changed. Nothing is ever added to it.',
+    unknown_stage: 'That stage is not one your tracker uses. Nothing was changed.',
+    bad_date: 'That date could not be read. Nothing was changed.',
+    no_tracker: 'Your tracker could not be read yet. Name it on Connections, then try again.',
+    already_in_tracker: 'They are already in your tracker. Refresh to see the row.',
     not_confirmed: 'The change was sent but your sheet did not show it when read back. Open the sheet to check.',
     write_failed: 'Your sheet did not accept the change. Nothing was changed.',
-    draft_failed: 'Gmail did not create the draft. Nothing was sent.',
     unknown_action: 'That action is not one the dashboard knows.'
   };
   if (a.outcome === 'saved') {
-    if (a.action === 'remind') return `<p class="d-flash d-flash--ok" role="status">${a.detail === 'sample_draft' ? 'Sample: a draft would be waiting in Gmail now. Nothing was sent.' : `Draft saved in Gmail, not sent. ${link(a.link, 'Open it in Gmail')}`}</p>`;
+    if (a.action === 'note') return `<p class="d-flash d-flash--ok" role="status">${a.detail === 'note_cleared' ? 'Note cleared.' : 'Note saved. It shows on this record on every device.'}</p>`;
     if (String(a.action).startsWith('choice:')) return '<p class="d-flash d-flash--ok" role="status">Saved. You can change it any time.</p>';
     const [value, where] = String(a.detail || '').split('|');
     return `<p class="d-flash d-flash--ok" role="status">Saved and checked: ${esc(value)}${where ? ` in ${esc(where)}` : ''}.</p>`;
@@ -271,7 +287,8 @@ export function renderToday(view, ctx) {
 }
 function todayAction(i) {
   if (i.action === 'reconnect') return `<a class="d-btn d-primary" href="/dashboard/connections">${String(i.key).startsWith('off:') ? 'Connect' : 'Reconnect'}</a>`;
-  if (i.action === 'chase') return act('remind', i.rowId, 'Chase', '/dashboard', { primary: true, kind: i.kind });
+  if (i.action === 'chase') return `<a class="d-btn d-primary" href="${esc(i.mail)}" target="_blank" rel="noopener noreferrer">Chase ↗</a>`;
+  if (i.action === 'access') return '<a class="d-btn d-primary" href="/dashboard/access#limit">Narrow it</a>';
   if (i.action === 'received') return act('received', i.rowId, 'Mark received', '/dashboard', { primary: true });
   if (i.action === 'approve') return `${i.link ? link(i.link, 'Open', 'd-btn') : ''}${act('approve', i.rowId, 'Approve', '/dashboard', { primary: true })}`;
   return '';
@@ -287,7 +304,7 @@ function refreshButton(ctx) {
 /* ------------------------------------------------------------------ Work, client page, deals */
 
 function seg(active) {
-  return `<nav class="d-seg" aria-label="Work">${[['projects', '/dashboard/work', 'Projects'], ['deals', '/dashboard/deals', 'Deals'], ['inquiries', '/dashboard/inquiries', 'Inquiries']].map(([k, h, l]) => `<a href="${h}"${active === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  return `<nav class="d-seg" aria-label="Work">${[['flow', '/dashboard/flow', 'Lead to cash'], ['projects', '/dashboard/work', 'Projects'], ['deals', '/dashboard/deals', 'Deals'], ['inquiries', '/dashboard/inquiries', 'Inquiries']].map(([k, h, l]) => `<a href="${h}"${active === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
 }
 export function renderWork(view, ctx) {
   const { now } = ctx;
@@ -310,20 +327,103 @@ export function renderClient(view, p, ctx) {
   const body = `<p><a class="d-help" href="/dashboard/work">← Work</a></p><h1>${esc(p.client || p.name)}</h1><p class="d-sub">${esc(p.name || '')}${p.status ? ` · ${esc(p.status)}` : ''}</p>${ctx.flash || ''}
   ${sec('docs', 'Documents', `<ul class="d-kv"><li><span>Binder</span><span>${link(p.binder, 'Open') || gap()}</span></li><li><span>Drive folder</span><span>${link(p.folder, 'Open') || gap()}</span></li><li><span>SOW signature</span><span>${sow}</span></li></ul>${deliverables.length ? `<h3>Deliverables</h3><ul class="d-list">${deliverables.map((d, i) => `<li class="d-row">${link(d, `Deliverable ${i + 1}`)}</li>`).join('')}</ul>` : ''}`)}
   ${sec('people', 'People', `<ul class="d-kv"><li><span>Contacts</span><span>${val(p.contacts)}</span></li><li><span>Approval owners</span><span>${val(p.approvers)}</span></li><li><span>Next meeting</span><span>${meetingText}</span></li><li><span>Next milestone</span><span>${val(p.milestone)} · ${dayOr(p.milestone_date)}</span></li></ul>`)}
-  ${sec('waiting', `Waiting on them · ${waiting.length}`, waiting.length ? `<ul class="d-list">${waiting.map((w) => { const d = daysSince(w.since, now); const tone = d >= 14 ? 'red' : d >= 7 ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(w.item)}</span><span class="d-row__sub ${tone}">${d === null ? 'No date entered' : `Waiting ${esc(ageWords(d))}`}</span></div><div class="d-row__act">${act('received', w._id, 'Mark received', back, { primary: true })}${act('remind', w._id, 'Email a reminder (draft)', back, { kind: 'waiting' })}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">Nothing is waiting on them.</p>', source(view, ['projects', 'waiting'], now))}`;
+  ${sec('waiting', `Waiting on them · ${waiting.length}`, waiting.length ? `<ul class="d-list">${waiting.map((w) => { const d = daysSince(w.since, now); const tone = d >= 14 ? 'red' : d >= 7 ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(w.item)}</span><span class="d-row__sub ${tone}">${d === null ? 'No date entered' : `Waiting ${esc(ageWords(d))}`}</span></div><div class="d-row__act">${act('received', w._id, 'Mark received', back, { primary: true })}${w.email ? `<a class="d-btn" href="${esc(composeLink('waiting', w))}" target="_blank" rel="noopener noreferrer">Write a reminder in Gmail ↗</a>` : ''}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">Nothing is waiting on them.</p>', source(view, ['projects', 'waiting'], now))}`;
   return page(p.client || 'Client', body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+}
+
+/** "How your tracker is read": the tab, the header row and each column it understood (names only). */
+function layoutBox(layout) {
+  if (!layout) return '';
+  const words = { id: 'ID', org: 'organization', stage: 'stage', owner: 'owner', contact: 'contact', next_action: 'next action', next_date: 'next date', proposal_sent: 'proposal sent', follow_up: 'follow-up', value: 'value', source: 'source', last_contact: 'last contact', notes: 'notes', email: 'email' };
+  if (!layout.recognised) {
+    return errorBox('Your tracker\'s columns were not recognised, so no deals could be read.', `It needs one column for the organization (for example Organization, Company or Client) and one for the stage (Stage, Status or Pipeline stage). ${layout.headers?.length ? `Columns seen: ${layout.headers.join(', ')}.` : 'No header row was found.'} Nothing in your tracker was changed.`, '/dashboard/connections#sheets', 'Check your tracker');
+  }
+  const cols = Object.entries(layout.columns || {}).map(([k, h]) => `<li><span>${esc(h)}</span><span>${esc(words[k] || k)}</span></li>`).join('');
+  return `<details class="d-fold"><summary><span>How your tracker is read</span></summary><p class="d-sub">${esc(layout.title ? `${layout.title} · ` : '')}${esc(layout.tab)}, column names on row ${esc(layout.headerRow)}. ${layout.keyed ? 'It has no ID column, so each row is found again by its organization name.' : 'Each row is found again by its ID.'} Nothing is ever added to it: no column, no second pipeline. A change writes only the cells you change, then reads them back.</p><ul class="d-kv">${cols}</ul>${layout.stages ? '<p class="d-sub">The stages come from the Stage column\'s own dropdown.</p>' : ''}</details>`;
 }
 
 export function renderDeals(view, ctx) {
   const { now } = ctx;
   const deals = view.rows.deals;
-  const funnel = `<ol class="d-funnel">${FUNNEL_STAGES.map((s) => { const n = deals.filter((d) => String(d.stage).toLowerCase() === s.toLowerCase()).length; return `<li><b>${n}</b><span>${esc(s)}</span></li>`; }).join('')}</ol>`;
+  const layout = ctx.sample ? null : ctx.settings['layout:deals'];
+  const opts = stageOptions(deals, layout?.stages);
+  const lower = opts.stages.map((x) => x.toLowerCase());
+  const other = deals.filter((d) => !lower.includes(String(d.stage || '').toLowerCase())).length;
+  const funnel = `<ol class="d-funnel">${opts.stages.map((st) => { const n = deals.filter((d) => String(d.stage || '').toLowerCase() === st.toLowerCase()).length; return `<li><b>${n}</b><span>${esc(st)}</span></li>`; }).join('')}${other ? `<li><b>${other}</b><span>Other or no stage</span></li>` : ''}</ol>`;
+  const back = '/dashboard/deals';
   const list = deals.length
-    ? `<ul class="d-list">${deals.map((d) => { const last = String(d.stage).toLowerCase() === FUNNEL_STAGES.at(-1).toLowerCase(); return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(d.org || 'Deal')}</span><span class="d-row__sub">${val(d.stage)} · ${val(d.owner)}</span><span class="d-row__sub">${d.next_action ? `${esc(d.next_action)} · ${dayOr(d.next_date)}` : 'No next action entered'}</span></div><div class="d-row__act">${last ? '' : act('stage', d._id, 'Move to next stage', '/dashboard/deals')}</div></li>`; }).join('')}</ul>`
-    : notConnected(ctx, 'Your deals') || noSource(ctx, 'work', 'Your deals') || empty('No deals in the Deals tab yet. Add one row per opportunity with its stage.', ctx.sources.work ? sheetUrl(ctx.sources.work.spreadsheet_id) : '/dashboard/connections', 'Open the Work sheet', 'deals');
+    ? `<ul class="d-list">${deals.map((d) => { const i = lower.indexOf(String(d.stage || '').toLowerCase()); const canMove = opts.ordered && i > -1 && i < opts.stages.length - 1; return `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(orgKey(d.org))}">${esc(d.org || 'Deal')} ›</a><span class="d-row__sub">${val(d.stage)} · ${val(d.owner)}</span><span class="d-row__sub">${d.next_action ? `${esc(d.next_action)} · ${dayOr(d.next_date)}` : 'No next action entered'}</span></div><div class="d-row__act">${canMove ? act('stage', d._id, 'Move to next stage', back) : ''}</div></li>`; }).join('')}</ul>`
+    : notConnected(ctx, 'Your deals') || (layout && !layout.recognised ? '' : (!ctx.sample && !ctx.sources.work && !ctx.sources.tracker ? empty('Your deals come from your own tracker. Paste its link on Connections; it is read as it is, with no new columns.', '/dashboard/connections#sheets', 'Name your tracker', 'deals') : empty(ctx.sources.tracker ? 'Your tracker has no deal rows yet. Each row with an organization shows here on the next sync.' : 'No deal rows were found in your Work sheet. If your tracker is its own Google Sheet, paste its link under Your deal tracker; it is read as it is, with no new columns.', '/dashboard/connections#sheets', ctx.sources.tracker ? 'Check your tracker' : 'Name your tracker', 'deals')));
   const out = deals.filter((d) => d.proposal_sent && !/signed|deposit|handoff/i.test(d.stage || ''));
-  const proposals = out.length ? `<ul class="d-list">${out.map((d) => { const late = daysSince(d.follow_up, now) > 0; return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(d.org)}</span><span class="d-row__sub ${late ? 'red' : ''}">Sent ${esc(usDay(d.proposal_sent))} · follow up ${dayOr(d.follow_up)}</span></div><div class="d-row__act">${late ? act('remind', d._id, 'Chase (draft)', '/dashboard/deals', { kind: 'deals' }) : ''}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">No proposals out.</p>';
-  return page('Deals', `<h1>Deals</h1>${seg('deals')}${ctx.flash || ''}${sec('funnel', 'The ten stages', funnel, source(view, ['deals'], now))}${sec('deals', `Deals · ${deals.length}`, list)}${sec('proposals', `Proposals out · ${out.length}`, proposals)}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+  const proposals = out.length ? `<ul class="d-list">${out.map((d) => { const late = daysSince(d.follow_up, now) > 0; return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(d.org)}</span><span class="d-row__sub ${late ? 'red' : ''}">Sent ${esc(usDay(d.proposal_sent))} · follow up ${dayOr(d.follow_up)}</span></div><div class="d-row__act">${late ? mailLink('deals', d, 'Chase in Gmail') : ''}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">No proposals out.</p>';
+  return page('Deals', `<h1>Deals</h1>${seg('deals')}${ctx.flash || ''}${layoutBox(layout)}${sec('funnel', 'Stages', funnel, source(view, ['deals'], now))}${sec('deals', `Deals · ${deals.length}`, list)}${sec('proposals', `Proposals out · ${out.length}`, proposals)}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+}
+
+/* ------------------------------------------------------------------ lead to client to cash */
+
+export function renderFlow(view, ctx, list, show) {
+  const { now } = ctx;
+  const f = JOURNEY_FILTERS[show] ? show : 'all';
+  const rows = list.filter(JOURNEY_FILTERS[f].test);
+  const filters = `<nav class="d-seg" aria-label="Show">${Object.entries(JOURNEY_FILTERS).map(([k, F]) => `<a href="/dashboard/flow${k === 'all' ? '' : `?show=${k}`}"${k === f ? ' aria-current="page"' : ''}>${esc(F.label)} · ${list.filter(F.test).length}</a>`).join('')}</nav>`;
+  const items = rows.length ? `<ul class="d-list">${rows.map((j) => { const tone = j.overdue.length ? 'red' : j.next?.tone === 'gold' ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${esc(j.where)}${j.invoiced ? ` · ${esc(money(j.paid))} of ${esc(money(j.invoiced))} paid` : ''}</span>${j.next ? `<span class="d-row__sub ${j.next.tone}">Next: ${esc(j.next.text)}${toTime(j.next.date) !== null ? ` · ${esc(usDay(j.next.date))}` : ''}</span>` : ''}${j.note ? `<span class="d-row__sub">Note: ${esc(j.note.text.split('\n')[0].slice(0, 90))}${j.note.text.length > 90 ? '…' : ''}</span>` : ''}</div></li>`; }).join('')}</ul>`
+    : list.length ? '<p class="d-sub">None in this list right now.</p>'
+      : notConnected(ctx, 'Your leads and clients') || empty('Nothing here yet. Leads come from your inquiry form and your tracker, clients from your Projects tab, and money from your invoices. Name those sheets and they meet here, one line per organization.', '/dashboard/connections#sheets', 'Name your sheets', 'flow');
+  const body = `<h1>Lead to cash</h1>${seg('flow')}<p class="d-sub">Every lead and client on one line, from the first inquiry to the last payment. Tap one to move the deal in your tracker and keep your notes.</p>${ctx.flash || ''}${filters}${sec('records', `${JOURNEY_FILTERS[f].label} · ${rows.length}`, items, source(view, ['inquiries', 'deals', 'projects', 'invoices'].filter((k) => view.sync[k]), now))}`;
+  return page('Lead to cash', body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+}
+
+export function renderFlowRecord(view, j, ctx) {
+  const { now } = ctx;
+  const back = `/dashboard/flow/${encodeURIComponent(j.key)}`;
+  const steps = `<ol class="d-steps" aria-label="Where it is">${JOURNEY_STEPS.map((x, i) => `<li class="${i < j.step ? 'on' : ''}">${esc(x)}${i < j.step ? '<span class="d-vh" style="position:absolute;left:-9999px"> (reached)</span>' : ''}</li>`).join('')}</ol>`;
+  const layout = ctx.sample ? { recognised: true } : ctx.settings['layout:deals'];
+  const opts = stageOptions(view.rows.deals, layout?.stages);
+  let deal;
+  if (j.deal) {
+    const d = j.deal;
+    const stages = opts.stages.includes(d.stage) || !d.stage ? opts.stages : [d.stage, ...opts.stages];
+    const dateVal = toTime(d.next_date) === null ? '' : new Date(toTime(d.next_date)).toISOString().slice(0, 10);
+    deal = `<ul class="d-kv"><li><span>Stage</span><span>${val(d.stage)}</span></li><li><span>Owner</span><span>${val(d.owner)}</span></li>${d.contact ? `<li><span>Contact</span><span>${esc(d.contact)}</span></li>` : ''}${d.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${d.source ? `<li><span>Source</span><span>${esc(d.source)}</span></li>` : ''}${d.notes ? `<li><span>Notes in your tracker</span><span>${esc(d.notes)}</span></li>` : ''}</ul>
+      <form class="d-form" method="post" action="/dashboard/deal"><input type="hidden" name="row" value="${esc(d._id)}"><input type="hidden" name="back" value="${esc(back)}">
+        <div class="d-grid2"><div><label for="dl-stage">Stage</label><select id="dl-stage" name="stage">${stages.map((x) => `<option${x === d.stage ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+        <div><label for="dl-date">Next date</label><input id="dl-date" name="next_date" type="date" value="${esc(dateVal)}"></div></div>
+        <label for="dl-act">Next action</label><input id="dl-act" name="next_action" type="text" maxlength="300" value="${esc(d.next_action || '')}">
+        <p><button type="submit" class="d-primary">Save to my tracker</button></p>
+        <p class="d-sub">Writes only the cells you change, on this row of ${esc(d._origin || 'your tracker')}, then reads them back. Nothing else in your tracker changes.</p></form>${j.deals.length > 1 ? `<p class="d-sub">Your tracker has ${j.deals.length} rows for them; this is the first.</p>` : ''}`;
+  } else if (j.inquiries.length) {
+    deal = !ctx.sample && !layout?.recognised
+      ? empty('Not in your tracker yet. Name your tracker on Connections and it can be added from here.', '/dashboard/connections#sheets', 'Name your tracker', 'deals')
+      : `<p class="d-sub">Not in your tracker yet.</p><form method="post" action="/dashboard/deal/add"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><button type="submit" class="d-primary">Add them to my tracker</button></form><p class="d-sub">Adds one new row at the bottom of ${esc(layout?.tab || 'your tracker')} with their organization, contact and first stage. No existing row changes.</p>`;
+  } else deal = '<p class="d-sub">No row for them in your tracker.</p>';
+
+  const history = (ctx.history || []).slice(1);
+  const notes = `${j.note ? `<p class="d-note">${esc(j.note.text)}</p><p class="d-src">Saved ${esc(usTime(j.note.at, now))}</p>` : '<p class="d-sub">No note yet. What you write here stays on this record, on every device.</p>'}
+    <form class="d-form" method="post" action="/dashboard/note"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><label for="nt">${j.note ? 'Update the note' : 'Write a note'}</label><textarea id="nt" name="text" maxlength="${NOTE_MAX}">${esc(j.note?.text || '')}</textarea><p><button type="submit" class="d-primary">Save note</button></p></form>
+    ${history.length ? `<details class="d-fold"><summary><span>Earlier versions · ${history.length}</span></summary>${history.map((h) => `<p class="d-src">${esc(usTime(h.at, now))}</p><p class="d-note">${h.text ? esc(h.text) : '<span class="d-gap">cleared</span>'}</p>`).join('')}</details>` : ''}
+    <p class="d-sub">Notes are kept in the dashboard's own private database, never written into your tracker.</p>`;
+
+  const inquiry = j.inquiries.length ? `<ul class="d-list">${j.inquiries.map((i) => `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(i.name || i.org || 'Inquiry')}${i.initiative ? ` · ${esc(i.initiative)}` : ''}</span><span class="d-row__sub">${dayOr(i.at)}${i.email ? ` · ${esc(i.email)}` : ''}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No inquiry from your form for them.</p>';
+
+  const envs = ctx.settings.envelopes || {};
+  const sowWords = { completed: 'Signed', sent: 'Sent, not signed yet', delivered: 'Opened, not signed yet', declined: 'Declined', voided: 'Voided', created: 'Not sent yet' };
+  const work = `<p class="d-sub">${j.signedBy === 'DocuSign' ? 'Agreement signed in DocuSign.' : j.signedBy === 'tracker' ? 'Your tracker marks the agreement signed.' : 'No signed agreement yet.'}</p>${j.projects.length ? `<ul class="d-list">${j.projects.map((p) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/work/${encodeURIComponent(p._id)}">${esc(p.name || p.client || 'Project')} ›</a><span class="d-row__sub">${val(p.status)} · SOW ${p.sow_envelope ? esc(sowWords[envs[p.sow_envelope]?.status] || envs[p.sow_envelope]?.status || 'not synced yet') : gap('no envelope named')}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No project for them in your Projects tab yet.</p>'}`;
+
+  const moneyOff = !ctx.sample && ctx.choices.money?.value === 'off';
+  const money_ = moneyOff ? '<p class="d-sub">Money is kept out of the dashboard for now (Who can see what).</p>'
+    : `<ul class="d-kv"><li><span>Invoiced</span><span>${esc(money(j.invoiced)) || '$0'}</span></li><li><span>Paid</span><span>${esc(money(j.paid)) || '$0'}</span></li><li><span>Still open</span><span class="${j.overdue.length ? 'd-red' : ''}">${esc(money(j.open)) || '$0'}</span></li></ul>
+      ${j.openRows.length ? `<ul class="d-list">${j.openRows.map((i) => { const late = daysSince(i.due, now); return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${i.id ? `${esc(i.id)} · ` : ''}${num(i.amount) === null ? gap('amount not entered') : esc(money(num(i.amount)))}</span><span class="d-row__sub ${late > 0 ? 'red' : ''}">due ${dayOr(i.due)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}</span></div><div class="d-row__act">${act('paid', i._id, 'Mark paid', back, { primary: true })}${late > 0 && i.email ? mailLink('invoices', i, 'Reminder in Gmail') : ''}</div></li>`; }).join('')}</ul>` : ''}
+      ${j.receipts.length ? `<p class="d-sub">Expected: ${j.receipts.map((x) => `${esc(money(num(x.amount)))} ${dayOr(x.date)}`).join(', ')}. A promised payment is not collected cash.</p>` : ''}
+      <p class="d-sub">A paid invoice is money that reached you. Cash now and the next four weeks are on <a href="/dashboard/money">Money</a>.</p>`;
+
+  const nextLine = j.next ? `<p class="d-row__sub ${j.next.tone}">Next: ${esc(j.next.text)}${toTime(j.next.date) !== null ? ` · ${esc(usDay(j.next.date))}` : ''}</p>` : '';
+  const body = `<p><a class="d-help" href="/dashboard/flow">← Lead to cash</a></p><h1>${esc(j.name)}</h1><p class="d-sub">${esc(j.where)}</p>${nextLine}${steps}${ctx.flash || ''}
+    ${sec('deal', 'Deal, in your tracker', deal, source(view, ['deals'], now))}
+    ${sec('notes', 'Your notes', notes)}
+    ${sec('inquiry', `Inquiry · ${j.inquiries.length}`, inquiry, source(view, ['inquiries'], now))}
+    ${sec('work', 'Agreement and work', work, source(view, ['projects'], now))}
+    ${sec('cash', 'Invoices and cash', money_, moneyOff ? '' : source(view, ['invoices'], now))}`;
+  return page(j.name, body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
 export function renderInquiries(view, ctx) {
@@ -346,7 +446,9 @@ export function renderFind(found, term, ctx) {
 export function renderMoney(view, ctx) {
   const { now } = ctx;
   const r = view.rows;
-  const gate = notConnected(ctx, 'Your money figures') || noSource(ctx, 'money', 'Your money figures');
+  const off = !ctx.sample && ctx.choices.money?.value === 'off'
+    ? empty('Money is kept out of the dashboard. Nothing from your Money sheet or the binders\' Finance tabs is read or kept here. Turn it back on under Who can see what.', '/dashboard/access#limit', 'Who can see what', 'privacy') : '';
+  const gate = off || notConnected(ctx, 'Your money figures') || noSource(ctx, 'money', 'Your money figures');
   if (gate) return page('Money', `<h1>Money</h1><p class="d-sub">Scooter only. Never shown to clients or agents.</p>${gate}`, { tab: 'money', counts: ctx.counts, sample: ctx.sample, signedIn: true });
   const back = '/dashboard/money';
   // 1. Cash now and the 4-week line.
@@ -359,7 +461,7 @@ export function renderMoney(view, ctx) {
     <p class="d-src">${useAcct ? `Cash now from: ${esc(providerName(acct.tool))}, synced ${esc(usTime(acct.at, now))}${now - acct.at > STALE_MS ? ' <span class="d-gold">· may be out of date</span>' : ''}` : ''}</p>${source(view, ['cash'], now)}`;
   // 2. Invoices due.
   const open = r.invoices.filter((i) => !/paid/i.test(i.status || ''));
-  const inv = open.length ? `<ul class="d-list">${open.sort((a, b) => (toTime(a.due) ?? 9e15) - (toTime(b.due) ?? 9e15)).map((i) => { const late = daysSince(i.due, now); const tone = late >= 14 ? 'red' : late > 0 ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.client || '')} · ${num(i.amount) === null ? gap('amount not entered') : esc(money(num(i.amount)))}</span><span class="d-row__sub ${tone}">${i.id ? `${esc(i.id)} · ` : ''}due ${dayOr(i.due)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}</span></div><div class="d-row__act">${act('paid', i._id, 'Mark paid', back, { primary: true })}${late > 0 ? act('remind', i._id, 'Send reminder (draft)', back, { kind: 'invoices' }) : ''}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">No open invoices.</p>';
+  const inv = open.length ? `<ul class="d-list">${open.sort((a, b) => (toTime(a.due) ?? 9e15) - (toTime(b.due) ?? 9e15)).map((i) => { const late = daysSince(i.due, now); const tone = late >= 14 ? 'red' : late > 0 ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.client || '')} · ${num(i.amount) === null ? gap('amount not entered') : esc(money(num(i.amount)))}</span><span class="d-row__sub ${tone}">${i.id ? `${esc(i.id)} · ` : ''}due ${dayOr(i.due)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}</span></div><div class="d-row__act">${act('paid', i._id, 'Mark paid', back, { primary: true })}${late > 0 ? `<a class="d-btn" href="${esc(composeLink('invoices', i))}" target="_blank" rel="noopener noreferrer">Write a reminder in Gmail ↗</a>` : ''}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">No open invoices.</p>';
   // 3. Aged receivables.
   const bucket = (test) => open.filter((i) => test(daysSince(i.due, now))).reduce((a, i) => a + (num(i.amount) || 0), 0);
   const aged = `<ul class="d-kv">${[['Not yet due', (d) => d === null || d <= 0], ['1–30 days', (d) => d > 0 && d <= 30], ['31–60 days', (d) => d > 30 && d <= 60], ['Over 60 days', (d) => d > 60]].map(([l, t]) => `<li><span>${l}</span><span>${esc(money(bucket(t)))}</span></li>`).join('')}</ul>`;
@@ -425,7 +527,8 @@ export function renderConnections(ctx) {
       actions = `<div class="d-acts"><form method="post" action="/dashboard/connect"><input type="hidden" name="provider" value="${p}">${stage}<button type="submit" class="${c.status === 'ok' ? '' : 'd-primary'}">Reconnect</button></form><form method="post" action="/dashboard/disconnect"><input type="hidden" name="provider" value="${p}"><button type="submit">Disconnect</button></form></div>`;
     }
     const testing = p === 'docusign' && c?.meta?.server === 'test' ? '<p class="d-sub d-gold">Testing stage: shows envelopes in your DocuSign developer account only. Once DocuSign moves your app live, Disconnect and press Connect DocuSign.</p>' : '';
-    const meta = c ? `${testing}<p class="d-sub">${c.account ? `${esc(c.account)} · ` : ''}${c.last_sync ? `synced ${esc(usTime(c.last_sync, now))}${now - c.last_sync > STALE_MS ? ' <span class="d-gold">· may be out of date</span>' : ''}` : 'not synced yet'}</p>` : '';
+    const narrow = p === 'google' && c && wideGoogleScopes(c.scopes).length ? '<p class="d-sub d-gold">Still allows more than the dashboard needs (Gmail, all Drive files). <a href="/dashboard/access#limit">Narrow it ›</a></p>' : '';
+    const meta = c ? `${testing}${narrow}<p class="d-sub">${c.account ? `${esc(c.account)} · ` : ''}${c.last_sync ? `synced ${esc(usTime(c.last_sync, now))}${now - c.last_sync > STALE_MS ? ' <span class="d-gold">· may be out of date</span>' : ''}` : 'not synced yet'}</p>` : '';
     return `<div class="d-conn"><div class="d-conn__top"><strong>${esc(P.label)}</strong>${status}</div>${meta}<p class="d-sub">Unlocks: ${esc(P.unlocks)}</p>${actions}</div>`;
   }).join('');
   const acctRow = acctChoice === 'sheets' ? '<div class="d-conn"><div class="d-conn__top"><strong>Accounting tool</strong><span class="d-pill">staying in Sheets</span></div><p class="d-sub">Money reads your Money sheet only.</p></div>'
@@ -435,7 +538,9 @@ export function renderConnections(ctx) {
     const s = sources[g];
     const can = !sample && byP.google?.status === 'ok';
     return `<div class="d-conn"><div class="d-conn__top"><strong>${esc(G.label)}</strong>${s ? '<span class="d-pill ok">named</span>' : '<span class="d-pill">not named yet</span>'}</div>
-      ${s ? `<p class="d-sub">${esc(s.title || 'Your sheet')} ${link(sheetUrl(s.spreadsheet_id), 'Open')}</p>` : `<p class="d-sub">${g === 'inquiries' ? 'Your inquiry form\'s response sheet. Read only; it never feeds any West Peek network sheet.' : g === 'money' ? 'Invoices, receipts, vendors, margin, cash and the tracker. Only you see it.' : 'Projects, waiting items, deals, agent drafts and activity.'}</p>`}
+      ${s ? `<p class="d-sub">${esc(s.title || 'Your sheet')} ${link(sheetUrl(s.spreadsheet_id), 'Open')}</p>` : `<p class="d-sub">${g === 'inquiries' ? 'Your inquiry form\'s response sheet. Read only; it never feeds any West Peek network sheet.' : g === 'money' ? 'Invoices, receipts, vendors, margin, cash and the tracker. Only you see it.' : g === 'tracker' ? 'Your existing deal tracker, as it is. Deals are read from it and moved in it: no second pipeline, no new columns. Until it is named, deals come from the Work sheet.' : 'Projects, waiting items, deals, agent drafts and activity.'}</p>`}
+      ${s && g === 'tracker' && !sample ? (() => { const l = ctx.settings?.['layout:deals']; return l ? `<p class="d-sub ${l.recognised ? '' : 'd-gold'}">${l.recognised ? `Deals read from ${esc(l.tab)}. <a href="/dashboard/deals">See how ›</a>` : 'Its columns were not recognised. <a href="/dashboard/deals">See why ›</a>'}</p>` : ''; })() : ''}
+      ${s && !sample ? `<form method="post" action="/dashboard/source/remove"><input type="hidden" name="group" value="${g}"><button type="submit" class="d-link">Stop using this sheet</button></form>` : ''}
       ${can ? `<form class="d-form" method="post" action="/dashboard/source"><input type="hidden" name="group" value="${g}"><label for="src-${g}">${s ? 'Use a different sheet' : 'Paste the sheet\'s link'}</label><div class="d-find"><input id="src-${g}" name="link" type="url" inputmode="url" placeholder="https://docs.google.com/spreadsheets/d/…"><button type="submit">Save</button></div></form>${!s && G.makeTitle ? `<form method="post" action="/dashboard/source/create"><input type="hidden" name="group" value="${g}"><button type="submit" class="d-primary">Create it for me</button></form>` : ''}` : sample ? '' : '<p class="d-sub">Connect Google first.</p>'}</div>`;
   }).join('');
 
@@ -458,7 +563,7 @@ export function renderConnections(ctx) {
     return `<div class="d-conn" id="keys-${p}"><div class="d-conn__top"><strong>${esc(name)}</strong>${pill}</div>${inner}</div>`;
   }).join('');
 
-  const body = `<h1>Connections</h1><p class="d-sub">Each account is connected through its own sign-in screen. The dashboard never sees or keeps your passwords, and never a bank login.</p>${ctx.flash || ''}${ctx.tokenKeyMissing ? errorBox('Connections cannot be saved safely right now.', 'Nothing is connected or stored until the site\'s encryption key is in place. Your sheets are untouched.', `${HELP}#help-email`, 'Get help') : ''}
+  const body = `<h1>Connections</h1><p class="d-sub">Each account is connected through its own sign-in screen. The dashboard never sees or keeps your passwords, and never a bank login. <a href="/dashboard/access">Who can see what ›</a></p>${ctx.flash || ''}${ctx.tokenKeyMissing ? errorBox('Connections cannot be saved safely right now.', 'Nothing is connected or stored until the site\'s encryption key is in place. Your sheets are untouched.', `${HELP}#help-email`, 'Get help') : ''}
     ${sec('accounts', 'Accounts', rows + acctRow)}
     ${sec('keys', 'Paste your app keys', keyRows, '<p class="d-sub">Each service gives you its keys when you make its small app (Help has the steps). Paste them here; they are kept encrypted on this site and never shown again, not even in part. Never email a key.</p>')}
     ${sec('sheets', 'Your sheets', sheetRows, '<p class="d-sub">Your sheets are the source of truth. The dashboard reads them and writes quick actions back to the row.</p>')}
@@ -471,7 +576,8 @@ function choiceWhy(k) {
   return {
     accounting: 'Decides which accounting tool, if any, the dashboard reads.',
     bank_cash: 'Cash now comes from one place only. Never your bank login.',
-    crm: 'The Deals tab in your Work sheet is a light CRM; a named tool can come later.',
+    crm: 'Your own tracker in Google Sheets is the deal list; a named tool can come later.',
+    money: 'Money is shown once your Money sheet is named. Keep it out until you are ready.',
     shared_drive: 'One Google Shared Drive called "West Peek OS" for working documents.',
     agent_seat: 'Agents work from their own Workspace account. It is a paid seat: your yes and your money.',
     developer_view: 'Today the dashboard is yours alone.',
@@ -482,13 +588,55 @@ function choiceNote(k, v) {
   const notes = {
     'accounting:quickbooks': 'Connect QuickBooks under Accounts above.', 'accounting:xero': 'Connect Xero under Accounts above.', 'accounting:sheets': 'Money reads your Money sheet only.',
     'bank_cash:accounting': 'Cash now comes from your accounting tool once it is connected.', 'bank_cash:sheet': 'Cash now comes from the Opening cash column of the Cash tab.',
-    'crm:sheets': 'Deals are read from, and moved in, the Deals tab.', 'crm:tool': 'Email os@joinwestpeek.com with the tool\'s name; until then the Deals tab stays in use.',
+    'crm:sheets': 'Deals are read from, and moved in, your tracker (or the Deals tab until it is named).',
+    'money:on': 'Money rows are read and kept here. See Who can see what.', 'money:off': 'Nothing from your Money sheet or binder Finance tabs is read or kept.', 'crm:tool': 'Email os@joinwestpeek.com with the tool\'s name; until then the Deals tab stays in use.',
     'shared_drive:yes': 'Recorded. In Google Drive choose Shared drives, then New, and name it West Peek OS.', 'shared_drive:not_now': 'Recorded. Documents stay where they are.',
     'agent_seat:yes': 'Recorded. You buy the seat in Google Admin yourself; nothing is bought for you.', 'agent_seat:no': 'Recorded. Agents stay off until there is an account for them.',
     'developer_view:yes': 'Recorded. The view is added as a change on request, and never shows Money.', 'developer_view:no': 'Recorded. The dashboard stays yours alone.',
     'link:hidden': 'Recorded. Reach it at /dashboard and from the home-screen icon.', 'link:footer': 'Recorded. A quiet footer link is added with the next site change.'
   };
   return esc(notes[`${k}:${v}`] || '');
+}
+
+/* ------------------------------------------------------------------ who can see what */
+
+export function renderAccess(ctx) {
+  const { connections, sample, access, now } = ctx;
+  const g = connections.find((c) => c.provider === 'google');
+  const wide = g ? wideGoogleScopes(g.scopes) : [];
+  const narrowForm = '<form method="post" action="/dashboard/google/narrow"><button type="submit" class="d-primary">Narrow Google\'s access now</button></form><p class="d-sub">The wider access is withdrawn at Google first, then Google asks you once to approve the narrower one. Your named sheets and everything on screen stay as they are.</p>';
+  const who = `<p>Only you. The owners list is you alone: no team password, no team view, and nobody can be added unless you ask. You sign in with your own email and password, or with Google.</p>`;
+  const scopes = `<ul class="d-kv">${Object.values(GOOGLE_SCOPE_WORDS).map((w) => `<li><span><strong>${esc(w.allows)}</strong><br><span class="d-sub">${esc(w.why)}</span></span><span></span></li>`).join('')}</ul>
+    <p class="d-sub">No Gmail access: a reminder opens, written, in your own Gmail and you press Send. Google describes the Sheets permission as all spreadsheets your account can open; Google has no narrower Sheets permission without its file picker, which this dashboard does not use yet. The dashboard's code opens only the sheets listed below.</p>
+    ${sample ? '' : !g ? '<p class="d-sub">Google is not connected. When you connect, Google asks for only these.</p>'
+      : wide.length ? `<div class="d-errbox" role="alert"><p><strong>Your Google connection still holds the wider access from before:</strong></p><ul>${wide.map((x) => `<li>${esc(RETIRED_GOOGLE_SCOPES[x] || x)}</li>`).join('')}</ul>${narrowForm}</div>`
+        : '<p class="d-sub">Your Google connection holds exactly these, nothing more.</p>'}`;
+  const files = access.notConnected ? empty('Who can open each sheet shows here once Google is connected.', '/dashboard/connections', 'Go to Connections', 'connecting')
+    : !access.files.length ? empty('No sheets are named yet, so the dashboard opens none.', '/dashboard/connections#sheets', 'Name your sheets', 'sheets')
+      : `<ul class="d-list">${access.files.map((f) => {
+        if (!f.ok) return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(f.label)} ${link(f.link, 'Open')}</span><span class="d-row__sub gold">${f.why === 'needs_reconnect' ? 'Reconnect Google to see who can open it.' : f.why === 'not_allowed' ? 'Google shows its sharing only to the file\'s owner or editors.' : 'Google did not answer for this file just now.'}</span></div></li>`;
+        const ppl = f.people === null ? 'Google shows its sharing only to the file\'s owner or editors.' : f.people.length ? f.people.map((x) => `${esc(x.who)}${x.email && x.email !== x.who ? ` (${esc(x.email)})` : ''} ${esc(x.role)}`).join('<br>') : 'Nobody else is added by name.';
+        return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(f.name || f.label)} ${link(f.link, 'Open')}</span><span class="d-row__sub">${esc(f.label)}${f.owners.length ? ` · owner ${esc(f.owners.join(', '))}` : ''}</span>${f.anyone ? '<span class="d-row__sub red">Anyone with the link can open it.</span>' : ''}${f.domain ? `<span class="d-row__sub gold">Everyone at ${esc(f.domain)} can open it.</span>` : ''}<span class="d-row__sub">${ppl}</span></div></li>`;
+      }).join('')}</ul><p class="d-sub">Live from Google, names and sharing only. Who can open a file is set in Google (Share), never by the dashboard, which cannot share or unshare anything.</p>`;
+  const counts = ctx.counts_stored || {};
+  const stored = `<ul class="d-kv">${BACKUP_TABLES.map((t) => `<li><span>${esc(TABLE_WORDS[t] || t)}</span><span>${sample || counts[t] === undefined || counts[t] === null ? '' : `${counts[t]} row${counts[t] === 1 ? '' : 's'}`}</span></li>`).join('')}</ul>
+    <p class="d-sub">Where: this site's own private database on Cloudflare (one for the preview, one for the live site, never shared), and a nightly backup of it kept for 30 days in a private storage bucket. Never in the website's code, never in a West Peek network sheet.</p>
+    <p class="d-sub">Who else could reach it: the site runs on West Peek's Cloudflare account, and that account's administrators could technically open the database. Nothing reads it but the dashboard. Account keys are encrypted and your password is kept only as a hash.</p>`;
+  const moneyChoice = ctx.choices.money?.value;
+  const limit = `<ul class="d-list">
+    <li class="d-row"><div class="d-row__main"><span class="d-row__title">Google's access</span><span class="d-row__sub">${!g || sample ? 'Asks only for what is listed above.' : wide.length ? 'Still wider than needed.' : 'Narrowed: only what is listed above.'}</span>${g && !sample && wide.length ? narrowForm : ''}</div></li>
+    <li class="d-row"><div class="d-row__main"><span class="d-row__title">Money in the dashboard · ${moneyChoice === 'off' ? 'kept out' : 'shown'}</span><span class="d-row__sub">Keep money out until you are ready: nothing from your Money sheet or the binders' Finance tabs is read or kept, and the copy already here is deleted at once.</span>${sample ? '' : `<form method="post" action="/dashboard/choice" class="d-acts"><input type="hidden" name="key" value="money"><input type="hidden" name="back" value="/dashboard/access#limit"><button type="submit" name="value" value="off" ${moneyChoice === 'off' ? 'disabled' : ''}>Keep money out</button><button type="submit" name="value" value="on" ${moneyChoice !== 'off' ? 'disabled' : ''}>Show my money figures</button></form>`}</div></li>
+    <li class="d-row"><div class="d-row__main"><span class="d-row__title">Fewer sheets</span><span class="d-row__sub">On <a href="/dashboard/connections#sheets">Connections</a>, Stop using a sheet: it is no longer opened, and its copy here is deleted.</span></div></li>
+    <li class="d-row"><div class="d-row__main"><span class="d-row__title">Fewer people on each file</span><span class="d-row__sub">Keep finance in your Money sheet and binders, shared with as few people as you can. The list above shows who has each.</span></div></li>
+    <li class="d-row"><div class="d-row__main"><span class="d-row__title">Withdraw it all</span><span class="d-row__sub">Disconnect on <a href="/dashboard/connections">Connections</a>, or remove the app on Google's own page ${link('https://myaccount.google.com/permissions', 'myaccount.google.com/permissions')}. Either ends the dashboard's access at once.</span></div></li>
+  </ul>`;
+  const body = `<p><a class="d-help" href="/dashboard/connections">← Connections</a></p><h1>Who can see what</h1><p class="d-sub">Who can open the dashboard and your connected files, what the dashboard keeps, and how to limit it. Read this before adding financial data.</p>${ctx.flash || ''}
+    ${sec('who', 'Who can open the dashboard', who)}
+    ${sec('scopes', 'What the dashboard may do in your Google account', scopes)}
+    ${sec('files', 'Who can open each connected sheet', files)}
+    ${sec('stored', 'What the dashboard keeps', stored)}
+    ${sec('limit', 'How to limit it', limit)}`;
+  return page('Who can see what', body, { tab: 'connections', counts: ctx.counts, sample, signedIn: true });
 }
 
 /* ------------------------------------------------------------------ check my numbers */
@@ -513,9 +661,10 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
 
   <h2 id="sections">What each section shows, and where it comes from</h2>
   <ul>
+   <li id="flow"><strong>Work → Lead to cash</strong>: one line per organization, from the first inquiry (your form) through the deal (your tracker), the signed agreement (DocuSign or your tracker's stage), the project (Projects tab) and its invoices, to payment. Tap one to move the deal, add an inquiry to your tracker, or keep a note.</li>
    <li><strong>Today</strong>: overdue invoices, client items waiting too long (gold at 7 days, red at 14), proposals past their follow-up date, drafts to approve and any account that stopped syncing. Tick ✓ hides an item; it comes back if it changes.</li>
    <li id="projects"><strong>Work → Projects</strong>: the Projects tab of your Work sheet. Tap a project for its binder, Drive folder, contacts, approval owners, next meeting (your Google Calendar), what the client owes you (the Waiting on client tab), deliverables and SOW signature (DocuSign).</li>
-   <li id="deals"><strong>Work → Deals</strong>: the Deals tab, in the ten stages from Relationship identified to Delivery handoff. Proposals out are deals with a Proposal sent date.</li>
+   <li id="deals"><strong>Work → Deals</strong>: your own deal tracker, read as it is laid out (Connections → Your deal tracker; until it is named, the Work sheet's Deals tab). The tab is found by its columns, so it needs one for the organization and one for the stage; a title line above the column names is fine, and no ID column is needed. Stages are your tracker's own. Proposals out are deals with a Proposal sent date.</li>
    <li><strong>Work → Inquiries</strong>: your inquiry form's response sheet, read only.</li>
    <li><strong>Money</strong>: the Money sheet's tabs (Invoices, Expected receipts, Vendor obligations, Project margin, Cash, Tracker) plus the same-named Finance tabs of each project binder linked in the Projects tab. Cash now can come from QuickBooks or Xero instead (Your choices).</li>
    <li id="agents-src"><strong>Agents</strong>: the Agent drafts, Agent activity and Cold email log tabs of your Work sheet.</li>
@@ -526,18 +675,18 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
   <p>On Connections, paste each sheet's link, or press <strong>Create it for me</strong> and the dashboard makes the Work or Money sheet in your Google Drive with every tab and column ready. Each row needs a value in its <code>ID</code> column (any short code, like <code>P12</code>); that is how a quick action finds the same row again. Extra columns are fine; the dashboard reads columns by their header.</p>
 
   <h2 id="change">How to change a number</h2>
-  <ul><li>Open the source sheet (every block names it, and Connections links it), change the cell, then press Refresh now.</li><li>Or use the quick action on the row: <strong>Mark received</strong>, <strong>Move to next stage</strong>, <strong>Mark paid</strong>, <strong>Approve</strong>. The dashboard writes it to that row of your sheet, reads it back, and only says "Saved and checked" when the sheet shows it. If it could not, it says so and nothing is assumed.</li><li><strong>Chase</strong> and <strong>Send reminder</strong> put a draft in your Gmail. Nothing is ever sent for you.</li></ul>
+  <ul><li>Open the source sheet (every block names it, and Connections links it), change the cell, then press Refresh now.</li><li>Or use the quick action on the row: <strong>Mark received</strong>, <strong>Move to next stage</strong>, <strong>Mark paid</strong>, <strong>Approve</strong>. The dashboard writes it to that row of your sheet, reads it back, and only says "Saved and checked" when the sheet shows it. If it could not, it says so and nothing is assumed.</li><li><strong>Chase</strong> and <strong>Write a reminder in Gmail</strong> open the reminder, written, in your own Gmail; you press Send. The dashboard has no Gmail access and sends nothing.</li><li>On a <strong>Lead to cash</strong> record, <strong>Save to my tracker</strong> writes the stage, next action and next date to that row of your tracker, only the cells you changed. <strong>Save note</strong> keeps your note in the dashboard, never in your tracker.</li></ul>
 
   <h2 id="connecting">Connecting, reconnecting and disconnecting</h2>
   <ul>${Object.entries(PROVIDERS).map(([, p]) => `<li><strong>${esc(p.label)}</strong>: ${esc(p.gives)} ${esc(p.never)}</li>`).join('')}</ul>
-  <p>Connect opens that service's own sign-in screen; you approve there. <strong>Reconnect</strong> does the same again when a row says "needs reconnecting". <strong>Disconnect</strong> withdraws the access at the service (Google, Dropbox, QuickBooks and Xero) and deletes the dashboard's key for it. For DocuSign, also remove the app under your DocuSign profile → Connected apps. Google's own screen describes its permissions broadly (for example "edit spreadsheets"); the dashboard writes only to the sheets you named, plus the Finance tab of a client binder your Projects tab links when you mark an invoice from that binder paid, and it only creates drafts.</p>
+  <p>Connect opens that service's own sign-in screen; you approve there. <strong>Reconnect</strong> does the same again when a row says "needs reconnecting". <strong>Disconnect</strong> withdraws the access at the service (Google, Dropbox, QuickBooks and Xero) and deletes the dashboard's key for it. For DocuSign, also remove the app under your DocuSign profile → Connected apps. Google's own screen describes the Sheets permission broadly ("all your spreadsheets"); the dashboard opens only the sheets you named, plus the client binders your Projects tab links. <a href="/dashboard/access">Who can see what</a> lists exactly what it may do, who can open each sheet, and what it keeps.</p>
 
   <h2 id="google-app">Setting up the Google sign-in app (about 10 minutes, once)</h2>
   <ol>
    <li>On a computer, sign in to <a href="https://console.cloud.google.com/" rel="noopener noreferrer" target="_blank">console.cloud.google.com</a> with your Productions Google Workspace account.</li>
    <li>Create a project called <code>West Peek Productions dashboard</code>.</li>
    <li>Open <strong>APIs &amp; Services → OAuth consent screen</strong>. Choose <strong>Internal</strong> (only people in your Workspace can use it). App name <code>West Peek Productions dashboard</code>; support email is yours.</li>
-   <li>Open <strong>APIs &amp; Services → Library</strong> and enable: Google Sheets API, Google Drive API, Gmail API, Google Calendar API.</li>
+   <li>Open <strong>APIs &amp; Services → Library</strong> and enable: Google Sheets API, Google Drive API, Google Calendar API.</li>
    <li>Open <strong>Credentials → Create credentials → OAuth client ID</strong>. Type: <strong>Web application</strong>. Under Authorized redirect URIs add <code>https://westpeekproductions.com/dashboard/oauth/callback</code>${cb.startsWith('https://westpeekproductions.com') ? '' : ` and <code>${esc(cb)}</code>`}.</li>
    <li id="app-google">Google shows a Client ID and a Client secret. Paste each key into its box on the Connections page, under <a href="/dashboard/connections#keys-google">Paste your app keys → Google sign-in</a>, and press Save.</li>
    <li>Then the sign-in screen shows <strong>Sign in with Google</strong>, and Connections shows <strong>Connect Google</strong>. Until then, your email and password work.</li>
@@ -558,7 +707,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
   <ul><li><strong>may be out of date</strong>: the last good sync was more than 2 hours ago. Press Refresh now; if it stays, reconnect on Connections.</li><li><strong>not entered yet</strong>: the cell is empty in your sheet. Nothing is guessed.</li><li><strong>incomplete: costs not all entered</strong>: a project's Costs complete column is not Yes, so no margin is shown.</li><li><strong>needs reconnecting</strong>: the service stopped accepting the dashboard's access. Reconnect it.</li><li><strong>Sample mode</strong>: preview only, every row made up.</li></ul>
 
   <h2 id="privacy">Privacy</h2>
-  <p>The dashboard is yours alone: no team password, no team view. Money is never shown to clients or agents. Your figures and client names live in your Google files and this site's private database, never in the website's code. Sign-in sessions are kept on the server and end when you sign out. Access keys for your accounts are stored encrypted, and a nightly backup is kept for 30 days in a private place.</p>
+  <p>The dashboard is yours alone: no team password, no team view. Money is never shown to clients or agents. Your figures and client names live in your Google files and this site's private database, never in the website's code. Sign-in sessions are kept on the server and end when you sign out. Access keys for your accounts are stored encrypted, and a nightly backup is kept for 30 days in a private place. The full list, and how to limit it, is on <a href="/dashboard/access">Who can see what</a>.</p>
 
   <h2 id="help-email">Help by email</h2>
   <p>Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a>. Say which screen, what you pressed, what you expected and what you saw. A screenshot helps. Never include a password or an app key; keys go only into their boxes on the Connections page.</p>

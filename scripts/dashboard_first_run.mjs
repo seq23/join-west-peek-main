@@ -11,7 +11,8 @@
  * identity, sees real-looking (synthetic, non-empty) rows on Today, Work, Money and Agents, moves one
  * deal to its next stage (written to the sample sheet and read back), reloads and sees it, signs in
  * as a second device and sees it there too, signs the first device out and proves that session is
- * dead while the second still opens.
+ * dead while the second still opens. Lead to cash: records show, a note saved on one persists after a
+ * reload and on the second device, and Who can see what opens.
  * Exits non-zero on any failure; prints one line starting "FIRST_RUN OK" when every step passed.
  */
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
@@ -151,6 +152,24 @@ const B = await signIn();
 const second = await get('/dashboard/deals', B);
 if (!second.text.includes(after)) fail('second device', 'the change does not show on a second device');
 ok('the change persists after a reload and on a second device');
+
+// 6b. Lead to cash: one line per organization; a note saved on a record persists across a reload
+// and on the second device; Who can see what opens.
+const flow = await get('/dashboard/flow', A);
+const recLink = (flow.text.match(/href="(\/dashboard\/flow\/[a-z0-9~-]+)"/) || [])[1];
+if (flow.status !== 200 || !/Lead to cash/.test(flow.text) || !/Sample Org/.test(flow.text) || !recLink) fail('lead to cash', `no records shown (${flow.status})`);
+if (PLACEHOLDER.test(flow.text)) fail('lead to cash', 'placeholder text');
+const rec = await get(recLink, A);
+if (rec.status !== 200 || !/action="\/dashboard\/note"/.test(rec.text) || !/Invoices and cash/.test(rec.text)) fail('lead to cash', 'the record has no notes form or no money section');
+const key = recLink.split('/').pop();
+const noteText = `First-run note ${Date.now()}`;
+const saved = await post('/dashboard/note', { key, text: noteText, back: recLink }, A);
+if (saved.status !== 303 || !/Note saved/.test((await get(saved.location, A)).text)) fail('notes', 'the note was not confirmed');
+if (!(await get(recLink, A)).text.includes(noteText)) fail('notes', 'the note is gone after a reload');
+if (!(await get(recLink, B)).text.includes(noteText)) fail('notes', 'the note does not show on a second device');
+const access = await get('/dashboard/access', A);
+if (access.status !== 200 || !/Who can open the dashboard/.test(access.text) || !/What the dashboard keeps/.test(access.text) || /gmail\.compose/.test(access.text)) fail('access', `Who can see what did not load as expected (${access.status})`);
+ok('Lead to cash shows records; a note persists after a reload and on a second device; Who can see what opens');
 
 // 7. Sign-out revokes the session.
 const so = await post('/dashboard/logout', {}, A);

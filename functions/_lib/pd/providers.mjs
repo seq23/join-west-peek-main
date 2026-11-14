@@ -13,23 +13,44 @@
 import { dbOf, ensureSchema } from './schema.mjs';
 import { b64url, canEncrypt, decryptJson, encryptJson, enc, randomToken } from './core.mjs';
 
-const GOOGLE_SCOPES = [
-  'openid', 'email',
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/gmail.compose',
-  'https://www.googleapis.com/auth/calendar.readonly'
-];
+/**
+ * The Google access the dashboard asks for, and nothing more (Scooter, 14 Nov 2026: the access
+ * "currently allow[s] broader file access and email sending than this needs"). Gone: Gmail
+ * (gmail.compose could send mail; a reminder now opens in his own Gmail and he presses Send), all of
+ * Drive's file contents (drive.readonly; finding a document needs names and links only) and every
+ * calendar's settings (calendar.readonly; the next meeting needs events only). Sheets stays: reading
+ * and updating his own tracker and sheets is the point, and Google has no narrower Sheets permission
+ * without its file picker. Each entry says, in his words, what it allows and why it is there.
+ */
+export const GOOGLE_SCOPE_WORDS = {
+  openid: { allows: 'Confirm it is you signing in', why: 'Sign in with Google' },
+  email: { allows: 'See your email address', why: 'So only your own account opens the dashboard' },
+  'https://www.googleapis.com/auth/spreadsheets': { allows: 'See and edit Google Sheets your account can open', why: 'Reading your tracker, Work, Money and form sheets, and writing back the changes you make here. The dashboard opens only the sheets you name on Connections and the binders your Projects tab links' },
+  'https://www.googleapis.com/auth/drive.metadata.readonly': { allows: 'See file names, links and who each file is shared with (never what is inside a file)', why: 'Find a document by name, and show who can open each connected sheet' },
+  'https://www.googleapis.com/auth/calendar.events.readonly': { allows: 'See your calendar events (never change them)', why: 'Your next meeting with a client, on the client page' }
+};
+const GOOGLE_SCOPES = Object.keys(GOOGLE_SCOPE_WORDS);
+/** What the earlier, wider connection allowed, said plainly; shown until he narrows it. */
+export const RETIRED_GOOGLE_SCOPES = {
+  'https://www.googleapis.com/auth/gmail.compose': 'Write and send email as you',
+  'https://www.googleapis.com/auth/drive.readonly': 'See and download every file in your Google Drive',
+  'https://www.googleapis.com/auth/calendar.readonly': 'See every calendar you can open, and its settings'
+};
+const SAME_AS_SIGN_IN = new Set(['profile', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']);
+/** The scopes a stored Google connection holds beyond what the dashboard asks for now. */
+export function wideGoogleScopes(scopes) {
+  return String(scopes || '').split(/\s+/).filter((x) => x && !GOOGLE_SCOPES.includes(x) && !SAME_AS_SIGN_IN.has(x));
+}
 
 export const PROVIDERS = {
   google: {
-    label: 'Google: Drive, Sheets, Gmail drafts, Calendar',
+    label: 'Google: Sheets, file names, Calendar events',
     idEnv: 'GOOGLE_OAUTH_CLIENT_ID', secretEnv: 'GOOGLE_OAUTH_CLIENT_SECRET',
     auth: 'https://accounts.google.com/o/oauth2/v2/auth', token: 'https://oauth2.googleapis.com/token',
     scopes: GOOGLE_SCOPES, pkce: true, extra: { access_type: 'offline', prompt: 'consent' },
-    unlocks: 'Your projects, deals, money and agents sheets; finding documents; reminder drafts in Gmail; your next client meeting.',
-    gives: 'Reads your sheets and Drive; writes only to the sheets you name here and the Finance tabs of the client binders your Projects tab links (when you mark an invoice there paid); creates Gmail drafts; reads your calendar.',
-    never: 'Never sends an email, never deletes a file, never changes your calendar.'
+    unlocks: 'Your tracker, projects, money and agents sheets; finding documents by name; who each connected sheet is shared with; your next client meeting.',
+    gives: 'Reads and updates the sheets you name here, and the Finance tabs of the client binders your Projects tab links (when you mark an invoice there paid); sees file names and sharing, never what is inside a file; reads calendar events.',
+    never: 'Holds no Gmail access, so it cannot send or read email. Never opens a file\'s contents in Drive, never deletes or shares a file, never changes your calendar.'
   },
   dropbox: {
     label: 'Dropbox',
@@ -285,7 +306,7 @@ export async function listConnections(env) {
   const db = dbOf(env);
   if (!db) return [];
   await ensureSchema(db);
-  const rows = (await db.prepare('SELECT provider, account, status, connected_at, last_sync, last_error, meta FROM connection').all()).results || [];
+  const rows = (await db.prepare('SELECT provider, account, status, scopes, connected_at, last_sync, last_error, meta FROM connection').all()).results || [];
   return rows.map((r) => ({ ...r, meta: r.meta ? JSON.parse(r.meta) : {} }));
 }
 export async function markConnection(env, provider, { status, error = null, synced = null }) {

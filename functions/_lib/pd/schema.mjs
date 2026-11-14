@@ -36,11 +36,38 @@ export const MIGRATIONS = [
     // PRODUCTIONS_TOKEN_KEY, exactly as connection tokens are. Never read back to a page.
     version: 2,
     sql: ['CREATE TABLE IF NOT EXISTS app_key (provider TEXT PRIMARY KEY, value_enc TEXT NOT NULL, saved_at INTEGER NOT NULL)']
+  },
+  {
+    // His notes on each lead and client (Scooter, 14 Nov 2026: "one working view from lead to client
+    // to cash, with notes I can update"). Kept here, never written into his tracker, so his original
+    // records are not changed; every save is a row, the newest is the note.
+    version: 3,
+    sql: [
+      'CREATE TABLE IF NOT EXISTS note (id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, owner_id TEXT, at INTEGER NOT NULL, text TEXT NOT NULL)',
+      'CREATE INDEX IF NOT EXISTS note_subject ON note (subject, sample)'
+    ]
   }
 ];
 
 /** Every table a backup carries (restore replaces each one whole). */
-export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'schema_version'];
+export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'note', 'schema_version'];
+/** What each table keeps, in his words: the Access page lists every table a backup carries. */
+export const TABLE_WORDS = {
+  owner: 'Your sign-in record: your work email, your name and a salted hash of your password (never the password itself)',
+  session: 'Each signed-in device: a hash of its sign-in and when it ends',
+  connection: 'Each connected account: its name, what it allows, and its access key, encrypted',
+  source: 'Which sheets you named on Connections',
+  row_cache: 'A copy of the rows read from those sheets, replaced at every sync (every 15 minutes). While Money is on, it includes your money rows',
+  sync_state: 'When each part last synced, and how many rows (counts only)',
+  action_log: 'What you pressed here and what your sheet showed back',
+  tick: 'The Today items you ticked off',
+  choice: 'Your choices on Connections',
+  setting: 'Small settings: the last sync, signature statuses, cash now from an accounting tool, and the column names of your tracker',
+  sample_sheet: 'Made-up rows for the preview\'s sample mode (never real)',
+  app_key: 'App keys you pasted on Connections, encrypted',
+  note: 'Your notes on each lead and client, every saved version',
+  schema_version: 'The database\'s version number'
+};
 
 let applied = new WeakSet();
 /** Applies any missing migration once per isolate. */

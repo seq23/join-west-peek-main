@@ -9,10 +9,12 @@
  * Scooter's existing sign-in across (auth.mjs).
  *
  * Routes (all under /dashboard; Productions hosts and their previews only, 404 elsewhere):
- *   GET  /                Today          GET /work, /work/<id>, /deals, /inquiries, /find
+ *   GET  /                Today          GET /flow, /flow/<key> (lead to client to cash, with notes)
+ *   GET  /work, /work/<id>, /deals, /inquiries, /find, /access (who can open what, what is kept)
  *   GET  /money           (Scooter only)  GET /agents, /connections, /check, /help (public, no data)
- *   POST /login /forgot /password /logout /google /connect /disconnect /act /tick /choice
- *        /source /source/create /refresh /keys (app keys pasted on Connections; never shown again)
+ *   POST /login /forgot /password /logout /google /google/narrow /connect /disconnect /act /deal
+ *        /deal/add /note /tick /choice /source /source/create /source/remove /refresh
+ *        /keys (app keys pasted on Connections; never shown again)
  *   GET  /oauth/callback  (Google sign-in and every connection)
  *   POST /cron/sync       (the cron Worker, every 15 minutes; secret checked against a hash in D1)
  */
@@ -24,8 +26,8 @@ import {
 } from './pd/auth.mjs';
 import { PROVIDERS, appKeysSaved, disconnect, finishOAuth, listConnections, providerReady, saveAppKeys, startOAuth, withAppKeys } from './pd/providers.mjs';
 import {
-  ACTION_KINDS, createSheet, draftReminder, findDocuments, loadView, makeChoice, nextMeeting, readAction, readChoices, realCheck,
-  runAction, setSource, syncAll, tick, ticks, todayItems, getSetting
+  ACTION_KINDS, addDealFromInquiry, createSheet, fileAccess, findDocuments, journeys, latestNotes, loadView, makeChoice, nextMeeting, noteHistory,
+  readAction, readChoices, realCheck, removeSource, runAction, saveNote, setSource, storedCounts, syncAll, tick, ticks, todayItems, updateDeal, getSetting
 } from './pd/data.mjs';
 import * as V from './pd/views.mjs';
 
@@ -92,12 +94,13 @@ async function context(env, session, url, now) {
   const items = todayItems(view, { connections, ticked, now });
   const actionRow = await readAction(env, url.searchParams.get('a'));
   const flash = actionRow && (actionRow.sample === 1) === session.sample ? V.flashBox(actionRow) : '';
-  const words = { declined: 'You cancelled on the sign-in screen. Nothing was connected.', exchange_failed: 'The service did not finish connecting. Nothing was stored; try Connect again.', expired: 'That took too long. Try Connect again.', not_set_up: 'That account is not set up yet. See Help for the steps.', no_token_key: 'Connections cannot be saved safely right now. Nothing was stored.', provider_error: 'The service reported a problem. Nothing was connected.', not_a_sheet_link: 'That is not a Google Sheets link. Copy the address of the sheet itself.', cannot_open_sheet: 'That sheet could not be opened with your Google account. Check it is shared with you.', needs_google: 'Connect Google first.', connected: 'Connected. The first sync has run.', disconnected: 'Disconnected, and its access withdrawn.', disconnected_local: 'Disconnected and its key deleted here. Also remove the app in that service\'s settings.', source_saved: 'Sheet saved, and read.', created: 'Sheet created in your Google Drive and read.', refreshed: 'Refreshed.', refresh_failed: 'Refresh finished with problems; see the red rows on Today.', choice_saved: 'Saved. You can change it any time.' };
+  const notes = await latestNotes(env, session.sample);
+  const words = { source_removed: 'Stopped. That sheet is no longer read, and the copy of its rows here is deleted.', narrowed_failed: 'Google did not take the narrower access. Nothing changed; try again.', declined: 'You cancelled on the sign-in screen. Nothing was connected.', exchange_failed: 'The service did not finish connecting. Nothing was stored; try Connect again.', expired: 'That took too long. Try Connect again.', not_set_up: 'That account is not set up yet. See Help for the steps.', no_token_key: 'Connections cannot be saved safely right now. Nothing was stored.', provider_error: 'The service reported a problem. Nothing was connected.', not_a_sheet_link: 'That is not a Google Sheets link. Copy the address of the sheet itself.', cannot_open_sheet: 'That sheet could not be opened with your Google account. Check it is shared with you.', needs_google: 'Connect Google first.', connected: 'Connected. The first sync has run.', disconnected: 'Disconnected, and its access withdrawn.', disconnected_local: 'Disconnected and its key deleted here. Also remove the app in that service\'s settings.', source_saved: 'Sheet saved, and read.', created: 'Sheet created in your Google Drive and read.', refreshed: 'Refreshed.', refresh_failed: 'Refresh finished with problems; see the red rows on Today.', choice_saved: 'Saved. You can change it any time.' };
   Object.assign(words, { keys_sample: 'App keys cannot be saved in sample mode. Nothing was stored.', keys_incomplete: 'Paste every key for that app, then press Save. Nothing was stored.', keys_too_long: 'That does not look like an app key (it is too long). Nothing was stored.', keys_foreign: 'That came from another page and was refused. Nothing was stored.' });
   const keyFor = url.searchParams.get('p');
   if (PROVIDERS[keyFor]) words.keys_saved = `Saved. You can connect ${V.providerName(keyFor)} now.`;
   const m = url.searchParams.get('m');
-  const good = ['keys_saved', 'connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved'].includes(m);
+  const good = ['source_removed', 'keys_saved', 'connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved'].includes(m);
   const note = m && words[m] ? `<p class="d-flash ${good ? 'd-flash--ok' : 'd-flash--bad'}" role="${good ? 'status' : 'alert'}">${words[m]}</p>` : '';
   const googleConnected = Boolean(connections.find((c) => c.provider === 'google'));
   const counts = {
@@ -106,7 +109,7 @@ async function context(env, session, url, now) {
     money: view.rows.invoices.filter((i) => !/paid/i.test(i.status || '') && (Date.parse(i.due) || Infinity) < now).length,
     agents: view.rows.drafts.filter((a) => /^(|waiting|new|to approve)$/i.test(String(a.status || '').trim())).length
   };
-  return { view, now, sample: session.sample, connections, connected, choices, items, counts, flash: flash + note, googleConnected, sources: view.sources, settings: view.settings, origin: url.origin, session };
+  return { notes, view, now, sample: session.sample, connections, connected, choices, items, counts, flash: flash + note, googleConnected, sources: view.sources, settings: view.settings, origin: url.origin, session };
 }
 
 async function cronAllowed(env, request) {
@@ -247,13 +250,24 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     if (path === '/dashboard/act') {
       const action = field(form, 'action');
       const rowId = field(form, 'row');
-      if (action === 'remind') {
-        const kind = field(form, 'kind');
-        if (!['waiting', 'invoices', 'deals'].includes(kind)) return redirect(back);
-        return redirect(withA(await draftReminder(env, { kind, rowId, session }, now)));
-      }
+      // Reminders open in his own Gmail as links; there is no server-side email action at all.
       if (!ACTION_KINDS[action]) return redirect(back);
       const r = await runAction(env, { action, rowId, session }, now);
+      return redirect(withA(r.id));
+    }
+    if (path === '/dashboard/deal') {
+      const fields = {};
+      for (const k of ['stage', 'next_action', 'next_date']) if (form.has(k)) fields[k] = field(form, k);
+      const r = await updateDeal(env, { rowId: field(form, 'row'), fields, session }, now);
+      return redirect(withA(r.id));
+    }
+    if (path === '/dashboard/deal/add' || path === '/dashboard/note') {
+      const key = field(form, 'key');
+      if (path === '/dashboard/note') return redirect(withA(await saveNote(env, { subject: key, text: field(form, 'text'), session }, now)));
+      const view = await loadView(env, { sample: session.sample }, now);
+      const j = journeys(view, { now }).find((x) => x.key === key);
+      if (!j || j.deals.length || !j.inquiries.length) return redirect(back);
+      const r = await addDealFromInquiry(env, { journey: j, session }, now);
       return redirect(withA(r.id));
     }
     if (path === '/dashboard/tick') {
@@ -263,7 +277,8 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     }
     if (path === '/dashboard/choice') {
       const ok = await makeChoice(env, { key: field(form, 'key'), value: field(form, 'value'), session }, now);
-      return redirect(`/dashboard/connections${ok ? '?m=choice_saved' : ''}#choices`);
+      const to = safeBack(field(form, 'back').split('#')[0], '/dashboard/connections');
+      return redirect(`${to}${ok ? '?m=choice_saved' : ''}#${field(form, 'back').split('#')[1] || 'choices'}`);
     }
     if (path === '/dashboard/keys') {
       // Same-origin only, strictly: a request that does not say where it came from is refused too.
@@ -305,6 +320,18 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
       if (r.ok) await syncAll(env, now).catch(() => null);
       return redirect(`/dashboard/connections?m=${r.ok ? 'source_saved' : r.why}#sheets`);
     }
+    if (path === '/dashboard/source/remove') {
+      await removeSource(env, field(form, 'group'));
+      await syncAll(env, now).catch(() => null);
+      return redirect('/dashboard/connections?m=source_removed#sheets');
+    }
+    if (path === '/dashboard/google/narrow') {
+      // Withdraw the wider grant at Google first (a revoke ends every scope it held), then ask again
+      // for only what the dashboard uses. His named sheets and their rows stay as they are.
+      if (!providerReady(env, 'google')) return redirect('/dashboard/connections?m=not_set_up');
+      await disconnect(env, 'google');
+      return redirect(await startOAuth(env, { provider: 'google', purpose: 'connect', ownerId: session.ownerId, origin: url.origin }, now));
+    }
     if (path === '/dashboard/source/create') {
       const group = field(form, 'group');
       if (!['work', 'money'].includes(group)) return redirect('/dashboard/connections#sheets');
@@ -323,6 +350,16 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     if (!p) return redirect('/dashboard/work');
     ctx.meeting = session.sample ? { none: true } : await nextMeeting(env, p.client, now);
     return html(V.renderClient(ctx.view, p, ctx));
+  }
+  if (path === '/dashboard/flow') return html(V.renderFlow(ctx.view, ctx, journeys(ctx.view, { notes: ctx.notes, now }), url.searchParams.get('show') || 'all'));
+  if (path.startsWith('/dashboard/flow/')) {
+    const key = decodeURIComponent(path.slice('/dashboard/flow/'.length));
+    const j = journeys(ctx.view, { notes: ctx.notes, now }).find((x) => x.key === key);
+    if (!j) return redirect('/dashboard/flow');
+    return html(V.renderFlowRecord(ctx.view, j, { ...ctx, history: await noteHistory(env, key, session.sample) }));
+  }
+  if (path === '/dashboard/access') {
+    return html(V.renderAccess({ ...ctx, access: await fileAccess(env, ctx.view, { sample: session.sample }), counts_stored: session.sample ? null : await storedCounts(env) }));
   }
   if (path === '/dashboard/deals') return html(V.renderDeals(ctx.view, ctx));
   if (path === '/dashboard/inquiries') return html(V.renderInquiries(ctx.view, ctx));
