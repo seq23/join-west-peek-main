@@ -154,7 +154,10 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   - **Connections**: Google (Drive, Sheets, Gmail drafts, Calendar), Dropbox (read), DocuSign
     (envelope status), QuickBooks or Xero (cash now, read) — each through the service's own OAuth
     screen; refresh tokens AES-GCM encrypted with `PRODUCTIONS_TOKEN_KEY`; Disconnect revokes at the
-    provider where it can and deletes the token. His open choices (accounting tool, bank cash
+    provider where it can and deletes the token. DocuSign connects to its live server
+    (`account.docusign.com`) or, for an app DocuSign has not yet moved live, its test server
+    (`account-d.docusign.com`); the stage is kept in the connection's `meta.server` and every
+    refresh and sync uses it. His open choices (accounting tool, bank cash
     source, CRM, Shared Drive, agent seat, developer view, link) are buttons on Connections.
   - **Sync**: the Worker `west-peek-productions-dashboard-<env>` (`workers/productions-dashboard/`)
     calls `POST /dashboard/cron/sync` every 15 minutes (secret checked against a hash in D1) and

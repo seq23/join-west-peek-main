@@ -42,6 +42,10 @@ export const PROVIDERS = {
     idEnv: 'DOCUSIGN_INTEGRATION_KEY', secretEnv: 'DOCUSIGN_SECRET_KEY',
     auth: 'https://account.docusign.com/oauth/auth', token: 'https://account.docusign.com/oauth/token',
     scopes: ['signature'], basic: true,
+    // A new DocuSign app works only on DocuSign's test server until DocuSign moves it live
+    // ("Go-Live"), and Go-Live needs successful calls made in the test stage first. So Connect can
+    // use either server; the one used is kept on the connection for refreshes and syncs.
+    servers: { live: 'account.docusign.com', test: 'account-d.docusign.com' },
     unlocks: 'Whether each SOW is sent, signed or waiting, on the client page.',
     gives: 'Reads the status of the envelopes your projects sheet names.', never: 'Never sends, voids or signs an envelope.'
   },
@@ -67,6 +71,18 @@ export const PROVIDERS = {
 /** Every Worker secret the connections read (names only; for Help and the job's missing_secrets). */
 export const OAUTH_SECRET_NAMES = Object.values(PROVIDERS).flatMap((p) => [p.idEnv, p.secretEnv]);
 
+/** The OAuth host for DocuSign's live or test stage; null for every other provider. */
+export function docusignHost(server) {
+  return PROVIDERS.docusign.servers[server === 'test' ? 'test' : 'live'];
+}
+/** The authorize and token URLs, swapped to DocuSign's test server when that stage is used. */
+function endpoints(provider, server) {
+  const p = PROVIDERS[provider];
+  if (provider !== 'docusign') return { auth: p.auth, token: p.token };
+  const h = docusignHost(server);
+  return { auth: `https://${h}/oauth/auth`, token: `https://${h}/oauth/token` };
+}
+
 export function providerReady(env, name) {
   const p = PROVIDERS[name];
   return Boolean(p && String(env?.[p.idEnv] || '').trim() && String(env?.[p.secretEnv] || '').trim());
@@ -82,15 +98,19 @@ async function pkcePair() {
  * The URL to send the browser to. purpose 'signin' (Google sign-in, openid email only) or
  * 'connect'. The state row lives 15 minutes.
  */
-export async function startOAuth(env, { provider, purpose, ownerId = null, remember = false, origin }, now = Date.now()) {
+export async function startOAuth(env, { provider, purpose, ownerId = null, remember = false, origin, server = 'live' }, now = Date.now()) {
   const p = PROVIDERS[provider];
   const db = dbOf(env);
   await ensureSchema(db);
   const state = randomToken(24);
   const { verifier, challenge } = p.pkce ? await pkcePair() : {};
   await db.prepare('DELETE FROM oauth_state WHERE created_at < ?').bind(now - 15 * 60000).run();
+  // A test-stage note left by a sign-in screen nobody came back from goes with its expired state.
+  await db.prepare("DELETE FROM setting WHERE key LIKE 'oauth_server:%' AND substr(key, 14) NOT IN (SELECT state FROM oauth_state)").run();
   await db.prepare('INSERT INTO oauth_state (state, purpose, provider, verifier, owner_id, remember, created_at) VALUES (?,?,?,?,?,?,?)')
     .bind(state, purpose, provider, verifier || null, ownerId, remember ? 1 : 0, now).run();
+  const stage = provider === 'docusign' && server === 'test' ? 'test' : 'live';
+  if (stage === 'test') await db.prepare('INSERT OR REPLACE INTO setting (key, value) VALUES (?, ?)').bind(`oauth_server:${state}`, JSON.stringify('test')).run();
   const scopes = purpose === 'signin' ? ['openid', 'email'] : p.scopes;
   const q = new URLSearchParams({
     client_id: String(env[p.idEnv]).trim(),
@@ -101,17 +121,17 @@ export async function startOAuth(env, { provider, purpose, ownerId = null, remem
     ...(purpose === 'signin' ? { prompt: 'select_account' } : p.extra || {}),
     ...(p.pkce ? { code_challenge: challenge, code_challenge_method: 'S256' } : {})
   });
-  return `${p.auth}?${q}`;
+  return `${endpoints(provider, stage).auth}?${q}`;
 }
 
-async function tokenCall(env, p, params) {
+async function tokenCall(env, p, params, tokenUrl = p.token) {
   const id = String(env[p.idEnv]).trim();
   const secret = String(env[p.secretEnv]).trim();
   const body = new URLSearchParams(params);
   const headers = { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' };
   if (p.basic) headers.authorization = `Basic ${btoa(`${id}:${secret}`)}`;
   else { body.set('client_id', id); body.set('client_secret', secret); }
-  const res = await fetch(p.token, { method: 'POST', headers, body });
+  const res = await fetch(tokenUrl, { method: 'POST', headers, body });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) throw Object.assign(new Error(json.error || `token_${res.status}`), { oauth: json.error || `http_${res.status}` });
   return json;
@@ -132,6 +152,9 @@ export async function finishOAuth(env, url, now = Date.now()) {
   const row = state ? await db.prepare('SELECT * FROM oauth_state WHERE state = ?').bind(state).first() : null;
   if (!row || now - Number(row.created_at) > 15 * 60000) return { error: 'expired' };
   await db.prepare('DELETE FROM oauth_state WHERE state = ?').bind(state).run();
+  const stageRow = await db.prepare('SELECT value FROM setting WHERE key = ?').bind(`oauth_server:${state}`).first();
+  await db.prepare('DELETE FROM setting WHERE key = ?').bind(`oauth_server:${state}`).run();
+  const server = stageRow && JSON.parse(stageRow.value) === 'test' ? 'test' : 'live';
   const base = { purpose: row.purpose, provider: row.provider, ownerId: row.owner_id, remember: Boolean(row.remember) };
   if (url.searchParams.get('error')) return { ...base, error: url.searchParams.get('error') === 'access_denied' ? 'declined' : 'provider_error' };
   const p = PROVIDERS[row.provider];
@@ -142,7 +165,7 @@ export async function finishOAuth(env, url, now = Date.now()) {
       grant_type: 'authorization_code', code: url.searchParams.get('code') || '',
       redirect_uri: `${url.origin}/dashboard/oauth/callback`,
       ...(row.verifier ? { code_verifier: row.verifier } : {})
-    });
+    }, endpoints(row.provider, server).token);
   } catch (err) {
     console.error(`dashboard oauth token exchange failed provider=${row.provider} reason=${err.oauth || 'network'}`);
     return { ...base, error: 'exchange_failed' };
@@ -158,7 +181,7 @@ export async function finishOAuth(env, url, now = Date.now()) {
   }
 
   if (!(await canEncrypt(env))) return { ...base, error: 'no_token_key' };
-  const meta = {};
+  const meta = row.provider === 'docusign' ? { server } : {};
   let account = '';
   try {
     if (row.provider === 'google') account = jwtPayload(tok.id_token)?.email || '';
@@ -168,7 +191,7 @@ export async function finishOAuth(env, url, now = Date.now()) {
       account = (await r.json().catch(() => ({})))?.email || '';
     }
     if (row.provider === 'docusign') {
-      const r = await fetch('https://account.docusign.com/oauth/userinfo', { headers: { authorization: `Bearer ${tok.access_token}` } });
+      const r = await fetch(`https://${docusignHost(server)}/oauth/userinfo`, { headers: { authorization: `Bearer ${tok.access_token}` } });
       const u = await r.json().catch(() => ({}));
       const acct = (u.accounts || []).find((a) => a.is_default) || (u.accounts || [])[0] || {};
       account = u.email || '';
@@ -212,13 +235,15 @@ export async function markConnection(env, provider, { status, error = null, sync
 /** A current access token, refreshed when it is within a minute of expiring. Throws 'needs_reconnect'. */
 export async function accessToken(env, provider, now = Date.now()) {
   const db = dbOf(env);
-  const r = await db.prepare('SELECT token_enc FROM connection WHERE provider = ?').bind(provider).first();
+  const r = await db.prepare('SELECT token_enc, meta FROM connection WHERE provider = ?').bind(provider).first();
   const tok = r ? await decryptJson(env, r.token_enc) : null;
   if (!tok) throw Object.assign(new Error('needs_reconnect'), { reason: r ? 'cannot_read_token' : 'not_connected' });
   if (tok.expires_at - 60000 > now) return tok.access_token;
   if (!tok.refresh_token || !providerReady(env, provider)) throw Object.assign(new Error('needs_reconnect'), { reason: 'expired' });
   try {
-    const fresh = await tokenCall(env, PROVIDERS[provider], { grant_type: 'refresh_token', refresh_token: tok.refresh_token });
+    let server = 'live';
+    try { server = JSON.parse(r.meta || '{}').server || 'live'; } catch { /* live */ }
+    const fresh = await tokenCall(env, PROVIDERS[provider], { grant_type: 'refresh_token', refresh_token: tok.refresh_token }, endpoints(provider, server).token);
     const next = { access_token: fresh.access_token, refresh_token: fresh.refresh_token || tok.refresh_token, expires_at: now + (Number(fresh.expires_in) || 3600) * 1000 };
     await db.prepare('UPDATE connection SET token_enc = ? WHERE provider = ?').bind(await encryptJson(env, next), provider).run();
     return next.access_token;

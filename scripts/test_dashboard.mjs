@@ -569,6 +569,31 @@ const realFetch = globalThis.fetch;
     const run = JSON.parse((await env.PRODUCTIONS_DB.prepare("SELECT value FROM setting WHERE key = 'last_sync_run'").first())?.value || '{}');
     check('the sync record counts each of the four accounts that synced', run.ok === 4 && run.failed === 0, JSON.stringify(run));
 
+    // DocuSign's testing stage: a new app works only on account-d until DocuSign moves it live.
+    // Connect, the token exchange, a refresh and the sync all stay on the test server.
+    seen.hosts = [];
+    const wrapped = globalThis.fetch;
+    globalThis.fetch = async (url, init) => { seen.hosts.push(new URL(String(url)).host); return wrapped(url, init); };
+    await env.PRODUCTIONS_DB.prepare("DELETE FROM connection WHERE provider = 'docusign'").run();
+    const conn = await call(env, '/dashboard/connections', { cookie: s.cookie });
+    check('DocuSign offers a testing-stage Connect when not connected', /name="server" value="test"/.test(conn.text));
+    const tStart = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'docusign', server: 'test' } });
+    const tTo = tStart.location ? new URL(tStart.location) : null;
+    check('DocuSign testing stage: Connect goes to DocuSign\'s test sign-in', tTo?.host === 'account-d.docusign.com', String(tStart.location));
+    await call(env, `/dashboard/oauth/callback?state=${tTo?.searchParams.get('state')}&code=good`, { cookie: s.cookie });
+    const tRow = await env.PRODUCTIONS_DB.prepare("SELECT status, meta, last_sync FROM connection WHERE provider = 'docusign'").first();
+    check('…the token exchange and account lookup use the test server', seen.hosts.filter((h) => h.endsWith('docusign.com')).every((h) => h === 'account-d.docusign.com') && JSON.parse(tRow?.meta || '{}').server === 'test' && tRow?.status === 'ok' && Number(tRow?.last_sync) === NOW, seen.hosts.join(','));
+    check('…and leaves no stage note behind', !(await env.PRODUCTIONS_DB.prepare("SELECT key FROM setting WHERE key LIKE 'oauth_server:%'").first()));
+    const { accessToken: at } = await import('../functions/_lib/pd/providers.mjs');
+    seen.hosts = [];
+    await at(env, 'docusign', NOW + 2 * 3600 * 1000);
+    check('…a token refresh stays on the test server', seen.hosts.includes('account-d.docusign.com') && !seen.hosts.includes('account.docusign.com'), seen.hosts.join(','));
+    const tPage = await call(env, '/dashboard/connections', { cookie: s.cookie });
+    check('…Connections says it is the testing stage, and Reconnect keeps it', /Testing stage/.test(tPage.text) && /value="docusign"><input type="hidden" name="server" value="test"><button type="submit" class="">Reconnect/.test(tPage.text));
+    const lStart = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'docusign' } });
+    check('…while the plain Connect goes to the live server', new URL(lStart.location).host === 'account.docusign.com');
+    globalThis.fetch = wrapped;
+
     for (const provider of ['dropbox', 'quickbooks', 'xero']) await call(env, '/dashboard/disconnect', { method: 'POST', cookie: s.cookie, form: { provider } });
     check('Disconnect revokes at Dropbox, QuickBooks and Xero', ['api.dropboxapi.com', 'developer.api.intuit.com', 'identity.xero.com'].every((h) => seen.revoked.includes(h)), seen.revoked.join(','));
     check('…and deletes each token', !(await env.PRODUCTIONS_DB.prepare("SELECT provider FROM connection WHERE provider IN ('dropbox','quickbooks','xero')").first()));

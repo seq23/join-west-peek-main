@@ -414,12 +414,18 @@ export function renderConnections(ctx) {
     let status; let actions;
     if (sample) { status = '<span class="d-pill">sample: not connected</span>'; actions = '<p class="d-sub">Connections are off in sample mode.</p>'; }
     else if (!ready[p]) { status = '<span class="d-pill wait">not set up yet</span>'; actions = `<p class="d-sub">${esc(providerName(p))} needs a small app of your own first.</p><a class="d-btn" href="${HELP}#app-${p}">Show me the steps</a>`; }
-    else if (!c) { status = '<span class="d-pill">not connected</span>'; actions = `<form method="post" action="/dashboard/connect"><input type="hidden" name="provider" value="${p}"><button type="submit" class="d-primary">Connect ${esc(providerName(p))}</button></form>`; }
-    else {
+    else if (!c) {
+      status = '<span class="d-pill">not connected</span>';
+      actions = `<form method="post" action="/dashboard/connect"><input type="hidden" name="provider" value="${p}"><button type="submit" class="d-primary">Connect ${esc(providerName(p))}</button></form>`;
+      // A new DocuSign app only works on DocuSign's test stage until DocuSign moves it live.
+      if (p === 'docusign') actions += `<form method="post" action="/dashboard/connect"><input type="hidden" name="provider" value="docusign"><input type="hidden" name="server" value="test"><button type="submit">Connect while my DocuSign app is still in testing</button></form><p class="d-sub">Not sure which? See <a href="${HELP}#app-docusign">Help</a>.</p>`;
+    } else {
       status = c.status === 'ok' ? '<span class="d-pill ok">connected</span>' : '<span class="d-pill bad">needs reconnecting</span>';
-      actions = `<div class="d-acts"><form method="post" action="/dashboard/connect"><input type="hidden" name="provider" value="${p}"><button type="submit" class="${c.status === 'ok' ? '' : 'd-primary'}">Reconnect</button></form><form method="post" action="/dashboard/disconnect"><input type="hidden" name="provider" value="${p}"><button type="submit">Disconnect</button></form></div>`;
+      const stage = p === 'docusign' && c.meta?.server === 'test' ? '<input type="hidden" name="server" value="test">' : '';
+      actions = `<div class="d-acts"><form method="post" action="/dashboard/connect"><input type="hidden" name="provider" value="${p}">${stage}<button type="submit" class="${c.status === 'ok' ? '' : 'd-primary'}">Reconnect</button></form><form method="post" action="/dashboard/disconnect"><input type="hidden" name="provider" value="${p}"><button type="submit">Disconnect</button></form></div>`;
     }
-    const meta = c ? `<p class="d-sub">${c.account ? `${esc(c.account)} · ` : ''}${c.last_sync ? `synced ${esc(usTime(c.last_sync, now))}${now - c.last_sync > STALE_MS ? ' <span class="d-gold">· may be out of date</span>' : ''}` : 'not synced yet'}</p>` : '';
+    const testing = p === 'docusign' && c?.meta?.server === 'test' ? '<p class="d-sub d-gold">Testing stage: shows envelopes in your DocuSign developer account only. Once DocuSign moves your app live, Disconnect and press Connect DocuSign.</p>' : '';
+    const meta = c ? `${testing}<p class="d-sub">${c.account ? `${esc(c.account)} · ` : ''}${c.last_sync ? `synced ${esc(usTime(c.last_sync, now))}${now - c.last_sync > STALE_MS ? ' <span class="d-gold">· may be out of date</span>' : ''}` : 'not synced yet'}</p>` : '';
     return `<div class="d-conn"><div class="d-conn__top"><strong>${esc(P.label)}</strong>${status}</div>${meta}<p class="d-sub">Unlocks: ${esc(P.unlocks)}</p>${actions}</div>`;
   }).join('');
   const acctRow = acctChoice === 'sheets' ? '<div class="d-conn"><div class="d-conn__top"><strong>Accounting tool</strong><span class="d-pill">staying in Sheets</span></div><p class="d-sub">Money reads your Money sheet only.</p></div>'
@@ -487,7 +493,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
   const cb = `${origin}/dashboard/oauth/callback`;
   const PROD_CB = 'https://westpeekproductions.com/dashboard/oauth/callback';
   const uris = cb === PROD_CB ? `<code>${PROD_CB}</code>` : `<code>${PROD_CB}</code> and <code>${esc(cb)}</code> (add both, so an app set up from the preview keeps working on the live site)`;
-  const app = (id, name, steps, secrets) => `<h3 id="app-${id}">${esc(name)}</h3><ol>${steps.map((s) => `<li>${s}</li>`).join('')}<li>Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a> two lines, exactly: ${secrets.map((s) => `<code>SECRET ${s}=…</code>`).join(' and ')}. The row on Connections turns to Connect as soon as they are in.</li></ol>`;
+  const app = (id, name, steps, secrets, after = []) => `<h3 id="app-${id}">${esc(name)}</h3><ol>${steps.map((s) => `<li>${s}</li>`).join('')}<li>Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a> two lines, exactly: ${secrets.map((s) => `<code>SECRET ${s}=…</code>`).join(' and ')}. The row on Connections turns to Connect as soon as they are in.</li>${after.map((s) => `<li>${s}</li>`).join('')}</ol>`;
   const body = `<div class="d-helpdoc">${signedIn ? '' : '<p class="d-brand" style="margin-top:16px">West Peek Productions</p>'}<h1>Help</h1>
   <p class="d-sub">Everything on one page. Jump to: <a href="#sections">sections</a> · <a href="#change">changing a number</a> · <a href="#connecting">connecting</a> · <a href="#google-app">Google sign-in app</a> · <a href="#agents">agents</a> · <a href="#phone">new phone</a> · <a href="#states">words</a> · <a href="#privacy">privacy</a> · <a href="#help-email">help email</a></p>
 
@@ -524,7 +530,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
   </ol>
   <h3>The other accounts</h3>
   ${app('dropbox', 'Dropbox', ['Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer">dropbox.com/developers/apps</a> → Create app → Scoped access → Full Dropbox.', 'Permissions tab: tick <code>account_info.read</code> and <code>files.metadata.read</code> only.', `Settings tab: add the redirect URIs ${uris}.`], ['DROPBOX_APP_KEY', 'DROPBOX_APP_SECRET'])}
-  ${app('docusign', 'DocuSign', ['In DocuSign: Settings → Apps and Keys → Add app and integration key.', `Add a secret key, and the redirect URIs ${uris}.`, 'DocuSign reviews new apps before they work on a paid account ("Go-Live"); start it from the same page.'], ['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_SECRET_KEY'])}
+  ${app('docusign', 'DocuSign', ['In DocuSign: Settings → Apps and Keys → Add app and integration key.', `Add a secret key, and the redirect URIs ${uris}.`], ['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_SECRET_KEY'], ['A new DocuSign app starts in DocuSign\'s testing stage. While it is there, use <strong>Connect while my DocuSign app is still in testing</strong> on Connections; it shows envelopes in your DocuSign developer account only.', 'To see your real SOWs, ask DocuSign to move the app live ("Go-Live") from the same Apps and Keys page; DocuSign asks for some successful use in testing first, which the dashboard\'s syncs provide. Once it is live, Disconnect DocuSign and press <strong>Connect DocuSign</strong>. The same keys keep working.'])}
   ${app('quickbooks', 'QuickBooks', ['Go to <a href="https://developer.intuit.com/app/developer/dashboard" target="_blank" rel="noopener noreferrer">developer.intuit.com</a> → Create an app → QuickBooks Online and Payments → Accounting.', `Keys &amp; credentials (Production): add the redirect URIs ${uris}.`], ['QUICKBOOKS_CLIENT_ID', 'QUICKBOOKS_CLIENT_SECRET'])}
   ${app('xero', 'Xero', ['Go to <a href="https://developer.xero.com/app/manage" target="_blank" rel="noopener noreferrer">developer.xero.com/app/manage</a> → New app → Web app.', `Redirect URIs ${uris}.`, 'Generate a secret.'], ['XERO_CLIENT_ID', 'XERO_CLIENT_SECRET'])}
 

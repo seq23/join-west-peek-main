@@ -18,7 +18,7 @@
  * no real names, the same write-then-re-read path. It never touches a connection.
  */
 import { dbOf, ensureSchema } from './schema.mjs';
-import { accessToken, connectionRow, markConnection } from './providers.mjs';
+import { accessToken, connectionRow, docusignHost, markConnection } from './providers.mjs';
 import { daysSince, isoDay, num, toTime } from './core.mjs';
 
 export const FUNNEL_STAGES = [
@@ -311,7 +311,7 @@ export async function syncAll(env, now = Date.now()) {
     try {
       const token = await accessToken(env, 'docusign');
       if (!docusign.meta?.base_uri || !docusign.meta?.account_id) {
-        const r = await fetch('https://account.docusign.com/oauth/userinfo', { headers: { authorization: `Bearer ${token}` } });
+        const r = await fetch(`https://${docusignHost(docusign.meta?.server)}/oauth/userinfo`, { headers: { authorization: `Bearer ${token}` } });
         const u = await r.json().catch(() => ({}));
         const acct = (u.accounts || []).find((a) => a.is_default) || (u.accounts || [])[0];
         if (!r.ok || !acct?.base_uri || !acct?.account_id) throw new Error('no_account');

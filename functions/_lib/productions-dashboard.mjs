@@ -44,7 +44,7 @@ const SECURITY_HEADERS = {
   // same-origin, never no-referrer: under no-referrer a browser posts forms with "Origin: null",
   // and the foreign-origin check refused every real sign-in (13 Nov 2026).
   'referrer-policy': 'same-origin',
-  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; img-src 'self'; manifest-src 'self'; form-action 'self' https://accounts.google.com https://www.dropbox.com https://account.docusign.com https://appcenter.intuit.com https://login.xero.com; frame-ancestors 'none'; base-uri 'none'"
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; img-src 'self'; manifest-src 'self'; form-action 'self' https://accounts.google.com https://www.dropbox.com https://account.docusign.com https://account-d.docusign.com https://appcenter.intuit.com https://login.xero.com; frame-ancestors 'none'; base-uri 'none'"
 };
 function html(body, status = 200, extra = {}) {
   const headers = new Headers({ ...SECURITY_HEADERS });
@@ -271,7 +271,8 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
       const provider = field(form, 'provider');
       if (!PROVIDERS[provider] || !providerReady(env, provider)) return redirect('/dashboard/connections?m=not_set_up');
       if (!(await canEncryptCheck(env))) return redirect('/dashboard/connections?m=no_token_key');
-      return redirect(await startOAuth(env, { provider, purpose: 'connect', ownerId: session.ownerId, origin: url.origin }, now));
+      const server = provider === 'docusign' && field(form, 'server') === 'test' ? 'test' : 'live';
+      return redirect(await startOAuth(env, { provider, purpose: 'connect', ownerId: session.ownerId, origin: url.origin, server }, now));
     }
     if (path === '/dashboard/disconnect') {
       const provider = field(form, 'provider');
