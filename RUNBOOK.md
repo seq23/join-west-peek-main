@@ -259,11 +259,14 @@ Per Pages project; set through `pages_env`, never by hand.
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
 - `west-peek-productions` (dashboard v1.0): `PRODUCTIONS_DB` (D1) and `PRODUCTIONS_TOKEN_KEY`
-  are set by `npm run dashboard:setup`, never by hand. OAuth apps he creates, each emailed to
-  os@joinwestpeek.com as `SECRET NAME=value`: `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET`
-  (Internal app in his Productions Workspace; also Sign in with Google), `DROPBOX_APP_KEY` +
+  are set by `npm run dashboard:setup`, never by hand. `GOOGLE_OAUTH_CLIENT_ID` +
+  `GOOGLE_OAUTH_CLIENT_SECRET` (Internal app in his Productions Workspace; Sign in with Google and the
+  Drive/Sheets/Gmail/Calendar connection) are HELD in the vault (14 Nov 2026) and set on this project
+  through `pages_env`; `first-run` follows the button to Google's own screen and fails on a key Google
+  does not know. Still to come, each emailed to os@joinwestpeek.com as `SECRET NAME=value`: `DROPBOX_APP_KEY` +
   `DROPBOX_APP_SECRET`, `DOCUSIGN_INTEGRATION_KEY` + `DOCUSIGN_SECRET_KEY`, `QUICKBOOKS_CLIENT_ID` +
   `QUICKBOOKS_CLIENT_SECRET` or `XERO_CLIENT_ID` + `XERO_CLIENT_SECRET`. Redirect URI for every one:
-  `https://westpeekproductions.com/dashboard/oauth/callback` (plus the preview's own). One-time codes
+  `https://westpeekproductions.com/dashboard/oauth/callback` and, for this preview,
+  `https://work-wpc-c548d043-next.west-peek-productions.pages.dev/dashboard/oauth/callback`. One-time codes
   need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
   `RESEND_API_KEY` + `EMAIL_FROM`).

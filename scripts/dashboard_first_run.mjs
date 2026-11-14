@@ -50,6 +50,28 @@ const help = await get('/dashboard/help');
 if (help.status !== 200 || !/id="google-app"/.test(help.text)) fail('help', `Help did not load with the Google sign-in steps (${help.status})`);
 ok('signed out shows no data, the sign-in screen and Help');
 
+// 2b. Sign in with Google, once its app keys are set on this site: the button must reach Google's
+// own account screen for THIS site's callback. A key Google does not know (invalid_client) fails the
+// run; a callback the Google app has not listed yet is named (the emailed code still opens it).
+if (/Sign in with Google/.test(out.text) && !/Google sign-in is not set up yet/.test(out.text)) {
+  const g = await post('/dashboard/google', { remember: '1' });
+  if (g.status !== 303 || !/^https:\/\/accounts\.google\.com\//.test(g.location || '')) fail('google sign-in', `the button did not lead to Google (${g.status} ${String(g.location || '').slice(0, 40)})`);
+  const want = `${base}/dashboard/oauth/callback`;
+  if (new URL(g.location).searchParams.get('redirect_uri') !== want) fail('google sign-in', 'the callback sent to Google is not this site');
+  // Google answers a refused app with a redirect to /signin/oauth/error whose authError parameter
+  // (base64url) names the reason, e.g. invalid_client or redirect_uri_mismatch.
+  const screen = await fetch(g.location, { redirect: 'manual', headers: { 'accept-language': 'en' } });
+  const next = screen.headers.get('location') || '';
+  const why = /\/signin\/oauth\/error/.test(next)
+    ? Buffer.from(String(new URL(next, 'https://accounts.google.com').searchParams.get('authError') || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('latin1')
+    : '';
+  if (screen.status >= 400) fail('google sign-in', `Google answered ${screen.status}`);
+  if (/invalid_client|deleted_client|disabled_client|unauthorized_client/.test(why)) fail('google sign-in', `Google does not accept the sign-in app keys set on this site (${why.match(/[a-z_]+_client/)[0]})`);
+  if (/redirect_uri_mismatch/.test(why)) console.log(`  ! NAMED google_redirect_not_listed: add ${want} to the Google app's redirect URIs; the emailed code signs in meanwhile`);
+  else if (why) fail('google sign-in', `Google refused the sign-in request (${why.replace(/[^\x20-\x7e]+/g, ' ').trim().slice(0, 80)})`);
+  else ok('Sign in with Google reaches Google\'s own account screen');
+}
+
 if (production) {
   const s = await post('/dashboard/login', { email: 'sample@preview.invalid', password: 'preview-sample-only' });
   if (s.status === 303 || sessionOf(s)) fail('production', 'the preview test identity opened something on production');
