@@ -378,6 +378,42 @@ const realFetch = globalThis.fetch;
   check('a restore brings the rows back', r.ok && (await db.prepare("SELECT value FROM setting WHERE key = 'marker'").first())?.value === '"one"' && Number((await db.prepare('SELECT COUNT(*) AS n FROM action_log').first()).n) === 1);
 }
 
+// dashboard:setup on a brand-new database (13 Nov 2026: the preview run stopped at the first
+// schema_version probe with 400 7500). A fake Cloudflare API answers D1 queries from real SQLite
+// with D1's own error shape, then refuses the Pages project so the run stops right after migrations.
+{
+  const { createServer } = await import('node:http');
+  const sqlite = fakeD1();
+  const server = createServer(async (req, res) => {
+    let raw = ''; for await (const c of req) raw += c;
+    const send = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+    const u = new URL(req.url, 'http://x');
+    if (u.pathname.endsWith('/d1/database') && req.method === 'GET') return send(200, { success: true, result: [] });
+    if (u.pathname.endsWith('/d1/database') && req.method === 'POST') return send(200, { success: true, result: { uuid: 'db-test', name: JSON.parse(raw).name } });
+    if (u.pathname.endsWith('/query')) {
+      const { sql, params } = JSON.parse(raw);
+      try { const out = sqlite.prepare(sql).bind(...(params || []))._exec(); return send(200, { success: true, result: [{ results: Array.isArray(out) ? out.map((r) => ({ ...r })) : [] }] }); }
+      catch { return send(400, { success: false, errors: [{ code: 7500 }] }); }
+    }
+    return send(403, { success: false, errors: [{ code: 10000 }] });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const { spawn } = await import('node:child_process');
+  const run = () => new Promise((resolveRun) => {
+    {
+      const p = spawn(process.execPath, ['scripts/dashboard_setup.mjs', '--env', 'preview'], { env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'a', CLOUDFLARE_API_BASE: base } });
+      let out = ''; p.stdout.on('data', (d) => { out += d; }); p.on('close', (code) => resolveRun({ code, out }));
+    }
+  });
+  const first = await run();
+  check('dashboard:setup applies migrations on a brand-new database', /migrations applied=1/.test(first.out) && !/\/query/.test(first.out), first.out.trim());
+  check('…and the tables exist after it', Number((await sqlite.prepare('SELECT MAX(version) AS v FROM schema_version').first().catch(() => null))?.v) === 1);
+  const again = await run();
+  check('…and a second run applies nothing', /migrations applied=0/.test(again.out), again.out.trim());
+  server.close();
+}
+
 if (failures.length) {
   console.error(`test:dashboard FAILED ${failures.length}/${cases}:\n - ${failures.join('\n - ')}`);
   process.exit(1);

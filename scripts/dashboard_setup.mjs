@@ -69,11 +69,12 @@ const dbName = `${PROJECT}-dashboard-${env}`;
 let db = (await cf(`/d1/database?name=${encodeURIComponent(dbName)}`) || []).find((d) => d.name === dbName);
 if (!db) { db = await cf('/d1/database', { method: 'POST', body: JSON.stringify({ name: dbName }) }); done.push('d1 created'); } else done.push('d1 found');
 const dbId = db.uuid;
-const query = (sql, params = []) => cf(`/d1/database/${dbId}/query`, { method: 'POST', body: JSON.stringify({ sql, params }) });
+const query = (sql, params = [], opts = {}) => cf(`/d1/database/${dbId}/query`, { method: 'POST', body: JSON.stringify({ sql, params }) }, opts);
 
-// 2. migrations
-let have = 0;
-try { have = Number((await query('SELECT MAX(version) AS v FROM schema_version'))?.[0]?.results?.[0]?.v) || 0; } catch { have = 0; }
+// 2. migrations. A brand-new database has no schema_version table yet: D1 answers that probe with
+// 400 7500 ("no such table"), which means version 0, not a stop (13 Nov 2026 preview run).
+const probe = await query('SELECT MAX(version) AS v FROM schema_version', [], { soft: true });
+const have = probe === false ? 0 : Number(probe?.[0]?.results?.[0]?.v) || 0;
 let applied = 0;
 for (const m of MIGRATIONS) {
   if (m.version <= have) continue;
