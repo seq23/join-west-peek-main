@@ -103,6 +103,8 @@ function ENV({ google = false, kvOwners = null, kvSession = null } = {}) {
     sent
   };
 }
+// A refused sign-in is a 303 back to /dashboard with its message code and no cookie, so a reload never resubmits.
+function refused(r, code) { const loc = r.location ?? r.headers?.get('location'); return r.status === 303 && loc === `/dashboard?signin=${code}` && !r.cookie; }
 async function call(env, path, { method = 'GET', cookie = '', form, host = PROD, now = NOW, origin = true } = {}) {
   const headers = new Headers();
   if (cookie) headers.set('cookie', cookie);
@@ -148,6 +150,11 @@ const realFetch = globalThis.fetch;
   const g = await call(ENV({ google: true }), '/dashboard');
   check('with them, Sign in with Google is offered', /action="\/dashboard\/google"/.test(g.text));
   const h = await call(env, '/dashboard/help');
+  const hp = await call(env, '/dashboard/help', { host: PREV });
+  for (const id of ['dropbox', 'docusign', 'quickbooks', 'xero']) {
+    const part = hp.text.split(`id="app-${id}"`)[1]?.split('</ol>')[0] || '';
+    check(`Help (${id}) names the production and the preview redirect URI`, part.includes('https://westpeekproductions.com/dashboard/oauth/callback') && part.includes(`${PREV}/dashboard/oauth/callback`));
+  }
   check('Help opens signed out and holds no rows', h.status === 200 && /id="google-app"/.test(h.text) && !h.text.includes(MARK));
   check('the test identity is not offered on production', !r.text.includes(SAMPLE_PASSWORD));
 }
@@ -156,8 +163,8 @@ const realFetch = globalThis.fetch;
 {
   const env = ENV();
   await seedOwner(env);
-  check('a password without an email opens nothing', (await signIn(env, '', PW)).status === 401);
-  check('a record off the owners list opens nothing', (await signIn(env, OTHER, 'owner-b-own-password')).status === 401);
+  check('a password without an email opens nothing', refused(await signIn(env, '', PW), 'wrong'));
+  check('a record off the owners list opens nothing', refused(await signIn(env, OTHER, 'owner-b-own-password'), 'wrong'));
   const plain = await signIn(env, OWNER, PW);
   check('Scooter signs in', plain.status === 303 && plain.cookie);
   check('without "remember", the cookie ends with the browser', !/Max-Age/.test(plain.rawCookie));
@@ -174,9 +181,12 @@ const realFetch = globalThis.fetch;
   check('sign-out leaves the other device signed in', (await call(env, '/dashboard', { cookie: plain.cookie })).status === 200);
   const forged = await call(env, '/dashboard', { cookie: 'wpp_s=madeup' });
   check('a made-up session opens nothing', forged.status === 401);
-  check('a cross-site sign-in is refused', (await call(env, '/dashboard/login', { method: 'POST', form: { email: OWNER, password: PW }, origin: false, cookie: '' }).then(() => handleDashboard({ request: new Request(`${PROD}/dashboard/login`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/x-www-form-urlencoded' }, body: `email=${OWNER}&password=${PW}` }), env, now: NOW }))).status === 403);
+  check('a cross-site sign-in is refused', refused(await call(env, '/dashboard/login', { method: 'POST', form: { email: OWNER, password: PW }, origin: false, cookie: '' }).then(() => handleDashboard({ request: new Request(`${PROD}/dashboard/login`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/x-www-form-urlencoded' }, body: `email=${OWNER}&password=${PW}` }), env, now: NOW })), 'foreign'));
   for (let i = 0; i < OWNER_FAIL_LIMIT; i++) await signIn(env, OWNER, 'wrong-password-here');
-  check('5 wrong tries lock the owner for 15 minutes', (await signIn(env, OWNER, PW)).status === 429);
+  const back = await call(env, '/dashboard?signin=wrong');
+  check('the redirected sign-in screen shows the refusal and no data', back.status === 401 && /did not open the dashboard/.test(back.text) && !back.text.includes(MARK));
+  check('an unknown message code shows the plain sign-in screen', !/undefined/.test((await call(env, '/dashboard?signin=nope')).text));
+  check('5 wrong tries lock the owner for 15 minutes', refused(await signIn(env, OWNER, PW), 'locked'));
   check('…and the lock lifts after', (await signIn(env, OWNER, PW, { now: NOW + 16 * 60000 })).status === 303);
 }
 
@@ -213,7 +223,7 @@ const realFetch = globalThis.fetch;
   const used = await signIn(env, OWNER, code);
   check('the code opens only the choose-a-password screen', used.status === 303 && used.location === '/dashboard/password');
   check('nothing shows before a password is chosen', (await call(env, '/dashboard', { cookie: used.cookie })).location === '/dashboard/password');
-  check('the code works once', (await signIn(env, OWNER, code)).status === 401);
+  check('the code works once', refused(await signIn(env, OWNER, code), 'wrong'));
   const chosen = await call(env, '/dashboard/password', { method: 'POST', cookie: used.cookie, form: { password: 'a-brand-new-pass', confirm: 'a-brand-new-pass' } });
   check('choosing a password opens the dashboard', chosen.status === 303 && (await call(env, '/dashboard', { cookie: chosen.cookie })).status === 200);
   const other = await signIn(env, OWNER, 'a-brand-new-pass');
@@ -223,12 +233,12 @@ const realFetch = globalThis.fetch;
   await seedOwner(env2, { pw: null });
   await call(env2, '/dashboard/forgot', { method: 'POST', form: { email: OWNER } });
   const c2 = env2.sent[0].text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}\b/)[0];
-  check('an unused code stops working after 7 days', (await signIn(env2, OWNER, c2, { now: NOW + 8 * 86400000 })).status === 401);
+  check('an unused code stops working after 7 days', refused(await signIn(env2, OWNER, c2, { now: NOW + 8 * 86400000 }), 'wrong'));
   // Wrong passwords typed at his address lock the password, never his emailed code.
   const env3 = ENV();
   await seedOwner(env3);
   for (let i = 0; i < OWNER_FAIL_LIMIT; i++) await signIn(env3, OWNER, 'wrong-password-here');
-  check('a locked owner: his password waits out the lock', (await signIn(env3, OWNER, PW)).status === 429);
+  check('a locked owner: his password waits out the lock', refused(await signIn(env3, OWNER, PW), 'locked'));
   await call(env3, '/dashboard/forgot', { method: 'POST', form: { email: OWNER } });
   const c3 = env3.sent[0].text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}\b/)[0];
   const in3 = await signIn(env3, OWNER, c3);
@@ -239,8 +249,8 @@ const realFetch = globalThis.fetch;
 {
   const env = ENV();
   await seedOwner(env);
-  check('the test identity is refused on production', (await signIn(env, SAMPLE_EMAIL, SAMPLE_PASSWORD)).status === 401);
-  check('…and on the production pages.dev host', (await signIn(env, SAMPLE_EMAIL, SAMPLE_PASSWORD, { host: 'https://west-peek-productions.pages.dev' })).status === 401);
+  check('the test identity is refused on production', refused(await signIn(env, SAMPLE_EMAIL, SAMPLE_PASSWORD), 'wrong'));
+  check('…and on the production pages.dev host', refused(await signIn(env, SAMPLE_EMAIL, SAMPLE_PASSWORD, { host: 'https://west-peek-productions.pages.dev' }), 'wrong'));
   const s = await signIn(env, SAMPLE_EMAIL, SAMPLE_PASSWORD, { host: PREV });
   check('the test identity signs in on a preview', s.status === 303 && s.cookie);
   check('a sample session does not open on production', (await call(env, '/dashboard', { cookie: s.cookie })).status === 401);
@@ -339,7 +349,7 @@ const realFetch = globalThis.fetch;
   check('Sign in with Google opens it for the owner, remembered', okIn.status === 303 && /Max-Age=2592000/.test(okIn.rawCookie));
   const gs2 = await call(env, '/dashboard/google', { method: 'POST', form: {} });
   const st2 = new URL(gs2.location).searchParams.get('state');
-  check('Sign in with Google refuses any other account', (await call(env, `/dashboard/oauth/callback?state=${st2}&code=other`)).status === 403);
+  check('Sign in with Google refuses any other account', refused(await call(env, `/dashboard/oauth/callback?state=${st2}&code=other`), 'google_other'));
 
   const noKey = ENV({ google: true });
   delete noKey.PRODUCTIONS_TOKEN_KEY;

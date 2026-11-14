@@ -148,7 +148,7 @@ details.d-fold[open] summary::after{content:'⌄'}
 .d-helpdoc li{margin:6px 0}
 code{overflow-wrap:anywhere}
 .d-helpdoc code{background:var(--ink-3);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
-@media (max-width:620px){.d-row{flex-wrap:wrap}.d-row__main{flex:1 1 70%}.d-row__act{flex:1 1 100%;justify-content:flex-start;padding-left:20px}}
+@media (max-width:620px){.d-row{flex-wrap:wrap}.d-row__main{flex:1 1 70%}.d-row__act{flex:1 1 100%;justify-content:flex-start;padding-left:20px}.d-row--today{flex-wrap:nowrap;align-items:center}.d-row--today .d-row__main{flex:1 1 auto}.d-row--today .d-row__act{flex:none;flex-wrap:nowrap;justify-content:flex-end;align-items:center;padding-left:0}.d-row--today .d-row__act button,.d-row--today .d-row__act .d-btn{padding:9px 12px;white-space:nowrap}}
 @media (min-width:760px){body{font-size:16px}main{padding:0 24px 24px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 `;
@@ -247,7 +247,7 @@ export function renderToday(view, ctx) {
   const n = items.length;
   const line1 = `${todayLabel(now)} · ${n ? `${n} need${n === 1 ? 's' : ''} you` : 'nothing needs you'}`;
   const list = items.length
-    ? `<ul class="d-list">${items.map((i) => `<li class="d-row"><span class="d-dot ${i.tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.title)}</span><span class="d-row__sub ${i.tone === 'plain' ? '' : i.tone}">${esc(i.sub)}</span></div><div class="d-row__act">${todayAction(i)}<form method="post" action="/dashboard/tick" class="d-inline"><input type="hidden" name="item" value="${esc(i.key)}"><button type="submit" class="d-tick" aria-label="Done: hide ${esc(i.title)}" title="Done">✓</button></form></div></li>`).join('')}</ul>`
+    ? `<ul class="d-list">${items.map((i) => `<li class="d-row d-row--today"><span class="d-dot ${i.tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.title)}</span><span class="d-row__sub ${i.tone === 'plain' ? '' : i.tone}">${esc(i.sub)}</span></div><div class="d-row__act">${todayAction(i)}<form method="post" action="/dashboard/tick" class="d-inline"><input type="hidden" name="item" value="${esc(i.key)}"><button type="submit" class="d-tick" aria-label="Done: hide ${esc(i.title)}" title="Done">✓</button></form></div></li>`).join('')}</ul>`
     : (ctx.sample || ctx.googleConnected ? empty('Nothing is overdue or waiting on you. New items show here as soon as your sheets say so.', '/dashboard/work', 'See your projects') : notConnected(ctx, 'Overdue invoices, waiting items, proposals and drafts'));
 
   const week = view.rows.projects.filter((p) => { const d = daysSince(p.milestone_date, now); return d !== null && d <= 0 && d > -8; });
@@ -483,6 +483,8 @@ export function renderCheck(result, ctx) {
 
 export function renderHelp({ origin, signedIn = false, counts = null, sample = false }) {
   const cb = `${origin}/dashboard/oauth/callback`;
+  const PROD_CB = 'https://westpeekproductions.com/dashboard/oauth/callback';
+  const uris = cb === PROD_CB ? `<code>${PROD_CB}</code>` : `<code>${PROD_CB}</code> and <code>${esc(cb)}</code> (add both, so an app set up from the preview keeps working on the live site)`;
   const app = (id, name, steps, secrets) => `<h3 id="app-${id}">${esc(name)}</h3><ol>${steps.map((s) => `<li>${s}</li>`).join('')}<li>Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a> two lines, exactly: ${secrets.map((s) => `<code>SECRET ${s}=…</code>`).join(' and ')}. The row on Connections turns to Connect as soon as they are in.</li></ol>`;
   const body = `<div class="d-helpdoc">${signedIn ? '' : '<p class="d-brand" style="margin-top:16px">West Peek Productions</p>'}<h1>Help</h1>
   <p class="d-sub">Everything on one page. Jump to: <a href="#sections">sections</a> · <a href="#change">changing a number</a> · <a href="#connecting">connecting</a> · <a href="#google-app">Google sign-in app</a> · <a href="#agents">agents</a> · <a href="#phone">new phone</a> · <a href="#states">words</a> · <a href="#privacy">privacy</a> · <a href="#help-email">help email</a></p>
@@ -519,10 +521,10 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
    <li>Then the sign-in screen shows <strong>Sign in with Google</strong>, and Connections shows <strong>Connect Google</strong>. Until then, the emailed one-time code works.</li>
   </ol>
   <h3>The other accounts</h3>
-  ${app('dropbox', 'Dropbox', ['Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer">dropbox.com/developers/apps</a> → Create app → Scoped access → Full Dropbox.', 'Permissions tab: tick <code>account_info.read</code> and <code>files.metadata.read</code> only.', `Settings tab: add the redirect URI <code>${esc(cb)}</code>.`], ['DROPBOX_APP_KEY', 'DROPBOX_APP_SECRET'])}
-  ${app('docusign', 'DocuSign', ['In DocuSign: Settings → Apps and Keys → Add app and integration key.', 'Add a secret key, and the redirect URI <code>' + esc(cb) + '</code>.', 'DocuSign reviews new apps before they work on a paid account ("Go-Live"); start it from the same page.'], ['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_SECRET_KEY'])}
-  ${app('quickbooks', 'QuickBooks', ['Go to <a href="https://developer.intuit.com/app/developer/dashboard" target="_blank" rel="noopener noreferrer">developer.intuit.com</a> → Create an app → QuickBooks Online and Payments → Accounting.', `Keys &amp; credentials (Production): add the redirect URI <code>${esc(cb)}</code>.`], ['QUICKBOOKS_CLIENT_ID', 'QUICKBOOKS_CLIENT_SECRET'])}
-  ${app('xero', 'Xero', ['Go to <a href="https://developer.xero.com/app/manage" target="_blank" rel="noopener noreferrer">developer.xero.com/app/manage</a> → New app → Web app.', `Redirect URI <code>${esc(cb)}</code>.`, 'Generate a secret.'], ['XERO_CLIENT_ID', 'XERO_CLIENT_SECRET'])}
+  ${app('dropbox', 'Dropbox', ['Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer">dropbox.com/developers/apps</a> → Create app → Scoped access → Full Dropbox.', 'Permissions tab: tick <code>account_info.read</code> and <code>files.metadata.read</code> only.', `Settings tab: add the redirect URIs ${uris}.`], ['DROPBOX_APP_KEY', 'DROPBOX_APP_SECRET'])}
+  ${app('docusign', 'DocuSign', ['In DocuSign: Settings → Apps and Keys → Add app and integration key.', `Add a secret key, and the redirect URIs ${uris}.`, 'DocuSign reviews new apps before they work on a paid account ("Go-Live"); start it from the same page.'], ['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_SECRET_KEY'])}
+  ${app('quickbooks', 'QuickBooks', ['Go to <a href="https://developer.intuit.com/app/developer/dashboard" target="_blank" rel="noopener noreferrer">developer.intuit.com</a> → Create an app → QuickBooks Online and Payments → Accounting.', `Keys &amp; credentials (Production): add the redirect URIs ${uris}.`], ['QUICKBOOKS_CLIENT_ID', 'QUICKBOOKS_CLIENT_SECRET'])}
+  ${app('xero', 'Xero', ['Go to <a href="https://developer.xero.com/app/manage" target="_blank" rel="noopener noreferrer">developer.xero.com/app/manage</a> → New app → Web app.', `Redirect URIs ${uris}.`, 'Generate a secret.'], ['XERO_CLIENT_ID', 'XERO_CLIENT_SECRET'])}
 
   <h2 id="agents">What agents may and may not do</h2>
   <ul><li>Agents draft and recommend: meeting notes, client updates, reminders and proposals go into Agent drafts for your Approve, Changes or Skip.</li><li>They never promise a delivery date, change scope, approve spending, send sensitive client data or start a collection step without your approval.</li><li>They never see Money or its sheet.</li><li>Cold email stays off until you give the sending inbox, the targets, the offer and your go; then it stops at 25 a week.</li></ul>

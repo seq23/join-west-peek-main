@@ -56,6 +56,19 @@ function html(body, status = 200, extra = {}) {
 }
 function redirect(location, extra = {}) { return html(null, 303, { location, ...extra }); }
 
+// A refused sign-in redirects (303) back to the sign-in screen with its message, so a reload never resubmits the form.
+const SIGNIN_WORDS = {
+  wrong: 'That email and password did not open the dashboard. Try again, or use Forgot it?',
+  locked: 'Too many wrong tries for this email. Wait 15 minutes, or use Forgot it?',
+  busy: 'Too many tries from this connection. Wait 15 minutes and try again.',
+  unavailable: 'Sign-in is not available right now. Try again in a minute.',
+  foreign: 'That sign-in came from another site and was refused.',
+  google_cancelled: 'Google sign-in was cancelled.',
+  google_failed: 'Google did not confirm the sign-in. Try again, or use your email.',
+  google_other: 'That Google account does not open this dashboard. Use the account the dashboard belongs to.'
+};
+export function refuseSignIn(code) { return redirect(`/dashboard?signin=${code}`); }
+
 function foreignOrigin(request, url) {
   const fetchSite = request.headers.get('sec-fetch-site');
   if (fetchSite === 'same-origin') return false;
@@ -130,8 +143,8 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   }
 
   if (post && path === '/dashboard/login') {
-    if (foreignOrigin(request, url)) return html(V.renderSignIn({ googleReady: googleReady(env), preview, message: 'That sign-in came from another site and was refused.' }), 403);
-    if (await overLimit(request, 'login')) return html(V.renderSignIn({ googleReady: googleReady(env), preview, message: 'Too many tries from this connection. Wait 15 minutes and try again.' }), 429);
+    if (foreignOrigin(request, url)) return refuseSignIn('foreign');
+    if (await overLimit(request, 'login')) return refuseSignIn('busy');
     const form = await formOf(request);
     const email = field(form, 'email').trim();
     const remember = field(form, 'remember') === '1';
@@ -139,13 +152,13 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     if (r.kind === 'sample') return redirect('/dashboard', { 'set-cookie': await createSession(env, { ownerId: SAMPLE_ID, sample: true, remember, how: 'sample' }, now) });
     if (r.kind === 'full') return redirect('/dashboard', { 'set-cookie': await createSession(env, { ownerId: r.owner.id, gen: r.owner.gen, remember, how: 'password' }, now) });
     if (r.kind === 'choose') return redirect('/dashboard/password', { 'set-cookie': await createSession(env, { ownerId: r.owner.id, gen: r.owner.gen, stage: 'choose', remember, how: 'otp' }, now) });
-    if (r.kind === 'locked') return html(V.renderSignIn({ googleReady: googleReady(env), preview, email, message: 'Too many wrong tries for this email. Wait 15 minutes, or use Forgot it?' }), 429);
-    if (r.kind === 'unavailable') return html(V.renderSignIn({ googleReady: googleReady(env), preview, email, message: 'Sign-in is not available right now. Try again in a minute.' }), 503);
-    return html(V.renderSignIn({ googleReady: googleReady(env), preview, email, message: 'That email and password did not open the dashboard. Try again, or use Forgot it?' }), 401);
+    if (r.kind === 'locked') return refuseSignIn('locked');
+    if (r.kind === 'unavailable') return refuseSignIn('unavailable');
+    return refuseSignIn('wrong');
   }
 
   if (post && path === '/dashboard/google') {
-    if (foreignOrigin(request, url)) return html(V.renderSignIn({ googleReady: googleReady(env), preview, message: 'That came from another site and was refused.' }), 403);
+    if (foreignOrigin(request, url)) return refuseSignIn('foreign');
     if (!googleReady(env)) return redirect('/dashboard');
     const form = await formOf(request);
     return redirect(await startOAuth(env, { provider: 'google', purpose: 'signin', remember: field(form, 'remember') === '1', origin: url.origin }, now));
@@ -154,11 +167,11 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   if (path === '/dashboard/oauth/callback') {
     const done = await finishOAuth(env, url, now);
     if (done.purpose === 'signin') {
-      if (done.error) return html(V.renderSignIn({ googleReady: googleReady(env), preview, message: done.error === 'declined' ? 'Google sign-in was cancelled.' : 'Google did not confirm the sign-in. Try again, or use your email.' }), 401);
+      if (done.error) return refuseSignIn(done.error === 'declined' ? 'google_cancelled' : 'google_failed');
       const owner = await findOwnerByEmail(env, done.email);
       if (!owner) {
         console.log('OUTPUT dashboard google sign-in refused (not the owner)');
-        return html(V.renderSignIn({ googleReady: true, preview, message: 'That Google account does not open this dashboard. Use the account the dashboard belongs to.' }), 403);
+        return refuseSignIn('google_other');
       }
       return redirect('/dashboard', { 'set-cookie': await createSession(env, { ownerId: owner.id, gen: owner.gen, remember: done.remember, how: 'google' }, now) });
     }
@@ -188,7 +201,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   if (path === '/dashboard/help' && !post) {
     if (!session || session.stage !== 'full') return html(V.renderHelp({ origin: url.origin }));
   }
-  if (!session) return html(V.renderSignIn({ googleReady: googleReady(env), preview }), 401);
+  if (!session) return html(V.renderSignIn({ googleReady: googleReady(env), preview, message: SIGNIN_WORDS[url.searchParams.get('signin')] }), 401);
 
   if (path === '/dashboard/password') {
     if (session.sample) return redirect('/dashboard');

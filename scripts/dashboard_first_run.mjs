@@ -50,6 +50,13 @@ const help = await get('/dashboard/help');
 if (help.status !== 200 || !/id="google-app"/.test(help.text)) fail('help', `Help did not load with the Google sign-in steps (${help.status})`);
 ok('signed out shows no data, the sign-in screen and Help');
 
+// 2a. A wrong sign-in redirects back with its message, so a reload never asks to resubmit.
+const wrong = await post('/dashboard/login', { email: 'nobody@first-run.invalid', password: 'not-a-real-password' });
+if (wrong.status !== 303 || wrong.location !== '/dashboard?signin=wrong' || sessionOf(wrong)) fail('wrong sign-in', `expected a 303 to /dashboard?signin=wrong with no session, got ${wrong.status} ${wrong.location || ''}`);
+const told = await get(wrong.location);
+if (told.status !== 401 || !/did not open the dashboard/.test(told.text) || /class="d-row__title/.test(told.text)) fail('wrong sign-in', 'the redirected screen does not say why, or shows rows');
+ok('a wrong sign-in redirects back with its message and opens nothing');
+
 // 2b. Sign in with Google, once its app keys are set on this site: the button must reach Google's
 // own account screen for THIS site's callback. A key Google does not know (invalid_client) fails the
 // run; a callback the Google app has not listed yet is named (the emailed code still opens it).
