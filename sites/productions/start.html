@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Start a project | West Peek Productions</title>
+  <meta name="description" content="Tell West Peek Productions about your initiative: what is launching or changing, timing, and who needs to care. Scooter reads every inquiry.">
+  <link rel="canonical" href="https://westpeekproductions.com/start"/>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="West Peek Productions">
+  <meta property="og:title" content="Start a project | West Peek Productions">
+  <meta property="og:description" content="Tell West Peek Productions about your initiative: what is launching or changing, timing, and who needs to care. Scooter reads every inquiry.">
+  <meta property="og:url" content="https://westpeekproductions.com/start">
+  <link rel="preload" href="/assets/fonts/Maax-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/Maax-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/productions.css?v=20261113">
+  <meta name="theme-color" content="#0b0b0c">
+</head>
+<body class="wpp">
+<a class="wpp-skip" href="#main">Skip to content</a>
+<header class="wpp-header">
+  <div class="wpp-header__inner">
+    <a class="wpp-brand" href="/" aria-label="West Peek Productions home"><img src="/assets/img/productions-logo.jpg" alt="" width="40" height="40"><span>West Peek Productions</span></a>
+    <nav class="wpp-nav" aria-label="Main">
+      <a href="/work">Work</a>
+      <a href="/what-we-do">What we do</a>
+      <a href="/about">About</a>
+      <a class="wpp-nav__cta" href="/start" aria-current="page">Start a project</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="wpp-pagehead">
+    <div class="wpp-wrap">
+      <p class="wpp-eyebrow">Start a project</p>
+      <h1>Tell us what you are working on.</h1>
+      <p class="wpp-lead">A few lines is plenty. Scooter reads every inquiry and follows up himself.</p>
+    </div>
+  </section>
+
+  <div class="wpp-wrap wpp-start">
+    <aside class="wpp-start__aside" aria-labelledby="next-title">
+      <h2 id="next-title" class="wpp-eyebrow">What happens next</h2>
+      <ol>
+        <li>Your note goes straight to Scooter, and he replies by email.</li>
+        <li>If it is a fit, we set up a discovery call: what is changing, who needs to care, what has been tried.</li>
+        <li>You get a recommendation with scope, timing and budget in writing.</li>
+      </ol>
+    </aside>
+
+    <form class="wpp-form" data-westpeek-form data-source-tracking action="/api/lead" method="POST"
+          data-fallback-email="os@joinwestpeek.com"
+          data-success-panel="true"
+          data-success-title="Thank you. Scooter will be in touch."
+          data-success="Your inquiry went straight to Scooter. He will follow up by email to set up a discovery call or ask a few questions first."
+          data-success-link="/work" data-success-link-label="See how we work">
+      <input type="hidden" name="site" value="productions">
+      <input type="hidden" name="lead_type" value="productions_start_a_project">
+      <!-- Source tracking: filled by /assets/productions.js; travels in Scooter's email only. -->
+      <input type="hidden" name="source_page" value="">
+      <input type="hidden" name="landing_page" value="">
+      <input type="hidden" name="utm_source" value="">
+      <input type="hidden" name="utm_medium" value="">
+      <input type="hidden" name="utm_campaign" value="">
+      <input type="hidden" name="referrer_host" value="">
+      <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
+      <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+
+      <fieldset>
+        <legend>You</legend>
+        <div class="wpp-row">
+          <div class="wpp-field"><label for="sp-name">Your name</label><input id="sp-name" name="name" autocomplete="name" required></div>
+          <div class="wpp-field"><label for="sp-email">Work email</label><input id="sp-email" name="email" type="email" autocomplete="email" required></div>
+        </div>
+        <div class="wpp-row">
+          <div class="wpp-field"><label for="sp-org">Organization</label><input id="sp-org" name="organization" autocomplete="organization" required></div>
+          <div class="wpp-field"><label for="sp-role">Your role <span class="wpp-opt">(optional)</span></label><input id="sp-role" name="role" autocomplete="organization-title"></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>The initiative</legend>
+        <div class="wpp-field">
+          <label for="sp-initiative">What is launching or changing, and who needs to care?</label>
+          <textarea id="sp-initiative" name="initiative" required placeholder="A launch, a new strategic plan, an anniversary, an event, a story that is not landing..."></textarea>
+        </div>
+        <div class="wpp-row">
+          <div class="wpp-field">
+            <label for="sp-timing">Timing</label>
+            <select id="sp-timing" name="timing" required>
+              <option value="">Select&hellip;</option>
+              <option>In the next month</option>
+              <option>1 to 3 months</option>
+              <option>3 to 6 months</option>
+              <option>6 months or more</option>
+              <option>Not sure yet</option>
+            </select>
+          </div>
+          <div class="wpp-field">
+            <label for="sp-budget">Budget range <span class="wpp-opt">(optional)</span></label>
+            <select id="sp-budget" name="budget_range">
+              <option value="">Prefer not to say</option>
+              <option>Under $10,000</option>
+              <option>$10,000 to $25,000</option>
+              <option>$25,000 to $50,000</option>
+              <option>$50,000 to $100,000</option>
+              <option>$100,000 or more</option>
+              <option>Not sure yet</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>One last thing</legend>
+        <div class="wpp-row">
+          <div class="wpp-field">
+            <label for="sp-heard">How did you hear about us?</label>
+            <select id="sp-heard" name="heard_about" required>
+              <option value="">Select&hellip;</option>
+              <option>A referral or a colleague</option>
+              <option>We have worked together before</option>
+              <option>Search</option>
+              <option>LinkedIn</option>
+              <option>Another social platform</option>
+              <option>An event</option>
+              <option>The West Peek community</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="wpp-field">
+            <label for="sp-heard-detail">Who or where? <span class="wpp-opt">(optional)</span></label>
+            <input id="sp-heard-detail" name="heard_about_detail">
+          </div>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="wpp-btn">Send to Scooter <span aria-hidden="true">&rarr;</span></button>
+      <div data-form-status role="status" aria-live="polite"></div>
+      <p class="wpp-form__fine">Your details go to West Peek Productions only, to reply to this inquiry. We do not add you to a mailing list.</p>
+    </form>
+  </div>
+</main>
+
+<footer class="wpp-footer">
+  <div class="wpp-wrap">
+    <div class="wpp-footer__grid">
+      <div>
+        <div class="wpp-footer__brand"><img src="/assets/img/productions-logo.jpg" alt="" width="44" height="44"><span>West Peek Productions</span></div>
+        <p class="wpp-footer__tag">We make people care.</p>
+      </div>
+      <nav aria-label="Explore">
+        <h2>Explore</h2>
+        <ul>
+          <li><a href="/work">Work</a></li>
+          <li><a href="/what-we-do">What we do</a></li>
+          <li><a href="/about">About</a></li>
+          <li><a href="/start">Start a project</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Planning resources">
+        <h2>Planning resources</h2>
+        <ul>
+          <li><a href="/event-production-cost">What event production costs</a></li>
+          <li><a href="/virtual-event-planning-checklist">Virtual event planning checklist</a></li>
+          <li><a href="/in-house-vs-agency-event-production">In-house vs agency production</a></li>
+          <li><a href="/how-to-choose-a-virtual-event-platform">Choosing a virtual event platform</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="wpp-footer__base">&copy; <span id="y">2026</span> West Peek Productions &middot; New York &middot; Atlanta &middot; Memphis</div>
+  </div>
+</footer>
+
+<script src="/assets/productions.js" defer></script>
+<script src="/assets/js/forms.js"></script>
+</body>
+</html>

@@ -67,16 +67,17 @@
     {
       "repo": "join-west-peek-main",
       "site": "productions",
-      "file": "sites/productions/community-as-a-service/index.html",
-      "form": "community_viability_assessment",
+      "file": "sites/productions/start.html",
+      "form": "productions_start_a_project",
       "host": "westpeekproductions.com",
-      "description": "Community viability assessment lead form",
+      "description": "Start a project intake on westpeekproductions.com/start (organization, contact, initiative, timing, optional budget range, how they heard; hidden source tracking)",
       "destination": "excluded_not_ours",
       "via": "functions/api/lead.js -> Resend email to Scooter only",
       "reason": "EXCLUDED - West Peek Productions is a client-service business. The people filling in its forms are its clients and prospective clients, not West Peek's network contacts, so they go to Scooter's inbox and nowhere else. Owner's words, 22 Sep 2026: 'the productions website forms should not go to the network tab - those are clients who should go to scooter.' Same principle as westpeek-live. This is settled on principle and is NOT an open item - do not wire it.",
       "named_by": "Sequoia",
       "date": "2026-09-22",
-      "settled": true
+      "settled": true,
+      "note": "Replaces community_viability_assessment: the Community-as-a-Service page and its quiz were retired and 301 to /what-we-do (Scooter, 13 Nov 2026, approving the site rebuild plan). Same settled exclusion: these are Scooter's prospective clients and go to his inbox only."
     },
     {
       "repo": "west-peek-pitch-lab",
