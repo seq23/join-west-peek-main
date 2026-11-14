@@ -265,7 +265,7 @@ export function renderToday(view, ctx) {
   return page('Today', body, { tab: 'today', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 function todayAction(i) {
-  if (i.action === 'reconnect') return '<a class="d-btn d-primary" href="/dashboard/connections">Reconnect</a>';
+  if (i.action === 'reconnect') return `<a class="d-btn d-primary" href="/dashboard/connections">${String(i.key).startsWith('off:') ? 'Connect' : 'Reconnect'}</a>`;
   if (i.action === 'chase') return act('remind', i.rowId, 'Chase', '/dashboard', { primary: true, kind: i.kind });
   if (i.action === 'received') return act('received', i.rowId, 'Mark received', '/dashboard', { primary: true });
   if (i.action === 'approve') return `${i.link ? link(i.link, 'Open', 'd-btn') : ''}${act('approve', i.rowId, 'Approve', '/dashboard', { primary: true })}`;
@@ -501,7 +501,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
 
   <h2 id="connecting">Connecting, reconnecting and disconnecting</h2>
   <ul>${Object.entries(PROVIDERS).map(([, p]) => `<li><strong>${esc(p.label)}</strong>: ${esc(p.gives)} ${esc(p.never)}</li>`).join('')}</ul>
-  <p>Connect opens that service's own sign-in screen; you approve there. <strong>Reconnect</strong> does the same again when a row says "needs reconnecting". <strong>Disconnect</strong> withdraws the access at the service (Google, Dropbox, QuickBooks and Xero) and deletes the dashboard's key for it. For DocuSign, also remove the app under your DocuSign profile → Connected apps. Google's own screen describes its permissions broadly (for example "edit spreadsheets"); the dashboard writes only to the sheets you named and only creates drafts.</p>
+  <p>Connect opens that service's own sign-in screen; you approve there. <strong>Reconnect</strong> does the same again when a row says "needs reconnecting". <strong>Disconnect</strong> withdraws the access at the service (Google, Dropbox, QuickBooks and Xero) and deletes the dashboard's key for it. For DocuSign, also remove the app under your DocuSign profile → Connected apps. Google's own screen describes its permissions broadly (for example "edit spreadsheets"); the dashboard writes only to the sheets you named, plus the Finance tab of a client binder your Projects tab links when you mark an invoice from that binder paid, and it only creates drafts.</p>
 
   <h2 id="google-app">Setting up the Google sign-in app (about 10 minutes, once)</h2>
   <ol>

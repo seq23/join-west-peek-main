@@ -215,7 +215,7 @@ export async function loadView(env, { sample }, now = Date.now()) {
   const sources = {};
   for (const r of (await db.prepare('SELECT * FROM source').all()).results || []) sources[r.kind] = r;
   const settings = {};
-  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run')").all()).results || []) settings[r.key] = JSON.parse(r.value);
+  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run') OR key LIKE 'disconnected:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
   for (const list of Object.values(rows)) list.sort((a, b) => (a._row || 0) - (b._row || 0));
   return { sample: false, rows, sync, sources, settings };
 }
@@ -608,6 +608,15 @@ export async function realCheck(env, now = Date.now()) {
 
 /* ------------------------------------------------------------------ Today */
 
+/** What goes quiet when he disconnects an account (said on Today until he connects it again). */
+const DISCONNECTED_STOPS = {
+  google: 'Projects, deals, money and agents stop updating',
+  dropbox: 'Finding video and media files is off',
+  docusign: 'SOW signature status is paused',
+  quickbooks: 'Cash now from QuickBooks is paused',
+  xero: 'Cash now from Xero is paused'
+};
+
 /** The one tickable list. Each item: { key, kind, rowId, title, sub, tone, action }. */
 export function todayItems(view, { connections, ticked, now = Date.now() }) {
   const items = [];
@@ -634,6 +643,12 @@ export function todayItems(view, { connections, ticked, now = Date.now() }) {
   }
   for (const c of connections.filter((x) => x.status === 'broken')) {
     items.unshift({ key: `conn:${c.provider}:${c.last_error}`, kind: 'connection', rowId: c.provider, title: `${c.provider === 'google' ? 'Google' : c.provider[0].toUpperCase() + c.provider.slice(1)} stopped syncing`, sub: 'Reconnect it to bring the numbers back up to date', tone: 'red', action: 'reconnect' });
+  }
+  for (const [key, at] of Object.entries(view.settings || {})) {
+    const provider = key.startsWith('disconnected:') ? key.slice(13) : '';
+    if (!provider || connections.some((c) => c.provider === provider)) continue;
+    const label = provider === 'google' ? 'Google' : provider === 'docusign' ? 'DocuSign' : provider === 'quickbooks' ? 'QuickBooks' : provider[0].toUpperCase() + provider.slice(1);
+    items.push({ key: `off:${provider}:${at}`, kind: 'connection', rowId: provider, title: `${label} is disconnected`, sub: `${DISCONNECTED_STOPS[provider] || 'What it showed is paused'} until you connect it again`, tone: 'gold', action: 'reconnect' });
   }
   for (const [kind, s] of Object.entries(view.sync)) {
     if (s.status === 'failed') items.unshift({ key: `sync:${kind}:${s.error}`, kind: 'sync', rowId: kind, title: `Could not read your ${KINDS[kind].group} sheet`, sub: s.error === 'cannot_open_sheet' ? 'The sheet could not be opened: check it still exists and is shared with you' : 'The last sync failed; the numbers below may be out of date', tone: 'red', action: 'reconnect' });

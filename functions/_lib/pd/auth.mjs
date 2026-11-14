@@ -268,17 +268,20 @@ export async function checkPasswordSignIn(env, { email, typed, hostname }, now =
   if (!dbOf(env)) return { kind: 'unavailable' };
   const owner = await findOwnerByEmail(env, email);
   if (!owner) { await hashSecret(typed || 'x'); return { kind: 'wrong' }; }
-  if (ownerLocked(owner, now)) return { kind: 'locked', owner };
-  if (await secretMatches(typed, owner.pw)) {
-    if (owner.fails) { owner.fails = null; await saveOwner(dbOf(env), owner); }
-    return { kind: 'full', owner };
-  }
+  // A fresh one-time password (16 random letters, sent only to his own inbox) still opens the
+  // dashboard while the password is locked, so somebody typing wrong passwords at his address can
+  // never lock him out of "Forgot it?". The per-connection limit still holds every try.
   if (owner.otp && now < owner.otp.expires_at && await secretMatches(normalOtp(typed), owner.otp)) {
     owner.otp = null;
     owner.gen += 1;
     owner.fails = null;
     await saveOwner(dbOf(env), owner);
     return { kind: 'choose', owner };
+  }
+  if (ownerLocked(owner, now)) return { kind: 'locked', owner };
+  if (await secretMatches(typed, owner.pw)) {
+    if (owner.fails) { owner.fails = null; await saveOwner(dbOf(env), owner); }
+    return { kind: 'full', owner };
   }
   countFail(owner, now);
   await saveOwner(dbOf(env), owner);

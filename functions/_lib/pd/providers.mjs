@@ -26,7 +26,7 @@ export const PROVIDERS = {
     auth: 'https://accounts.google.com/o/oauth2/v2/auth', token: 'https://oauth2.googleapis.com/token',
     scopes: GOOGLE_SCOPES, pkce: true, extra: { access_type: 'offline', prompt: 'consent' },
     unlocks: 'Your projects, deals, money and agents sheets; finding documents; reminder drafts in Gmail; your next client meeting.',
-    gives: 'Reads your sheets and Drive; writes only to the sheets you name here; creates Gmail drafts; reads your calendar.',
+    gives: 'Reads your sheets and Drive; writes only to the sheets you name here and the Finance tabs of the client binders your Projects tab links (when you mark an invoice there paid); creates Gmail drafts; reads your calendar.',
     never: 'Never sends an email, never deletes a file, never changes your calendar.'
   },
   dropbox: {
@@ -184,6 +184,7 @@ export async function finishOAuth(env, url, now = Date.now()) {
   const secret = { access_token: tok.access_token, refresh_token: tok.refresh_token || null, expires_at: now + (Number(tok.expires_in) || 3600) * 1000 };
   await db.prepare('INSERT INTO connection (provider, account, status, scopes, token_enc, connected_at, last_sync, last_error, meta) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(provider) DO UPDATE SET account=excluded.account, status=excluded.status, scopes=excluded.scopes, token_enc=excluded.token_enc, connected_at=excluded.connected_at, last_error=NULL, meta=excluded.meta')
     .bind(row.provider, account, 'ok', String(tok.scope || p.scopes.join(' ')), await encryptJson(env, secret), now, null, null, JSON.stringify(meta)).run();
+  await db.prepare('DELETE FROM setting WHERE key = ?').bind(`disconnected:${row.provider}`).run();
   console.log(`OUTPUT dashboard connected provider=${row.provider}`);
   return base;
 }
@@ -248,6 +249,8 @@ export async function disconnect(env, provider) {
     }
   } catch { /* the token is deleted below either way */ }
   await db.prepare('DELETE FROM connection WHERE provider = ?').bind(provider).run();
+  // Remembered so Today can say what stopped working until he connects it again.
+  await db.prepare('INSERT OR REPLACE INTO setting (key, value) VALUES (?, ?)').bind(`disconnected:${provider}`, JSON.stringify(Date.now())).run();
   console.log(`OUTPUT dashboard disconnected provider=${provider} how=${how}`);
   return how;
 }

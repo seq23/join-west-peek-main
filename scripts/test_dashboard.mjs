@@ -224,6 +224,15 @@ const realFetch = globalThis.fetch;
   await call(env2, '/dashboard/forgot', { method: 'POST', form: { email: OWNER } });
   const c2 = env2.sent[0].text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}\b/)[0];
   check('an unused code stops working after 7 days', (await signIn(env2, OWNER, c2, { now: NOW + 8 * 86400000 })).status === 401);
+  // Wrong passwords typed at his address lock the password, never his emailed code.
+  const env3 = ENV();
+  await seedOwner(env3);
+  for (let i = 0; i < OWNER_FAIL_LIMIT; i++) await signIn(env3, OWNER, 'wrong-password-here');
+  check('a locked owner: his password waits out the lock', (await signIn(env3, OWNER, PW)).status === 429);
+  await call(env3, '/dashboard/forgot', { method: 'POST', form: { email: OWNER } });
+  const c3 = env3.sent[0].text.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}\b/)[0];
+  const in3 = await signIn(env3, OWNER, c3);
+  check('…but a fresh Forgot it? code still opens choose-a-password', in3.status === 303 && in3.location === '/dashboard/password');
 }
 
 // Sample mode: preview only, synthetic rows only.
@@ -319,6 +328,8 @@ const realFetch = globalThis.fetch;
 
   const dis = await call(env, '/dashboard/disconnect', { method: 'POST', cookie: s.cookie, form: { provider: 'google' } });
   check('Disconnect revokes at Google and deletes the token', g.revoked.includes('REFRESH-TOKEN-PLAIN') && dis.location === '/dashboard/connections?m=disconnected' && !(await env.PRODUCTIONS_DB.prepare("SELECT * FROM connection WHERE provider = 'google'").first()));
+  const off = (await call(env, '/dashboard', { cookie: s.cookie })).text;
+  check('a disconnected account shows on Today with Connect', /Google is disconnected/.test(off) && /href="\/dashboard\/connections">Connect</.test(off));
 
   // Google sign-in: only the owner's account opens it
   const gs = await call(env, '/dashboard/google', { method: 'POST', form: { remember: '1' } });

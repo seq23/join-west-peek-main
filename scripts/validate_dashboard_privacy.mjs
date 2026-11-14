@@ -10,7 +10,8 @@
  *   1. a tracked file looks like loader input: JSON with an `owners` list carrying addresses, a
  *      `team` + `finance` pair, or dashboard row lists (invoices, projects, deals …);
  *   2. a sample row (sampleRows() in functions/_lib/pd/data.mjs) carries a name that does not start
- *      with "Sample", or an address outside example.test;
+ *      with "Sample", or an address outside example.test; or a sheet grid in the dashboard tests
+ *      carries a name that is not a placeholder (Sample …, Client A, Org A …);
  *   3. a dashboard source, script or test carries an email address other than the routed OS inbox
  *      and the reserved test domains, or a dollar figure;
  *   4. a document copied from the private package sits in the repo (.docx, or a file named like the
@@ -54,6 +55,29 @@ for (const [kind, rows] of Object.entries(sampleRows(Date.UTC(2026, 10, 14)))) {
 }
 if (!sampleScanned) failures.push('no sample rows were scanned');
 
+// 2b. test fixtures are synthetic too: every sheet grid in the dashboard tests ([['ID', …header], [row] …])
+// carries only placeholder names (Sample …, Client A, Org A …) in its name-bearing columns.
+const FIXTURES = files.filter((f) => /^scripts\/(test_dashboard|dashboard_first_run)\.mjs$/.test(f));
+const NAME_COLS = /^(project|client|organization|org|vendor|contact|contacts|contact name|approval owners?|approvers?|agent|owner|lead|document)$/i;
+const SYNTHETIC = /^(Sample\b|(Client|Org|Vendor|Agent|Owner|Contact) [A-Z]\b|Lead$|Update draft$)/;
+let fixtureCells = 0;
+for (const f of FIXTURES) {
+  const text = readFileSync(f, 'utf8');
+  for (const grid of text.matchAll(/\[\[('ID'(?:,\s*'[^']*')*)\]((?:,\s*\[[^\]]*\])+)\]/g)) {
+    const head = grid[1].match(/'[^']*'/g).map((h) => h.slice(1, -1));
+    for (const row of grid[2].matchAll(/\[([^\]]*)\]/g)) {
+      const cells = row[1].match(/'[^']*'|[A-Za-z_$][\w.$]*|-?\d+/g) || [];
+      head.forEach((h, i) => {
+        if (!NAME_COLS.test(h) || cells[i] === undefined || !cells[i].startsWith("'")) return;
+        fixtureCells += 1;
+        const v = cells[i].slice(1, -1);
+        if (v && !SYNTHETIC.test(v) && !/^[A-Z]\d+$/.test(v)) failures.push(`${f}: fixture ${h} "${v}" is not a placeholder name (use Sample …, Client A, Org A)`);
+      });
+    }
+  }
+}
+if (!fixtureCells) failures.push('no fixture name cells were scanned; the fixture rule is not seeing the tests');
+
 // 3. addresses and figures in dashboard code
 const DASH = files.filter((f) => /^(functions\/_lib\/pd\/|functions\/_lib\/productions-dashboard\.mjs|functions\/dashboard\/|scripts\/dashboard_|scripts\/test_dashboard\.mjs|scripts\/lib\/fake_d1\.mjs|workers\/productions-dashboard\/)/.test(f));
 if (DASH.length < 8) failures.push(`only ${DASH.length} dashboard files found; the scan is not seeing the dashboard`);
@@ -89,4 +113,4 @@ if (failures.length) {
   console.error(`validate:dashboard-privacy FAILED (${failures.length}):\n - ${failures.join('\n - ')}`);
   process.exit(1);
 }
-console.log(`validate:dashboard-privacy OK files=${files.length} json=${jsonScanned} dashboard_files=${DASH.length} sample_rows=${sampleScanned}; ${namesNote}`);
+console.log(`validate:dashboard-privacy OK files=${files.length} json=${jsonScanned} dashboard_files=${DASH.length} sample_rows=${sampleScanned} fixture_names=${fixtureCells}; ${namesNote}`);
