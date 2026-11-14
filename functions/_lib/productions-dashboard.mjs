@@ -12,7 +12,7 @@
  *   GET  /                Today          GET /work, /work/<id>, /deals, /inquiries, /find
  *   GET  /money           (Scooter only)  GET /agents, /connections, /check, /help (public, no data)
  *   POST /login /forgot /password /logout /google /connect /disconnect /act /tick /choice
- *        /source /source/create /refresh
+ *        /source /source/create /refresh /keys (app keys pasted on Connections; never shown again)
  *   GET  /oauth/callback  (Google sign-in and every connection)
  *   POST /cron/sync       (the cron Worker, every 15 minutes; secret checked against a hash in D1)
  */
@@ -22,7 +22,7 @@ import {
   OWNER_IDS, MIN_PASSWORD, SAMPLE_ID, checkPasswordSignIn, clearCookies, createSession, findOwnerByEmail, issueOneTimePassword,
   overLimit, revokeOtherSessions, revokeSession, saveOwner, sessionFromRequest, upgradeLegacyCookie, countFail, countRefused
 } from './pd/auth.mjs';
-import { PROVIDERS, disconnect, finishOAuth, listConnections, providerReady, startOAuth } from './pd/providers.mjs';
+import { PROVIDERS, appKeysSaved, disconnect, finishOAuth, listConnections, providerReady, saveAppKeys, startOAuth, withAppKeys } from './pd/providers.mjs';
 import {
   ACTION_KINDS, createSheet, draftReminder, findDocuments, loadView, makeChoice, nextMeeting, readAction, readChoices, realCheck,
   runAction, setSource, syncAll, tick, ticks, todayItems, getSetting
@@ -93,8 +93,11 @@ async function context(env, session, url, now) {
   const actionRow = await readAction(env, url.searchParams.get('a'));
   const flash = actionRow && (actionRow.sample === 1) === session.sample ? V.flashBox(actionRow) : '';
   const words = { declined: 'You cancelled on the sign-in screen. Nothing was connected.', exchange_failed: 'The service did not finish connecting. Nothing was stored; try Connect again.', expired: 'That took too long. Try Connect again.', not_set_up: 'That account is not set up yet. See Help for the steps.', no_token_key: 'Connections cannot be saved safely right now. Nothing was stored.', provider_error: 'The service reported a problem. Nothing was connected.', not_a_sheet_link: 'That is not a Google Sheets link. Copy the address of the sheet itself.', cannot_open_sheet: 'That sheet could not be opened with your Google account. Check it is shared with you.', needs_google: 'Connect Google first.', connected: 'Connected. The first sync has run.', disconnected: 'Disconnected, and its access withdrawn.', disconnected_local: 'Disconnected and its key deleted here. Also remove the app in that service\'s settings.', source_saved: 'Sheet saved, and read.', created: 'Sheet created in your Google Drive and read.', refreshed: 'Refreshed.', refresh_failed: 'Refresh finished with problems; see the red rows on Today.', choice_saved: 'Saved. You can change it any time.' };
+  Object.assign(words, { keys_sample: 'App keys cannot be saved in sample mode. Nothing was stored.', keys_incomplete: 'Paste every key for that app, then press Save. Nothing was stored.', keys_too_long: 'That does not look like an app key (it is too long). Nothing was stored.', keys_foreign: 'That came from another page and was refused. Nothing was stored.' });
+  const keyFor = url.searchParams.get('p');
+  if (PROVIDERS[keyFor]) words.keys_saved = `Saved. You can connect ${V.providerName(keyFor)} now.`;
   const m = url.searchParams.get('m');
-  const good = ['connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved'].includes(m);
+  const good = ['keys_saved', 'connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved'].includes(m);
   const note = m && words[m] ? `<p class="d-flash ${good ? 'd-flash--ok' : 'd-flash--bad'}" role="${good ? 'status' : 'alert'}">${words[m]}</p>` : '';
   const googleConnected = Boolean(connections.find((c) => c.provider === 'google'));
   const counts = {
@@ -129,6 +132,10 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     return html(V.renderSignIn({ configured: false }), 503);
   }
   await ensureSchema(db);
+  // The app keys each connection uses: the Worker secret first; a pair pasted on Connections
+  // (encrypted in this host's own database) only where the secret is missing.
+  const siteEnv = env;
+  env = await withAppKeys(env);
 
   if (post && path === '/dashboard/cron/sync') {
     if (!(await cronAllowed(env, request))) return new Response('refused', { status: 401 });
@@ -258,6 +265,19 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
       const ok = await makeChoice(env, { key: field(form, 'key'), value: field(form, 'value'), session }, now);
       return redirect(`/dashboard/connections${ok ? '?m=choice_saved' : ''}#choices`);
     }
+    if (path === '/dashboard/keys') {
+      // Same-origin only, strictly: a request that does not say where it came from is refused too.
+      const site = request.headers.get('sec-fetch-site');
+      const origin = request.headers.get('origin');
+      const sameOrigin = site ? site === 'same-origin' : Boolean(origin) && (() => { try { return new URL(origin).host === url.host; } catch { return false; } })();
+      if (!sameOrigin) return redirect('/dashboard/connections?m=keys_foreign#keys');
+      if (session.sample) return redirect('/dashboard/connections?m=keys_sample#keys');
+      const provider = field(form, 'provider');
+      if (!PROVIDERS[provider]) return redirect('/dashboard/connections#keys');
+      const r = await saveAppKeys(env, provider, { id: field(form, 'id'), secret: field(form, 'secret') }, now);
+      if (r === 'saved') return redirect(`/dashboard/connections?m=keys_saved&p=${provider}`);
+      return redirect(`/dashboard/connections?m=${r === 'no_token_key' ? 'no_token_key' : `keys_${r}`}#keys-${provider}`);
+    }
     if (session.sample) {
       // Preview only: put the sample rows back as they started (first-run uses it when every sample deal has moved on).
       if (path === '/dashboard/sample/reset') { await db.prepare('DELETE FROM sample_sheet').run(); await db.prepare('DELETE FROM tick WHERE sample = 1').run(); }
@@ -314,7 +334,9 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   if (path === '/dashboard/agents') return html(V.renderAgents(ctx.view, ctx));
   if (path === '/dashboard/connections') {
     const ready = Object.fromEntries(Object.keys(PROVIDERS).map((p) => [p, providerReady(env, p)]));
-    return html(V.renderConnections({ ...ctx, ready, tokenKeyMissing: !session.sample && !(await canEncryptCheck(env)) }));
+    const keysFromSite = Object.fromEntries(Object.keys(PROVIDERS).map((p) => [p, providerReady(siteEnv, p)]));
+    const keysSaved = session.sample ? {} : await appKeysSaved(env);
+    return html(V.renderConnections({ ...ctx, ready, keysFromSite, keysSaved, tokenKeyMissing: !session.sample && !(await canEncryptCheck(env)) }));
   }
   if (path === '/dashboard/check') {
     if (session.sample) return redirect('/dashboard/connections');

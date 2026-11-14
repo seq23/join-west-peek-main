@@ -5,7 +5,8 @@
  *   npm run first-run -- --url https://<preview>.west-peek-productions.pages.dev   (or FIRST_RUN_URL)
  *
  * Public pages: each changed Productions page loads (200) with no placeholder text or error.
- * Dashboard, signed out: no data, the sign-in screen, Help reachable.
+ * Dashboard, signed out: no data, the sign-in screen, Help reachable (and asking for no key by email).
+ * App keys: in sample mode the Paste your app keys section shows no box and a save is refused.
  * Preview only (the test identity does not exist on production): signs in with the sample
  * identity, sees real-looking (synthetic, non-empty) rows on Today, Work, Money and Agents, moves one
  * deal to its next stage (written to the sample sheet and read back), reloads and sees it, signs in
@@ -49,6 +50,9 @@ if (!/Sign in with Google|Google sign-in is not set up yet/.test(out.text)) fail
 const help = await get('/dashboard/help');
 if (help.status !== 200 || !/id="google-app"/.test(help.text)) fail('help', `Help did not load with the Google sign-in steps (${help.status})`);
 ok('signed out shows no data, the sign-in screen and Help');
+// App keys are pasted on Connections, never emailed (14 Nov 2026): Help points at the boxes and asks for no key by email.
+if (/SECRET [A-Z_]+=|two lines, exactly/.test(help.text) || !/Paste each key into its box on the Connections page/.test(help.text)) fail('help', 'Help still asks for an app key by email, or does not point at the boxes on Connections');
+ok('Help sends every app key to its box on Connections, none by email');
 
 // 2a. A wrong sign-in redirects back with its message, so a reload never asks to resubmit.
 const wrong = await post('/dashboard/login', { email: 'nobody@example.invalid', password: 'not-a-real-password' });
@@ -106,6 +110,15 @@ for (const [p, want] of [['/dashboard', /need/], ['/dashboard/work', /Sample Org
   if (PLACEHOLDER.test(r.text)) fail(`open ${p}`, 'placeholder text');
 }
 ok('Today, Work, Money, Agents and Connections show rows');
+
+// 4b. App keys: sample mode shows the section but no box, and a save is refused with nothing stored.
+const conn = await get('/dashboard/connections', A);
+if (!/Paste your app keys/.test(conn.text) || /action="\/dashboard\/keys"/.test(conn.text)) fail('app keys', 'sample mode should show the app keys section without a form');
+const keyTry = await post('/dashboard/keys', { provider: 'dropbox', id: 'first-run-test-key', secret: 'first-run-test-secret' }, A);
+if (keyTry.status !== 303 || !/m=keys_sample/.test(keyTry.location || '')) fail('app keys', `sample mode did not refuse the save (${keyTry.status} ${keyTry.location || ''})`);
+const keyBack = await get(keyTry.location, A);
+if (!/cannot be saved in sample mode/.test(keyBack.text) || /first-run-test-(key|secret)/.test(keyBack.text)) fail('app keys', 'the refusal is not said, or a value came back');
+ok('sample mode refuses to save app keys and says so');
 
 // 5. One quick action, written and read back.
 function dealRows(text) {

@@ -5,11 +5,11 @@
  */
 import { ageWords, daysSince, esc, httpsOnly, isoDay, money, num, todayLabel, toTime, usDay, usTime } from './core.mjs';
 import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, FUNNEL_STAGES, GROUPS, KINDS, STALE_MS, projectName, sheetUrl } from './data.mjs';
-import { PROVIDERS } from './providers.mjs';
+import { KEY_FIELDS, PROVIDERS } from './providers.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
 
 const HELP = '/dashboard/help';
-const providerName = (p) => ({ google: 'Google', dropbox: 'Dropbox', docusign: 'DocuSign', quickbooks: 'QuickBooks', xero: 'Xero' }[p] || p);
+export const providerName = (p) => ({ google: 'Google', dropbox: 'Dropbox', docusign: 'DocuSign', quickbooks: 'QuickBooks', xero: 'Xero' }[p] || p);
 
 /* ------------------------------------------------------------------ building blocks */
 
@@ -413,7 +413,7 @@ export function renderConnections(ctx) {
     const P = PROVIDERS[p];
     let status; let actions;
     if (sample) { status = '<span class="d-pill">sample: not connected</span>'; actions = '<p class="d-sub">Connections are off in sample mode.</p>'; }
-    else if (!ready[p]) { status = '<span class="d-pill wait">not set up yet</span>'; actions = `<p class="d-sub">${esc(providerName(p))} needs a small app of your own first.</p><a class="d-btn" href="${HELP}#app-${p}">Show me the steps</a>`; }
+    else if (!ready[p]) { status = '<span class="d-pill wait">not set up yet</span>'; actions = `<p class="d-sub">${esc(providerName(p))} needs a small app of your own first, then its keys pasted below.</p><div class="d-acts"><a class="d-btn d-primary" href="#keys-${p}">Paste its app keys</a><a class="d-btn" href="${HELP}#app-${p}">Show me the steps</a></div>`; }
     else if (!c) {
       status = '<span class="d-pill">not connected</span>';
       actions = `<form method="post" action="/dashboard/connect"><input type="hidden" name="provider" value="${p}"><button type="submit" class="d-primary">Connect ${esc(providerName(p))}</button></form>`;
@@ -445,8 +445,22 @@ export function renderConnections(ctx) {
     return `<div class="d-conn"><div class="d-conn__top"><strong>${esc(C.label)}</strong>${made ? `<span class="d-pill ok">${esc(C.options[made.value])}</span>` : '<span class="d-pill">not chosen yet</span>'}</div>${after ? `<p class="d-sub">${after}</p>` : `<p class="d-sub">${esc(choiceWhy(k))}</p>`}<form method="post" action="/dashboard/choice" class="d-acts"><input type="hidden" name="key" value="${k}">${Object.entries(C.options).map(([v, l]) => `<button type="submit" name="value" value="${v}" ${made?.value === v ? 'disabled' : ''}>${esc(l)}</button>`).join('')}</form></div>`;
   }).join('');
 
+  // "Paste your app keys": one box per service. A saved value is never shown again, not even in part.
+  const keyRows = Object.keys(KEY_FIELDS).map((p) => {
+    const name = p === 'google' ? 'Google sign-in' : providerName(p);
+    const savedAt = (ctx.keysSaved || {})[p];
+    const form = `<form class="d-form" method="post" action="/dashboard/keys" autocomplete="off"><input type="hidden" name="provider" value="${p}">${KEY_FIELDS[p].map(([f, label]) => `<label for="k-${p}-${f}">${esc(label)}</label><input id="k-${p}-${f}" name="${f}" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="512" required>`).join('')}<p><button type="submit" class="d-primary">Save</button></p></form>`;
+    let pill; let inner;
+    if (sample) { pill = '<span class="d-pill">sample</span>'; inner = '<p class="d-sub">App keys cannot be saved in sample mode.</p>'; }
+    else if ((ctx.keysFromSite || {})[p]) { pill = '<span class="d-pill ok">in place</span>'; inner = '<p class="d-sub">These keys are already set on the site. Nothing to paste.</p>'; }
+    else if (savedAt) { pill = '<span class="d-pill ok">saved</span>'; inner = `<p class="d-sub">Saved ${esc(usDay(savedAt))}. The keys are kept encrypted and are never shown again.</p><details class="d-fold"><summary><span>Replace</span></summary>${form}</details>`; }
+    else { pill = '<span class="d-pill">not saved yet</span>'; inner = `<p class="d-sub">Paste each key into its box. Where to find them: <a href="${HELP}#app-${p === 'google' ? 'google' : p}">the steps for ${esc(name)}</a>.</p>${form}`; }
+    return `<div class="d-conn" id="keys-${p}"><div class="d-conn__top"><strong>${esc(name)}</strong>${pill}</div>${inner}</div>`;
+  }).join('');
+
   const body = `<h1>Connections</h1><p class="d-sub">Each account is connected through its own sign-in screen. The dashboard never sees or keeps your passwords, and never a bank login.</p>${ctx.flash || ''}${ctx.tokenKeyMissing ? errorBox('Connections cannot be saved safely right now.', 'Nothing is connected or stored until the site\'s encryption key is in place. Your sheets are untouched.', `${HELP}#help-email`, 'Get help') : ''}
     ${sec('accounts', 'Accounts', rows + acctRow)}
+    ${sec('keys', 'Paste your app keys', keyRows, '<p class="d-sub">Each service gives you its keys when you make its small app (Help has the steps). Paste them here; they are kept encrypted on this site and never shown again, not even in part. Never email a key.</p>')}
     ${sec('sheets', 'Your sheets', sheetRows, '<p class="d-sub">Your sheets are the source of truth. The dashboard reads them and writes quick actions back to the row.</p>')}
     ${sample ? '' : `<form method="post" action="/dashboard/refresh" class="d-sec"><input type="hidden" name="back" value="/dashboard/connections"><button type="submit">Refresh now</button> <a class="d-help" href="/dashboard/check">Check my numbers ›</a></form>`}
     ${sec('choices', 'Your choices', choiceRows, '<p class="d-sub">Open decisions that are yours. Each one changes only when you press a button.</p>')}
@@ -493,7 +507,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
   const cb = `${origin}/dashboard/oauth/callback`;
   const PROD_CB = 'https://westpeekproductions.com/dashboard/oauth/callback';
   const uris = cb === PROD_CB ? `<code>${PROD_CB}</code>` : `<code>${PROD_CB}</code> and <code>${esc(cb)}</code> (add both, so an app set up from the preview keeps working on the live site)`;
-  const app = (id, name, steps, secrets, after = []) => `<h3 id="app-${id}">${esc(name)}</h3><ol>${steps.map((s) => `<li>${s}</li>`).join('')}<li>Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a> two lines, exactly: ${secrets.map((s) => `<code>SECRET ${s}=…</code>`).join(' and ')}. The row on Connections turns to Connect as soon as they are in.</li>${after.map((s) => `<li>${s}</li>`).join('')}</ol>`;
+  const app = (id, name, steps, secrets, after = []) => `<h3 id="app-${id}">${esc(name)}</h3><ol>${steps.map((s) => `<li>${s}</li>`).join('')}<li>${esc(name)} shows ${secrets.map((s) => `the ${esc(s)}`).join(' and ')}. Paste each key into its box on the Connections page, under <a href="/dashboard/connections#keys-${id}">Paste your app keys</a>, and press Save. The row turns to Connect as soon as they are saved.</li>${after.map((s) => `<li>${s}</li>`).join('')}</ol>`;
   const body = `<div class="d-helpdoc">${signedIn ? '' : '<p class="d-brand" style="margin-top:16px">West Peek Productions</p>'}<h1>Help</h1>
   <p class="d-sub">Everything on one page. Jump to: <a href="#sections">sections</a> · <a href="#change">changing a number</a> · <a href="#connecting">connecting</a> · <a href="#google-app">Google sign-in app</a> · <a href="#agents">agents</a> · <a href="#phone">new phone</a> · <a href="#states">words</a> · <a href="#privacy">privacy</a> · <a href="#help-email">help email</a></p>
 
@@ -525,14 +539,14 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
    <li>Open <strong>APIs &amp; Services → OAuth consent screen</strong>. Choose <strong>Internal</strong> (only people in your Workspace can use it). App name <code>West Peek Productions dashboard</code>; support email is yours.</li>
    <li>Open <strong>APIs &amp; Services → Library</strong> and enable: Google Sheets API, Google Drive API, Gmail API, Google Calendar API.</li>
    <li>Open <strong>Credentials → Create credentials → OAuth client ID</strong>. Type: <strong>Web application</strong>. Under Authorized redirect URIs add <code>https://westpeekproductions.com/dashboard/oauth/callback</code>${cb.startsWith('https://westpeekproductions.com') ? '' : ` and <code>${esc(cb)}</code>`}.</li>
-   <li>Google shows a Client ID and a Client secret. Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a> two lines, exactly: <code>SECRET GOOGLE_OAUTH_CLIENT_ID=…</code> and <code>SECRET GOOGLE_OAUTH_CLIENT_SECRET=…</code></li>
-   <li>Then the sign-in screen shows <strong>Sign in with Google</strong>, and Connections shows <strong>Connect Google</strong>. Until then, the emailed one-time code works.</li>
+   <li id="app-google">Google shows a Client ID and a Client secret. Paste each key into its box on the Connections page, under <a href="/dashboard/connections#keys-google">Paste your app keys → Google sign-in</a>, and press Save.</li>
+   <li>Then the sign-in screen shows <strong>Sign in with Google</strong>, and Connections shows <strong>Connect Google</strong>. Until then, your email and password work.</li>
   </ol>
   <h3>The other accounts</h3>
-  ${app('dropbox', 'Dropbox', ['Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer">dropbox.com/developers/apps</a> → Create app → Scoped access → Full Dropbox.', 'Permissions tab: tick <code>account_info.read</code> and <code>files.metadata.read</code> only.', `Settings tab: add the redirect URIs ${uris}.`], ['DROPBOX_APP_KEY', 'DROPBOX_APP_SECRET'])}
-  ${app('docusign', 'DocuSign', ['In DocuSign: Settings → Apps and Keys → Add app and integration key.', `Add a secret key, and the redirect URIs ${uris}.`], ['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_SECRET_KEY'], ['A new DocuSign app starts in DocuSign\'s testing stage. While it is there, use <strong>Connect while my DocuSign app is still in testing</strong> on Connections; it shows envelopes in your DocuSign developer account only.', 'To see your real SOWs, ask DocuSign to move the app live ("Go-Live") from the same Apps and Keys page; DocuSign asks for some successful use in testing first, which the dashboard\'s syncs provide. Once it is live, Disconnect DocuSign and press <strong>Connect DocuSign</strong>. The same keys keep working.'])}
-  ${app('quickbooks', 'QuickBooks', ['Go to <a href="https://developer.intuit.com/app/developer/dashboard" target="_blank" rel="noopener noreferrer">developer.intuit.com</a> → Create an app → QuickBooks Online and Payments → Accounting.', `Keys &amp; credentials (Production): add the redirect URIs ${uris}.`], ['QUICKBOOKS_CLIENT_ID', 'QUICKBOOKS_CLIENT_SECRET'])}
-  ${app('xero', 'Xero', ['Go to <a href="https://developer.xero.com/app/manage" target="_blank" rel="noopener noreferrer">developer.xero.com/app/manage</a> → New app → Web app.', `Redirect URIs ${uris}.`, 'Generate a secret.'], ['XERO_CLIENT_ID', 'XERO_CLIENT_SECRET'])}
+  ${app('dropbox', 'Dropbox', ['Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer">dropbox.com/developers/apps</a> → Create app → Scoped access → Full Dropbox.', 'Permissions tab: tick <code>account_info.read</code> and <code>files.metadata.read</code> only.', `Settings tab: add the redirect URIs ${uris}.`], ['App key', 'App secret'])}
+  ${app('docusign', 'DocuSign', ['In DocuSign: Settings → Apps and Keys → Add app and integration key.', `Add a secret key, and the redirect URIs ${uris}.`], ['Integration key', 'Secret key'], ['A new DocuSign app starts in DocuSign\'s testing stage. While it is there, use <strong>Connect while my DocuSign app is still in testing</strong> on Connections; it shows envelopes in your DocuSign developer account only.', 'To see your real SOWs, ask DocuSign to move the app live ("Go-Live") from the same Apps and Keys page; DocuSign asks for some successful use in testing first, which the dashboard\'s syncs provide. Once it is live, Disconnect DocuSign and press <strong>Connect DocuSign</strong>. The same keys keep working.'])}
+  ${app('quickbooks', 'QuickBooks', ['Go to <a href="https://developer.intuit.com/app/developer/dashboard" target="_blank" rel="noopener noreferrer">developer.intuit.com</a> → Create an app → QuickBooks Online and Payments → Accounting.', `Keys &amp; credentials (Production): add the redirect URIs ${uris}.`], ['Client ID', 'Client secret'])}
+  ${app('xero', 'Xero', ['Go to <a href="https://developer.xero.com/app/manage" target="_blank" rel="noopener noreferrer">developer.xero.com/app/manage</a> → New app → Web app.', `Redirect URIs ${uris}.`, 'Generate a secret.'], ['Client ID', 'Client secret'])}
 
   <h2 id="agents">What agents may and may not do</h2>
   <ul><li>Agents draft and recommend: meeting notes, client updates, reminders and proposals go into Agent drafts for your Approve, Changes or Skip.</li><li>They never promise a delivery date, change scope, approve spending, send sensitive client data or start a collection step without your approval.</li><li>They never see Money or its sheet.</li><li>Cold email stays off until you give the sending inbox, the targets, the offer and your go; then it stops at 25 a week.</li></ul>
@@ -547,7 +561,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
   <p>The dashboard is yours alone: no team password, no team view. Money is never shown to clients or agents. Your figures and client names live in your Google files and this site's private database, never in the website's code. Sign-in sessions are kept on the server and end when you sign out. Access keys for your accounts are stored encrypted, and a nightly backup is kept for 30 days in a private place.</p>
 
   <h2 id="help-email">Help by email</h2>
-  <p>Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a>. Say which screen, what you pressed, what you expected and what you saw. A screenshot helps. Never include a password.</p>
+  <p>Email <a href="mailto:os@joinwestpeek.com">os@joinwestpeek.com</a>. Say which screen, what you pressed, what you expected and what you saw. A screenshot helps. Never include a password or an app key; keys go only into their boxes on the Connections page.</p>
   ${signedIn ? '' : '<p><a class="d-btn" href="/dashboard">← Sign in</a></p>'}</div>`;
   return page('Help', body, { tab: 'help', counts, sample, signedIn });
 }

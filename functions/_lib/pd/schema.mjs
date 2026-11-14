@@ -29,11 +29,18 @@ export const MIGRATIONS = [
       'CREATE TABLE IF NOT EXISTS setting (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
       'CREATE TABLE IF NOT EXISTS sample_sheet (kind TEXT NOT NULL, row_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (kind, row_id))'
     ]
+  },
+  {
+    // App keys Scooter pastes on Connections (Scooter, 14 Nov 2026: "app keys are pasted into the
+    // dashboard, never emailed"). One row per service; the pair is AES-GCM encrypted with
+    // PRODUCTIONS_TOKEN_KEY, exactly as connection tokens are. Never read back to a page.
+    version: 2,
+    sql: ['CREATE TABLE IF NOT EXISTS app_key (provider TEXT PRIMARY KEY, value_enc TEXT NOT NULL, saved_at INTEGER NOT NULL)']
   }
 ];
 
 /** Every table a backup carries (restore replaces each one whole). */
-export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'schema_version'];
+export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'schema_version'];
 
 let applied = new WeakSet();
 /** Applies any missing migration once per isolate. */

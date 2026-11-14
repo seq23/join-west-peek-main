@@ -429,8 +429,8 @@ const realFetch = globalThis.fetch;
     }
   });
   const first = await run();
-  check('dashboard:setup applies migrations on a brand-new database', /migrations applied=1/.test(first.out) && !/\/query/.test(first.out), first.out.trim());
-  check('…and the tables exist after it', Number((await sqlite.prepare('SELECT MAX(version) AS v FROM schema_version').first().catch(() => null))?.v) === 1);
+  check('dashboard:setup applies migrations on a brand-new database', new RegExp(`migrations applied=${MIGRATIONS.length}\\b`).test(first.out) && !/\/query/.test(first.out), first.out.trim());
+  check('…and the tables exist after it', Number((await sqlite.prepare('SELECT MAX(version) AS v FROM schema_version').first().catch(() => null))?.v) === MIGRATIONS.at(-1).version && Boolean(await sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'app_key'").first().catch(() => null)));
   const again = await run();
   check('…and a second run applies nothing', /migrations applied=0/.test(again.out), again.out.trim());
   server.close();
@@ -600,6 +600,81 @@ const realFetch = globalThis.fetch;
   } finally {
     globalThis.fetch = realFetch;
   }
+}
+
+// App keys are pasted on Connections, never emailed (Scooter, 14 Nov 2026): saved encrypted on this
+// host's own database, never shown again in the page or any answer, owner session and same-origin
+// only, refused in sample mode; Connect and the callback use them when the Worker secret is missing,
+// and the Worker secret wins when both exist. Help asks for no key by email. Values are invented markers.
+{
+  const env = ENV();
+  await seedOwner(env);
+  const s = await signIn(env, OWNER, PW);
+  const ID = 'PASTED-APP-KEY-7731';
+  const SECRET = 'PASTED-APP-SECRET-9914';
+  const leaks = (t) => [ID, SECRET, ID.slice(-6), SECRET.slice(-6), SECRET.slice(0, 10)].some((v) => String(t).includes(v));
+  const before = await call(env, '/dashboard/connections', { cookie: s.cookie });
+  check('keys: each of the five services has a Paste your app keys box', /Paste your app keys/.test(before.text) && ['google', 'dropbox', 'docusign', 'quickbooks', 'xero'].every((p) => new RegExp(`id="keys-${p}"[\\s\\S]*?name="provider" value="${p}"[\\s\\S]*?type="password"`).test(before.text)));
+  check('keys: no plain-text field for a key', !/<input[^>]*name="(id|secret)"[^>]*type="(text|email|url)"/.test(before.text));
+
+  const noOrigin = await call(env, '/dashboard/keys', { method: 'POST', cookie: s.cookie, origin: false, form: { provider: 'dropbox', id: ID, secret: SECRET } });
+  check('keys: a POST that does not say where it came from is refused', /m=keys_foreign/.test(noOrigin.location || '') && !(await env.PRODUCTIONS_DB.prepare('SELECT provider FROM app_key').first()));
+  const signedOut = await call(env, '/dashboard/keys', { method: 'POST', form: { provider: 'dropbox', id: ID, secret: SECRET } });
+  check('keys: signed out cannot save', signedOut.status === 401 && !(await env.PRODUCTIONS_DB.prepare('SELECT provider FROM app_key').first()));
+  const half = await call(env, '/dashboard/keys', { method: 'POST', cookie: s.cookie, form: { provider: 'dropbox', id: ID, secret: '' } });
+  check('keys: one key alone is not saved', /m=keys_incomplete/.test(half.location || '') && !(await env.PRODUCTIONS_DB.prepare('SELECT provider FROM app_key').first()));
+
+  const save = await call(env, '/dashboard/keys', { method: 'POST', cookie: s.cookie, form: { provider: 'dropbox', id: ID, secret: SECRET } });
+  check('keys: saving answers 303 back to Connections', save.status === 303 && save.location === '/dashboard/connections?m=keys_saved&p=dropbox', `${save.status} ${save.location}`);
+  const row = await env.PRODUCTIONS_DB.prepare("SELECT value_enc, saved_at FROM app_key WHERE provider = 'dropbox'").first();
+  check('keys: stored encrypted, never in the clear', row && /^v1\./.test(row.value_enc) && !leaks(row.value_enc) && Number(row.saved_at) === NOW);
+  const after = await call(env, save.location, { cookie: s.cookie });
+  check('keys: the page says Saved and you can connect now', /Saved\. You can connect Dropbox now\./.test(after.text) && /id="keys-dropbox"[\s\S]*?Saved Sat, Nov 14[\s\S]*?<summary><span>Replace<\/span>/.test(after.text));
+  check('keys: no part of either value is in the page', !leaks(after.text));
+  check('keys: Dropbox now offers Connect', /name="provider" value="dropbox"><button type="submit" class="d-primary">Connect Dropbox/.test(after.text));
+  const answers = await Promise.all(['/dashboard', '/dashboard/help', '/dashboard/check', '/dashboard/work', '/dashboard/money'].map((p) => call(env, p, { cookie: s.cookie })));
+  const cron = await call(env, '/dashboard/cron/sync', { method: 'POST' });
+  check('keys: no screen or answer returns them', [...answers, cron].every((r) => !leaks(r.text) && !leaks(r.location || '')));
+
+  const start = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'dropbox' } });
+  const to = start.location ? new URL(start.location) : null;
+  check('keys: Connect uses the pasted app key when the site has none', to?.host === 'www.dropbox.com' && to.searchParams.get('client_id') === ID, String(start.location));
+  const seenToken = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const u = new URL(String(url));
+    const json = (b) => new Response(JSON.stringify(b), { headers: { 'content-type': 'application/json' } });
+    if (u.pathname === '/oauth2/token') { const p = new URLSearchParams(init.body); seenToken.push(`${p.get('client_id')}:${p.get('client_secret')}`); return json({ access_token: 'A', refresh_token: 'R', expires_in: 3600 }); }
+    if (u.pathname === '/2/users/get_current_account') return json({ email: OWNER });
+    return json({});
+  };
+  try {
+    const back = await call(env, `/dashboard/oauth/callback?state=${to?.searchParams.get('state')}&code=good`, { cookie: s.cookie });
+    check('keys: the callback exchanges with the pasted pair', back.location === '/dashboard/connections?m=connected' && seenToken[0] === `${ID}:${SECRET}`, seenToken.join(','));
+  } finally { globalThis.fetch = realFetch; }
+
+  const both = { ...env, DROPBOX_APP_KEY: 'site-key', DROPBOX_APP_SECRET: 'site-secret' };
+  const siteStart = await call(both, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'dropbox' } });
+  check('keys: the site secret wins over a pasted pair', new URL(siteStart.location).searchParams.get('client_id') === 'site-key');
+  check('keys: a service whose keys are on the site says so, with no box', /id="keys-dropbox"[\s\S]*?already set on the site/.test((await call(both, '/dashboard/connections', { cookie: s.cookie })).text));
+
+  const replace = await call(env, '/dashboard/keys', { method: 'POST', cookie: s.cookie, form: { provider: 'dropbox', id: 'NEW-KEY-1', secret: 'NEW-SECRET-1' } });
+  const replaced = await env.PRODUCTIONS_DB.prepare("SELECT COUNT(*) AS n FROM app_key WHERE provider = 'dropbox'").first();
+  check('keys: Replace overwrites the pair', /keys_saved/.test(replace.location || '') && Number(replaced.n) === 1);
+
+  const noKey = { ...env }; delete noKey.PRODUCTIONS_TOKEN_KEY;
+  const refusedNoKey = await call(noKey, '/dashboard/keys', { method: 'POST', cookie: s.cookie, form: { provider: 'xero', id: ID, secret: SECRET } });
+  check('keys: without the encryption key nothing is stored', /m=no_token_key/.test(refusedNoKey.location || '') && !(await env.PRODUCTIONS_DB.prepare("SELECT provider FROM app_key WHERE provider = 'xero'").first()));
+
+  const sEnv = ENV();
+  const sample = await signIn(sEnv, SAMPLE_EMAIL, SAMPLE_PASSWORD, { host: PREV });
+  const sSave = await call(sEnv, '/dashboard/keys', { method: 'POST', cookie: sample.cookie, host: PREV, form: { provider: 'dropbox', id: ID, secret: SECRET } });
+  check('keys: sample mode refuses the save', /m=keys_sample/.test(sSave.location || '') && !(await sEnv.PRODUCTIONS_DB.prepare('SELECT provider FROM app_key').first()), String(sSave.location));
+  check('keys: sample mode shows no form', !/action="\/dashboard\/keys"/.test((await call(sEnv, '/dashboard/connections', { cookie: sample.cookie, host: PREV })).text));
+
+  const help = await call(env, '/dashboard/help');
+  const helpIn = await call(env, '/dashboard/help', { cookie: s.cookie });
+  const asksByEmail = (t) => /SECRET [A-Z_]+=|Email <a href="mailto:[^"]+">[^<]+<\/a> two lines/.test(t) || /email[^.<]{0,80}\b(key|secret)\b/i.test(t.replace(/Never include a password or an app key[^.]*\./g, '').replace(/Never email a key\./g, ''));
+  check('keys: Help asks for no key by email, signed in or out', !asksByEmail(help.text) && !asksByEmail(helpIn.text) && /Paste each key into its box on the Connections page/.test(help.text));
 }
 
 if (failures.length) {

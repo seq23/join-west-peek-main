@@ -2,9 +2,11 @@
  * The accounts Scooter connects, each through that service's own OAuth screen (v1.0 ruling, 13 Nov
  * 2026: "never a password, never bank logins; we never see or store his passwords").
  *
- * Every client id and secret is a Worker secret on the west-peek-productions Pages project, made
- * by Scooter in that service's developer console (Help → "Setting up the Google sign-in app" and
- * the rows below). Until one exists its row says so calmly and offers the Help steps.
+ * Every client id and secret comes from an app Scooter makes in that service's developer console
+ * (Help → "Setting up the Google sign-in app" and the rows below). He pastes the pair into its box
+ * on Connections (Scooter, 14 Nov 2026: "app keys are pasted into the dashboard, never emailed");
+ * it is kept AES-GCM encrypted in this host's own database (app_key) and never shown again. A
+ * Worker secret of the same name on the Pages project wins over a pasted pair (withAppKeys).
  * Refresh tokens are stored only AES-GCM encrypted (core.encryptJson). Disconnect revokes at the
  * provider where the provider offers it, then deletes the token row.
  */
@@ -81,6 +83,66 @@ function endpoints(provider, server) {
   if (provider !== 'docusign') return { auth: p.auth, token: p.token };
   const h = docusignHost(server);
   return { auth: `https://${h}/oauth/auth`, token: `https://${h}/oauth/token` };
+}
+
+/** The boxes on Connections: one password-type field per key each service's app gives him. */
+export const KEY_FIELDS = {
+  google: [['id', 'Client ID'], ['secret', 'Client secret']],
+  dropbox: [['id', 'App key'], ['secret', 'App secret']],
+  docusign: [['id', 'Integration key'], ['secret', 'Secret key']],
+  quickbooks: [['id', 'Client ID'], ['secret', 'Client secret']],
+  xero: [['id', 'Client ID'], ['secret', 'Client secret']]
+};
+const KEY_MAX = 512;
+
+/**
+ * The env every request runs with: the Worker secrets first, and for each service whose pair is
+ * not both there, the pair pasted on Connections (decrypted in memory only). Missing database,
+ * missing key or an unreadable row leaves that service not set up; never an error.
+ */
+export async function withAppKeys(env) {
+  const db = dbOf(env);
+  const missing = Object.keys(PROVIDERS).filter((p) => !providerReady(env, p));
+  if (!db || !missing.length) return env;
+  await ensureSchema(db);
+  const rows = (await db.prepare('SELECT provider, value_enc FROM app_key').all()).results || [];
+  let out = env;
+  for (const r of rows) {
+    if (!missing.includes(r.provider)) continue;
+    const v = await decryptJson(env, r.value_enc);
+    if (!v || !String(v.id || '').trim() || !String(v.secret || '').trim()) continue;
+    const P = PROVIDERS[r.provider];
+    if (out === env) out = { ...env };
+    out[P.idEnv] = String(v.id).trim();
+    out[P.secretEnv] = String(v.secret).trim();
+  }
+  return out;
+}
+
+/** When each service's pasted pair was saved ({ dropbox: 1731600000000 }); never the values. */
+export async function appKeysSaved(env) {
+  const db = dbOf(env);
+  if (!db) return {};
+  await ensureSchema(db);
+  const rows = (await db.prepare('SELECT provider, saved_at FROM app_key').all()).results || [];
+  return Object.fromEntries(rows.filter((r) => PROVIDERS[r.provider]).map((r) => [r.provider, Number(r.saved_at)]));
+}
+
+/**
+ * Saves a pasted pair, encrypted. Returns 'saved' | 'incomplete' | 'too_long' | 'no_token_key' |
+ * 'unknown'. Nothing about the values is logged or returned.
+ */
+export async function saveAppKeys(env, provider, values, now = Date.now()) {
+  if (!PROVIDERS[provider]) return 'unknown';
+  const v = { id: String(values.id || '').trim(), secret: String(values.secret || '').trim() };
+  if (!v.id || !v.secret) return 'incomplete';
+  if (v.id.length > KEY_MAX || v.secret.length > KEY_MAX) return 'too_long';
+  if (!(await canEncrypt(env))) return 'no_token_key';
+  const db = dbOf(env);
+  await ensureSchema(db);
+  await db.prepare('INSERT INTO app_key (provider, value_enc, saved_at) VALUES (?,?,?) ON CONFLICT(provider) DO UPDATE SET value_enc = excluded.value_enc, saved_at = excluded.saved_at')
+    .bind(provider, await encryptJson(env, v), now).run();
+  return 'saved';
 }
 
 export function providerReady(env, name) {

@@ -153,7 +153,15 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     nothing. `OWNER_IDS` (`['scooter']`) in `functions/_lib/pd/auth.mjs` is the whole owners list.
   - **Connections**: Google (Drive, Sheets, Gmail drafts, Calendar), Dropbox (read), DocuSign
     (envelope status), QuickBooks or Xero (cash now, read) — each through the service's own OAuth
-    screen; refresh tokens AES-GCM encrypted with `PRODUCTIONS_TOKEN_KEY`; Disconnect revokes at the
+    screen; refresh tokens AES-GCM encrypted with `PRODUCTIONS_TOKEN_KEY`. Each service's app keys
+    are PASTED by Scooter into its box under Connections → "Paste your app keys" (password fields,
+    owner session, strictly same-origin POST `/dashboard/keys`, refused in sample mode, 303 back with
+    "Saved. You can connect <app> now."); the pair is kept AES-GCM encrypted with
+    `PRODUCTIONS_TOKEN_KEY` in D1 table `app_key` of THAT host's database (preview and production
+    separate), shown afterwards only as "Saved <date>" + Replace, never logged and never returned by
+    any page or answer. Every request runs with `withAppKeys(env)`: the Worker secret first, the
+    pasted pair only where the secret is missing (Scooter, 14 Nov 2026: "app keys are pasted into
+    the dashboard, never emailed"). Disconnect revokes at the
     provider where it can and deletes the token. DocuSign connects to its live server
     (`account.docusign.com`) or, for an app DocuSign has not yet moved live, its test server
     (`account-d.docusign.com`); the stage is kept in the connection's `meta.server` and every
@@ -256,7 +264,7 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   2. LAND merges and deploys.
   3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
 - `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
-- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab, moves one deal a stage (confirmed), reloads, sees it on a second device, signs out and proves that session dead. Prints `FIRST_RUN OK`.
+- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab, moves one deal a stage (confirmed), reloads, sees it on a second device, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
 - `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
 
 ## Secrets
@@ -271,9 +279,10 @@ Per Pages project; set through `pages_env`, never by hand.
   `GOOGLE_OAUTH_CLIENT_SECRET` (Internal app in his Productions Workspace; Sign in with Google and the
   Drive/Sheets/Gmail/Calendar connection) are HELD in the vault (14 Nov 2026) and set on this project
   through `pages_env`; `first-run` follows the button to Google's own screen and fails on a key Google
-  does not know. Still to come, each emailed to os@joinwestpeek.com as `SECRET NAME=value`: `DROPBOX_APP_KEY` +
-  `DROPBOX_APP_SECRET`, `DOCUSIGN_INTEGRATION_KEY` + `DOCUSIGN_SECRET_KEY`, `QUICKBOOKS_CLIENT_ID` +
-  `QUICKBOOKS_CLIENT_SECRET` or `XERO_CLIENT_ID` + `XERO_CLIENT_SECRET`. Redirect URI for every one:
+  does not know. Dropbox, DocuSign, QuickBooks and Xero keys are not Pages secrets at all: Scooter
+  pastes each pair into its box on the dashboard's Connections page (encrypted in that host's D1;
+  never emailed, never asked for by email). A Pages secret of the same name, if one is ever set,
+  wins over the pasted pair. Redirect URI for every one:
   `https://westpeekproductions.com/dashboard/oauth/callback` and, for this preview,
   `https://work-wpc-c548d043-next.west-peek-productions.pages.dev/dashboard/oauth/callback`. One-time codes
   need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
