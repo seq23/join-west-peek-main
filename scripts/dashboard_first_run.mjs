@@ -51,7 +51,7 @@ if (help.status !== 200 || !/id="google-app"/.test(help.text)) fail('help', `Hel
 ok('signed out shows no data, the sign-in screen and Help');
 
 // 2a. A wrong sign-in redirects back with its message, so a reload never asks to resubmit.
-const wrong = await post('/dashboard/login', { email: 'nobody@first-run.invalid', password: 'not-a-real-password' });
+const wrong = await post('/dashboard/login', { email: 'nobody@example.invalid', password: 'not-a-real-password' });
 if (wrong.status !== 303 || wrong.location !== '/dashboard?signin=wrong' || sessionOf(wrong)) fail('wrong sign-in', `expected a 303 to /dashboard?signin=wrong with no session, got ${wrong.status} ${wrong.location || ''}`);
 const told = await get(wrong.location);
 if (told.status !== 401 || !/did not open the dashboard/.test(told.text) || /class="d-row__title/.test(told.text)) fail('wrong sign-in', 'the redirected screen does not say why, or shows rows');
