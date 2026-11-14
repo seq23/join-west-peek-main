@@ -20,7 +20,7 @@ import { dbOf, ensureSchema } from './pd/schema.mjs';
 import { canEncrypt as canEncryptCheck, dashboardHost, isPreviewHost, isProductionHost, sha256b64, sameText, secretMatches, hashSecret } from './pd/core.mjs';
 import {
   OWNER_IDS, MIN_PASSWORD, SAMPLE_ID, checkPasswordSignIn, clearCookies, createSession, findOwnerByEmail, issueOneTimePassword,
-  overLimit, revokeOtherSessions, revokeSession, saveOwner, sessionFromRequest, upgradeLegacyCookie, countFail
+  overLimit, revokeOtherSessions, revokeSession, saveOwner, sessionFromRequest, upgradeLegacyCookie, countFail, countRefused
 } from './pd/auth.mjs';
 import { PROVIDERS, disconnect, finishOAuth, listConnections, providerReady, startOAuth } from './pd/providers.mjs';
 import {
@@ -144,7 +144,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
 
   if (post && path === '/dashboard/login') {
     if (foreignOrigin(request, url)) return refuseSignIn('foreign');
-    if (await overLimit(request, 'login')) return refuseSignIn('busy');
+    if (await overLimit(request, 'login', { count: false })) return refuseSignIn('busy');
     const form = await formOf(request);
     const email = field(form, 'email').trim();
     const remember = field(form, 'remember') === '1';
@@ -152,8 +152,9 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     if (r.kind === 'sample') return redirect('/dashboard', { 'set-cookie': await createSession(env, { ownerId: SAMPLE_ID, sample: true, remember, how: 'sample' }, now) });
     if (r.kind === 'full') return redirect('/dashboard', { 'set-cookie': await createSession(env, { ownerId: r.owner.id, gen: r.owner.gen, remember, how: 'password' }, now) });
     if (r.kind === 'choose') return redirect('/dashboard/password', { 'set-cookie': await createSession(env, { ownerId: r.owner.id, gen: r.owner.gen, stage: 'choose', remember, how: 'otp' }, now) });
-    if (r.kind === 'locked') return refuseSignIn('locked');
     if (r.kind === 'unavailable') return refuseSignIn('unavailable');
+    await countRefused(request, 'login');
+    if (r.kind === 'locked') return refuseSignIn('locked');
     return refuseSignIn('wrong');
   }
 

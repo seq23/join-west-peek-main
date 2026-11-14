@@ -194,21 +194,41 @@ export async function upgradeLegacyCookie(env, request, now = Date.now()) {
 
 /* ------------------------------------------------------------------ rate limit (per connection) */
 
-export async function overLimit(request, bucket) {
+function limitKey(request, bucket) {
   const ip = request.headers.get('cf-connecting-ip');
   const cache = globalThis.caches?.default;
-  if (!ip || !cache) return false;
+  if (!ip || !cache) return null;
   const win = Math.floor(Date.now() / 1000 / LOGIN_WINDOW_SECONDS);
-  const key = new Request(`https://dashboard-login-limit.invalid/${bucket}/${encodeURIComponent(ip)}/${win}`);
+  return { cache, key: new Request(`https://dashboard-login-limit.invalid/${bucket}/${encodeURIComponent(ip)}/${win}`) };
+}
+async function limitCount(k) {
+  const hit = await k.cache.match(k.key);
+  return hit ? Number(await hit.text()) || 0 : 0;
+}
+
+/** True when this connection has used up its tries in the window. With `count: false` it only
+ *  looks (sign-in: only a REFUSED sign-in is counted, through countRefused, never a good one). */
+export async function overLimit(request, bucket, { count = true } = {}) {
+  const k = limitKey(request, bucket);
+  if (!k) return false;
   try {
-    const hit = await cache.match(key);
-    const count = hit ? Number(await hit.text()) || 0 : 0;
-    if (count >= LOGIN_LIMIT) return true;
-    await cache.put(key, new Response(String(count + 1), { headers: { 'cache-control': `max-age=${LOGIN_WINDOW_SECONDS}` } }));
+    const n = await limitCount(k);
+    if (n >= LOGIN_LIMIT) return true;
+    if (count) await k.cache.put(k.key, new Response(String(n + 1), { headers: { 'cache-control': `max-age=${LOGIN_WINDOW_SECONDS}` } }));
     return false;
   } catch {
     return false;
   }
+}
+
+/** Counts one refused try against this connection's window. */
+export async function countRefused(request, bucket) {
+  const k = limitKey(request, bucket);
+  if (!k) return;
+  try {
+    const n = await limitCount(k);
+    await k.cache.put(k.key, new Response(String(n + 1), { headers: { 'cache-control': `max-age=${LOGIN_WINDOW_SECONDS}` } }));
+  } catch { /* a cache outage never blocks a sign-in */ }
 }
 
 /* ------------------------------------------------------------------ the one-time password email */

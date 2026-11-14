@@ -461,7 +461,7 @@ function choiceNote(k, v) {
     'accounting:quickbooks': 'Connect QuickBooks under Accounts above.', 'accounting:xero': 'Connect Xero under Accounts above.', 'accounting:sheets': 'Money reads your Money sheet only.',
     'bank_cash:accounting': 'Cash now comes from your accounting tool once it is connected.', 'bank_cash:sheet': 'Cash now comes from the Opening cash column of the Cash tab.',
     'crm:sheets': 'Deals are read from, and moved in, the Deals tab.', 'crm:tool': 'Email os@joinwestpeek.com with the tool\'s name; until then the Deals tab stays in use.',
-    'shared_drive:yes': 'In Google Drive: Shared drives → New → "West Peek OS". Give each client its own folder inside it, and keep money files in a folder only you can open.', 'shared_drive:not_now': 'Recorded. Documents stay where they are.',
+    'shared_drive:yes': 'Recorded. In Google Drive choose Shared drives, then New, and name it West Peek OS.', 'shared_drive:not_now': 'Recorded. Documents stay where they are.',
     'agent_seat:yes': 'Recorded. You buy the seat in Google Admin yourself; nothing is bought for you.', 'agent_seat:no': 'Recorded. Agents stay off until there is an account for them.',
     'developer_view:yes': 'Recorded. The view is added as a change on request, and never shows Money.', 'developer_view:no': 'Recorded. The dashboard stays yours alone.',
     'link:hidden': 'Recorded. Reach it at /dashboard and from the home-screen icon.', 'link:footer': 'Recorded. A quiet footer link is added with the next site change.'

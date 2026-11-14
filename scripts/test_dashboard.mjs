@@ -490,6 +490,33 @@ const realFetch = globalThis.fetch;
   check('…falls back to the preview KV owner record, owners list only, never its one-time code', kvRows.length === 1 && kvRows[0].email === 'kv-owner@example.test' && kvRows[0].pw === '{"h":"kv"}' && !kvRows[0].otp && /owner copied_from_preview_kv\(1\)/.test(kvOut), kvOut.trim());
 }
 
+// The sign-in limit counts refused sign-ins only: many good sign-ins from one connection never lock
+// it, and ten refused ones do.
+{
+  const store = new Map();
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'caches');
+  Object.defineProperty(globalThis, 'caches', { configurable: true, value: { default: {
+    match: async (req) => (store.has(req.url) ? new Response(store.get(req.url)) : undefined),
+    put: async (req, res) => { store.set(req.url, await res.text()); }
+  } } });
+  try {
+    const env = ENV();
+    await seedOwner(env);
+    const tryOnce = async (password) => {
+      const res = await handleDashboard({ request: new Request(`${PROD}/dashboard/login`, { method: 'POST', headers: { origin: PROD, 'cf-connecting-ip': '203.0.113.9', 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: OWNER, password }) }), env, now: NOW });
+      return { status: res.status, location: res.headers.get('location') };
+    };
+    let good = 0;
+    for (let i = 0; i < 15; i++) if ((await tryOnce(PW)).location === '/dashboard') good++;
+    check('15 good sign-ins from one connection all open (good ones never count)', good === 15, String(good));
+    for (let i = 0; i < 10; i++) await tryOnce(`wrong-${i}`);
+    const after = await tryOnce(PW);
+    check('…10 refused ones in the window and the next try is told to wait', after.location === '/dashboard?signin=busy', String(after.location));
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'caches', had); else delete globalThis.caches;
+  }
+}
+
 if (failures.length) {
   console.error(`test:dashboard FAILED ${failures.length}/${cases}:\n - ${failures.join('\n - ')}`);
   process.exit(1);
