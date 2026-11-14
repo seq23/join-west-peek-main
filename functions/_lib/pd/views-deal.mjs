@@ -241,8 +241,10 @@ export function rulesWalkSection(pic, ctx) {
       <p><button type="submit" name="answer" value="change">Save how it should work</button></p></form>`;
     return `<li class="d-conn" id="rule-${r.id}"><div class="d-conn__top"><strong>Rule ${i + 1} of ${w.rules.length}</strong>${pill}</div><p>${esc(r.rule)}</p><p class="d-sub">Example: ${esc(r.example)}</p>${yours}${said}${form}</li>`;
   }).join('');
-  const head = w.all
-    ? `<p class="d-sub">You walked every rule and marked it right${w.lastAt ? ` (last on ${esc(usDay(isoDay(w.lastAt)))})` : ''}. The figures below follow them.</p>`
+  const head = ctx.sample
+    ? '<p class="d-sub">Sample mode: on your real dashboard your figures stay hidden until every rule below is marked right. Here the made-up figures show so you can see the whole page.</p>'
+    : w.all
+    ?`<p class="d-sub">You walked every rule and marked it right${w.lastAt ? ` (last on ${esc(usDay(isoDay(w.lastAt)))})` : ''}. The figures below follow them.</p>`
     : `<p class="d-sub">${w.right} of ${w.rules.length} marked right. Before any of your money figures show, we walk these together: read each rule and its example, then press That's right, or say how it should work. Your figures stay hidden here until every rule is marked right.</p>`;
   return { html: sec('walk', 'The cash rules, walked first', `${head}<ol class="d-list">${rows}</ol>`), all: w.all || Boolean(ctx.sample) };
 }
