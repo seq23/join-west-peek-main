@@ -422,6 +422,30 @@ export async function portalView(env, token) {
  *   4. An open invoice's expected date comes from its payment terms: Net N from its issue date, or a
  *      condition ("on delivery", "on milestone") that holds it out of the dated forecast until met.
  */
+/**
+ * The rules walk (Scooter, 14 Nov 2026: "We will walk the rules before any money view ships").
+ * Each rule is shown to him in plain words with a worked example; he marks it right, or says how it
+ * should work. Until every rule is marked right (setting `cash_rule:<id>`), the Money page shows the
+ * walk and no figure from his Money sheet. A rule whose words change gets a new `v`, which asks him again.
+ */
+export const CASH_RULES = [
+  { id: 'settled', v: 1, rule: '"Paid" on a sheet is not cash. An invoice counts as money in the bank only when its row has a Settled on (or Cleared, In bank on) date.', example: 'Invoice A is marked Paid on 3 March but has no Settled on date. It is listed as "marked paid, not yet seen in the bank", and is in neither cash nor the forecast until the date is entered.' },
+  { id: 'apart', v: 1, rule: 'Actual and forecast are two numbers and are never added together.', example: 'The bank shows a balance as of Monday, and two invoices are due in over the next four weeks. You see the balance as actual and the two invoices as forecast, side by side, never added into one total.' },
+  { id: 'once', v: 1, rule: 'A payment already inside a balance is not counted again. A payment dated on or before the balance date is in it; an expected receipt that matches an open invoice is that invoice, counted once.', example: 'The balance is as of 1 March and a receipt is dated 28 February: it is already in the balance and is not added. An expected payment from Client B beside an open invoice to Client B for the same amount counts once.' },
+  { id: 'terms', v: 1, rule: 'Contract payment terms decide when cash is expected. Net 30 dates it 30 days after the invoice was issued; a condition such as "on delivery" or "on milestone" keeps it out of the dated forecast until it is met.', example: 'An invoice issued 1 March on Net 30 is expected 31 March. An invoice "due on delivery" shows under "Waiting on a condition" with no date, and is not in the forecast.' },
+  { id: 'late', v: 1, rule: 'An unpaid invoice past its date is still forecast, marked overdue. It never becomes cash because the date passed.', example: 'An invoice expected 1 February is unpaid on 1 March. It stays in the forecast, marked overdue, until a Settled on date is entered.' }
+];
+/** Where the walk stands, from the saved `cash_rule:<id>` settings. */
+export function rulesWalk(settings = {}) {
+  const rules = CASH_RULES.map((r) => {
+    const s = settings[`cash_rule:${r.id}`];
+    const current = s && s.v === r.v ? s : null;
+    return { ...r, state: current ? (current.ok ? 'right' : 'change') : 'open', note: current?.note || '', at: current?.at || null };
+  });
+  const right = rules.filter((r) => r.state === 'right').length;
+  return { rules, right, all: right === rules.length, lastAt: Math.max(0, ...rules.map((r) => r.at || 0)) || null };
+}
+
 export function termsDate(inv) {
   const t = String(inv.terms || '').trim();
   const issued = toTime(inv.issued);

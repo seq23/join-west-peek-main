@@ -9,7 +9,7 @@ import { GOOGLE_SCOPE_WORDS, KEY_FIELDS, PROVIDERS, RETIRED_GOOGLE_SCOPES, wideG
 import { BACKUP_TABLES, TABLE_WORDS } from './schema.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
 import { cashPicture } from './deal.mjs';
-import { cashRulesSection, dealSections, inquiriesBody, intakeSection } from './views-deal.mjs';
+import { cashRulesSection, rulesWalkSection, dealSections, inquiriesBody, intakeSection } from './views-deal.mjs';
 
 const HELP = '/dashboard/help';
 export const providerName = (p) => ({ google: 'Google', dropbox: 'Dropbox', docusign: 'DocuSign', quickbooks: 'QuickBooks', xero: 'Xero' }[p] || p);
@@ -278,7 +278,7 @@ export function renderToday(view, ctx) {
     ${offLine('Money')}
     ${offLine('Agents')}` : `
     <details class="d-fold"><summary><span>This week · ${week.length} milestone${week.length === 1 ? '' : 's'}</span></summary>${week.length ? `<ul class="d-list">${week.map((p) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/work/${encodeURIComponent(p._id)}">${esc(p.milestone || 'Milestone')} · ${esc(p.name || p.client || '')}</a><span class="d-row__sub">${dayOr(p.milestone_date)}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No milestones in the next seven days.</p>'}</details>
-    <details class="d-fold"><summary><span>Money · ${fourWeeks.length} invoice${fourWeeks.length === 1 ? '' : 's'} due or late this week</span></summary><p class="d-sub">${fourWeeks.length ? fourWeeks.map((i) => `${esc(i.client || '')} ${esc(money(num(i.amount)))} · ${esc(usDay(i.due))}`).join('<br>') : 'Nothing due this week.'}</p><a class="d-help" href="/dashboard/money">Friday money review ›</a></details>
+    ${ctx.moneyHidden ? '<details class="d-fold"><summary><span>Money · held until the cash rules are walked</span></summary><p class="d-sub">Your money figures show once you have read the cash rules and marked each one right.</p><a class="d-help" href="/dashboard/money">Walk the cash rules ›</a></details>' : `<details class="d-fold"><summary><span>Money · ${fourWeeks.length} invoice${fourWeeks.length === 1 ? '' : 's'} due or late this week</span></summary><p class="d-sub">${fourWeeks.length ? fourWeeks.map((i) => `${esc(i.client || '')} ${esc(money(num(i.amount)))} · ${esc(usDay(i.due))}`).join('<br>') : 'Nothing due this week.'}</p><a class="d-help" href="/dashboard/money">Friday money review ›</a></details>`}
     <details class="d-fold"><summary><span>Agents · ${drafts.length} draft${drafts.length === 1 ? '' : 's'} to approve · cold email off</span></summary><a class="d-help" href="/dashboard/agents">Open Agents ›</a></details>`;
   const body = `<h1>${esc(line1)}</h1>${source(view, ['invoices', 'waiting', 'deals', 'drafts'], now)}${ctx.flash || ''}
     ${findBox()}
@@ -368,7 +368,7 @@ export function renderFlow(view, ctx, list, show) {
   const f = JOURNEY_FILTERS[show] ? show : 'all';
   const rows = list.filter(JOURNEY_FILTERS[f].test);
   const filters = `<nav class="d-seg" aria-label="Show">${Object.entries(JOURNEY_FILTERS).map(([k, F]) => `<a href="/dashboard/flow${k === 'all' ? '' : `?show=${k}`}"${k === f ? ' aria-current="page"' : ''}>${esc(F.label)} · ${list.filter(F.test).length}</a>`).join('')}</nav>`;
-  const items = rows.length ? `<ul class="d-list">${rows.map((j) => { const tone = j.overdue.length ? 'red' : j.next?.tone === 'gold' ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${esc(j.where)}${j.invoiced ? ` · ${esc(money(j.paid))} of ${esc(money(j.invoiced))} paid` : ''}</span>${j.next ? `<span class="d-row__sub ${j.next.tone}">Next: ${esc(j.next.text)}${toTime(j.next.date) !== null ? ` · ${esc(usDay(j.next.date))}` : ''}</span>` : ''}${j.note ? `<span class="d-row__sub">Note: ${esc(j.note.text.split('\n')[0].slice(0, 90))}${j.note.text.length > 90 ? '…' : ''}</span>` : ''}</div></li>`; }).join('')}</ul>`
+  const items = rows.length ? `<ul class="d-list">${rows.map((j) => { const tone = j.overdue.length ? 'red' : j.next?.tone === 'gold' ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${esc(j.where)}${j.invoiced && !ctx.moneyHidden ? ` · ${esc(money(j.paid))} of ${esc(money(j.invoiced))} paid` : ''}</span>${j.next ? `<span class="d-row__sub ${j.next.tone}">Next: ${esc(j.next.text)}${toTime(j.next.date) !== null ? ` · ${esc(usDay(j.next.date))}` : ''}</span>` : ''}${j.note ? `<span class="d-row__sub">Note: ${esc(j.note.text.split('\n')[0].slice(0, 90))}${j.note.text.length > 90 ? '…' : ''}</span>` : ''}</div></li>`; }).join('')}</ul>`
     : list.length ? '<p class="d-sub">None in this list right now.</p>'
       : notConnected(ctx, 'Your leads and clients') || empty('Nothing here yet. Leads come from your inquiry form and your tracker, clients from your Projects tab, and money from your invoices. Name those sheets and they meet here, one line per organization.', '/dashboard/connections#sheets', 'Name your sheets', 'flow');
   const body = `<h1>Lead to cash</h1>${seg('flow')}<p class="d-sub">Every lead and client on one line, from the first inquiry to the last payment. Tap one to move the deal in your tracker and keep your notes.</p>${ctx.flash || ''}${filters}${sec('records', `${JOURNEY_FILTERS[f].label} · ${rows.length}`, items, source(view, ['inquiries', 'deals', 'projects', 'invoices'].filter((k) => view.sync[k]), now))}`;
@@ -420,6 +420,7 @@ export function renderFlowRecord(view, j, ctx) {
 
   const moneyOff = !ctx.sample && ctx.choices.money?.value === 'off';
   const money_ = moneyOff ? '<p class="d-sub">Money is kept out of the dashboard for now (Who can see what).</p>'
+    : ctx.moneyHidden ? '<p class="d-sub">Invoice figures show here once you have walked the cash rules. <a href="/dashboard/money">Walk them on Money ›</a></p>'
     : `<ul class="d-kv"><li><span>Invoiced</span><span>${esc(money(j.invoiced)) || '$0'}</span></li><li><span>Paid</span><span>${esc(money(j.paid)) || '$0'}</span></li><li><span>Still open</span><span class="${j.overdue.length ? 'd-red' : ''}">${esc(money(j.open)) || '$0'}</span></li></ul>
       ${j.openRows.length ? `<ul class="d-list">${j.openRows.map((i) => { const late = daysSince(i.due, now); return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${i.id ? `${esc(i.id)} · ` : ''}${num(i.amount) === null ? gap('amount not entered') : esc(money(num(i.amount)))}</span><span class="d-row__sub ${late > 0 ? 'red' : ''}">due ${dayOr(i.due)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}</span></div><div class="d-row__act">${act('paid', i._id, 'Mark paid', back, { primary: true })}${late > 0 && i.email ? mailLink('invoices', i, 'Reminder in Gmail') : ''}</div></li>`; }).join('')}</ul>` : ''}
       ${j.receipts.length ? `<p class="d-sub">Expected: ${j.receipts.map((x) => `${esc(money(num(x.amount)))} ${dayOr(x.date)}`).join(', ')}. A promised payment is not collected cash.</p>` : ''}
@@ -433,7 +434,7 @@ export function renderFlowRecord(view, j, ctx) {
     ${dealSections(j, ctx)}
     ${sec('inquiry', `Inquiry · ${j.inquiries.length}`, inquiry, source(view, ['inquiries'], now))}
     ${sec('work', 'Agreement and work', work, source(view, ['projects'], now))}
-    ${sec('cash', 'Invoices and cash', money_, moneyOff ? '' : source(view, ['invoices'], now))}`;
+    ${sec('cash', 'Invoices and cash', money_, moneyOff || ctx.moneyHidden ? '' : source(view, ['invoices'], now))}`;
   return page(j.name, body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
@@ -459,7 +460,8 @@ export function renderMoney(view, ctx) {
   const r = view.rows;
   const off = !ctx.sample && ctx.choices.money?.value === 'off'
     ? empty('Money is kept out of the dashboard. Nothing from your Money sheet or the binders\' Finance tabs is read or kept here. Turn it back on under Who can see what.', '/dashboard/access#limit', 'Who can see what', 'privacy') : '';
-  const gate = off || notConnected(ctx, 'Your money figures') || noSource(ctx, 'money', 'Your money figures');
+  const wide = !ctx.sample && ctx.googleWide ? errorBox('Google still holds the wider access from before (Gmail, all Drive files).', 'No money figure is shown until it is narrowed. The next sync withdraws it, or press Narrow now.', '/dashboard/access#limit', 'Who can see what') : '';
+  const gate = off || wide || notConnected(ctx, 'Your money figures') || noSource(ctx, 'money', 'Your money figures');
   if (gate) return page('Money', `<h1>Money</h1><p class="d-sub">Scooter only. Never shown to clients or agents.</p>${gate}`, { tab: 'money', counts: ctx.counts, sample: ctx.sample, signedIn: true });
   const back = '/dashboard/money';
   // 1. Cash now and the 4-week line.
@@ -486,8 +488,12 @@ export function renderMoney(view, ctx) {
   // 7. Tracker vs targets.
   const tracker = r.tracker.length ? r.tracker.map((t) => { const a = num(t.actual); const g = num(t.target); const pct = a !== null && g ? Math.max(0, Math.min(100, Math.round((a / g) * 100))) : 0; return `<p class="d-row__title">${esc(t.measure)} · ${a === null ? gap() : esc(money(a))}${g ? ` of ${esc(money(g))}` : ''}</p><div class="d-meter" role="img" aria-label="${pct}% of target"><span style="width:${pct}%"></span></div>`; }).join('') : '<p class="d-sub">No measures in the Tracker tab yet.</p>';
   const pic = cashPicture({ invoices: r.invoices, receipts: r.receipts, cash: r.cash, acct, useAcct, now });
-  const body = `<h1>Money</h1><p class="d-sub">Your Friday review, top to bottom. Scooter only; never shown to clients or agents. Preview for our walk-through of the cash rules: nothing here is live until you say yes.</p>${ctx.flash || ''}
+  // The rules are walked before any money figure shows (Scooter, 14 Nov 2026).
+  const walk = rulesWalkSection(pic, ctx);
+  if (!walk.all) return page('Money', `<h1>Money</h1><p class="d-sub">Scooter only; never shown to clients or agents. Your money figures show here once the cash rules below are walked.</p>${ctx.flash || ''}${walk.html}`, { tab: 'money', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+  const body = `<h1>Money</h1><p class="d-sub">Your Friday review, top to bottom. Scooter only; never shown to clients or agents. Nothing here is live until you say yes.</p>${ctx.flash || ''}
     ${cashRulesSection(pic, ctx)}
+    ${walk.html}
     ${sec('cash', 'Your Cash tab, week by week', cash)}
     ${sec('invoices', `Invoices due · ${open.length}`, inv, source(view, ['invoices'], now))}
     ${sec('aged', 'Aged receivables', aged, source(view, ['invoices'], now))}

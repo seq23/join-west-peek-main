@@ -112,6 +112,11 @@ for (const [p, want] of [['/dashboard', /need/], ['/dashboard/work', /Sample Org
   if (PLACEHOLDER.test(r.text)) fail(`open ${p}`, 'placeholder text');
 }
 ok('Today, Work, Money, Agents and Connections show rows');
+{
+  const m = await get('/dashboard/money', A);
+  if (!/The cash rules, walked first/.test(m.text) || (m.text.match(/id="rule-[a-z]+"/g) || []).length < 5) fail('cash rules', 'Money does not show the five cash rules to walk');
+  ok('Money shows the cash rules to walk');
+}
 
 // 4b. App keys: sample mode shows the section but no box, and a save is refused with nothing stored.
 const conn = await get('/dashboard/connections', A);

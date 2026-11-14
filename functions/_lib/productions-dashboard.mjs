@@ -31,13 +31,13 @@ import {
 import { PROVIDERS, appKeysSaved, disconnect, finishOAuth, listConnections, providerReady, saveAppKeys, startOAuth, withAppKeys } from './pd/providers.mjs';
 import {
   ACTION_KINDS, addDealFromInquiry, createSheet, orgKey, stageOptions, fileAccess, findDocuments, journeys, latestNotes, loadView, makeChoice, nextMeeting, noteHistory,
-  readAction, readChoices, realCheck, removeSource, runAction, saveNote, setSource, storedCounts, syncAll, tick, ticks, todayItems, updateDeal, getSetting
+  readAction, readChoices, realCheck, removeSource, runAction, saveNote, setSource, storedCounts, syncAll, tick, ticks, todayItems, updateDeal, getSetting, walkCashRule
 } from './pd/data.mjs';
 import * as V from './pd/views.mjs';
 import * as D from './pd/views-deal.mjs';
 import {
   addAsset, addTask, catalogFromGrid, cleanQuote, deliveryOf, intakeAll, latestDiscovery, latestProposal, latestQuote, newPortal, portalView,
-  proposalDraft, readCatalog, revokePortal, saveCatalog, saveDiscovery, saveIntake, saveProposal, saveQuote, saveTeam, setTask, startDelivery, validKey
+  proposalDraft, readCatalog, revokePortal, rulesWalk, saveCatalog, saveDiscovery, saveIntake, saveProposal, saveQuote, saveTeam, setTask, startDelivery, validKey
 } from './pd/deal.mjs';
 import { readSheetGrid } from './pd/data.mjs';
 import { wideGoogleScopes } from './pd/providers.mjs';
@@ -102,7 +102,10 @@ async function context(env, session, url, now) {
   const connected = Object.fromEntries(connections.map((c) => [c.provider, c.status === 'ok']));
   const ticked = await ticks(env, session.sample);
   const choices = await readChoices(env, session.sample);
-  const items = todayItems(view, { connections, ticked, now });
+  // No money figure shows anywhere until Scooter has walked the cash rules (Money page), and never while
+  // Google still holds the wider grant.
+  const moneyHidden = !session.sample && !rulesWalk(view.settings).all;
+  const items = todayItems(view, { connections, ticked, now }).filter((i) => !(moneyHidden && MONEY_KINDS.has(i.kind)));
   const actionRow = await readAction(env, url.searchParams.get('a'));
   const flash = actionRow && (actionRow.sample === 1) === session.sample ? V.flashBox(actionRow) : '';
   const notes = await latestNotes(env, session.sample);
@@ -111,19 +114,19 @@ async function context(env, session, url, now) {
   const keyFor = url.searchParams.get('p');
   if (PROVIDERS[keyFor]) words.keys_saved = `Saved. You can connect ${V.providerName(keyFor)} now.`;
   const m = url.searchParams.get('m');
-  Object.assign(words, DEAL_WORDS);
-  const good = ['source_removed', 'keys_saved', 'connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved', ...DEAL_GOOD].includes(m);
+  Object.assign(words, DEAL_WORDS, { rule_right: 'Saved: you marked that rule right.', rule_change: 'Saved: your words are kept with that rule. Send the same words to os@joinwestpeek.com and Porter changes the rule to match; your figures stay held until you mark every rule right.', rule_no_words: 'Say how it should work in the box, then press Save. Nothing was saved.', rule_sample: 'Sample mode does not record the rules walk. Nothing was saved.', rule_refused: 'That was not recognised. Nothing was saved.' });
+  const good = ['source_removed', 'keys_saved', 'connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved', 'rule_right', 'rule_change', ...DEAL_GOOD].includes(m);
   const note = m && words[m] ? `<p class="d-flash ${good ? 'd-flash--ok' : 'd-flash--bad'}" role="${good ? 'status' : 'alert'}">${words[m]}</p>` : '';
   const googleConnected = Boolean(connections.find((c) => c.provider === 'google'));
   const counts = {
     today: items.length,
     work: view.rows.projects.filter((p) => !/closed|done|complete/i.test(p.status || '')).length,
-    money: view.rows.invoices.filter((i) => !/paid/i.test(i.status || '') && (Date.parse(i.due) || Infinity) < now).length,
+    money: moneyHidden ? 0 : view.rows.invoices.filter((i) => !/paid/i.test(i.status || '') && (Date.parse(i.due) || Infinity) < now).length,
     agents: view.rows.drafts.filter((a) => /^(|waiting|new|to approve)$/i.test(String(a.status || '').trim())).length
   };
   const g = connections.find((c) => c.provider === 'google');
   const intake = await intakeAll(env, session.sample);
-  return { notes, view, now, sample: session.sample, connections, connected, choices, items, counts, flash: flash + note, googleConnected, googleWide: Boolean(g && wideGoogleScopes(g.scopes).length), intake, sources: view.sources, settings: view.settings, origin: url.origin, session };
+  return { notes, view, now, sample: session.sample, connections, connected, choices, items, counts, flash: flash + note, googleConnected, googleWide: Boolean(g && wideGoogleScopes(g.scopes).length), moneyHidden, intake, sources: view.sources, settings: view.settings, origin: url.origin, session };
 }
 
 const DEAL_WORDS = {
@@ -153,6 +156,7 @@ export async function handlePortal({ request, env = {} }) {
 }
 
 /** The money hold for a session: figures are refused while it stands. */
+const MONEY_KINDS = new Set(['invoices', 'receipts', 'vendors', 'margin', 'cash', 'tracker']);
 function moneyHeld(ctx) { return Boolean(D.moneyHold(ctx)); }
 
 async function cronAllowed(env, request) {
@@ -329,6 +333,12 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
       const item = field(form, 'item').slice(0, 300);
       if (item) await tick(env, { item, sample: session.sample }, now);
       return redirect('/dashboard');
+    }
+    if (path === '/dashboard/cash-rule') {
+      const id = field(form, 'id');
+      const r = await walkCashRule(env, { id, answer: field(form, 'answer'), note: field(form, 'note'), session }, now);
+      const m = r === 'right' ? 'rule_right' : r === 'change' ? 'rule_change' : session.sample ? 'rule_sample' : field(form, 'answer') === 'change' ? 'rule_no_words' : 'rule_refused';
+      return redirect(`/dashboard/money?m=${m}#rule-${encodeURIComponent(id.replace(/[^a-z]/g, ''))}`);
     }
     if (path === '/dashboard/choice') {
       const ok = await makeChoice(env, { key: field(form, 'key'), value: field(form, 'value'), session }, now);

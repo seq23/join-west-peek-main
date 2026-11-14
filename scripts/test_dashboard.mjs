@@ -490,8 +490,39 @@ const realFetch = globalThis.fetch;
   await db.prepare("INSERT INTO connection (provider, status, token_enc) VALUES ('google','ok', ?)").bind(await encryptJson(env, { access_token: 'x', expires_at: NOW + 3600000 })).run();
   await db.prepare("INSERT INTO source (kind, spreadsheet_id, title) VALUES ('money','MONEYSHEETID00000000000000001','Money test')").run();
   await db.prepare("INSERT INTO row_cache (kind,row_id,origin,data,synced_at) VALUES ('margin','M1','{}',?,?)").bind(JSON.stringify({ id: 'M1', project: 'P9', contract: '1000', costs: '400', complete: 'No' }), NOW).run();
-  const m = await call(env, '/dashboard/money', { cookie: s.cookie });
+  await db.prepare("INSERT INTO row_cache (kind,row_id,origin,data,synced_at) VALUES ('margin','M2','{}',?,?)").bind(JSON.stringify({ id: 'M2', project: 'P8', contract: '1000', costs: '250', complete: 'Yes' }), NOW).run();
+  await db.prepare("INSERT INTO row_cache (kind,row_id,origin,data,synced_at) VALUES ('invoices','IV1','{}',?,?)").bind(JSON.stringify({ id: 'IV1', client: 'Org Z', amount: '4321', status: 'Sent', due: new Date(NOW - 3 * 86400000).toISOString().slice(0, 10), _id: 'IV1' }), NOW).run();
+  const { CASH_RULES } = await import('../functions/_lib/pd/deal.mjs');
+  const money = () => call(env, '/dashboard/money', { cookie: s.cookie });
+  const today = () => call(env, '/dashboard', { cookie: s.cookie });
+  // The rules are walked before any money figure shows (Scooter, 14 Nov 2026).
+  const before = await money();
+  const beforeToday = await today();
+  check('rules walk: before it, Money shows every rule and no figure', before.status === 200 && CASH_RULES.every((r) => before.text.includes(`id="rule-${r.id}"`)) && !/75%|4,321|Friday review/.test(before.text) && /0 of 5 marked right/.test(before.text));
+  check('rules walk: before it, Today shows no money figure', beforeToday.status === 200 && !/4,321/.test(beforeToday.text) && /held until the cash rules are walked/.test(beforeToday.text));
+  // "Not right" needs words; with words it is kept, persists, and the figures stay held.
+  const noWords = await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'settled', answer: 'change', note: '' } });
+  check('rules walk: a change with no words saves nothing', /m=rule_no_words/.test(noWords.location || '') && !(await db.prepare("SELECT key FROM setting WHERE key = 'cash_rule:settled'").first()));
+  await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'settled', answer: 'change', note: 'Count it once the bank feed shows it.' } });
+  for (const r of CASH_RULES.slice(1)) await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: r.id, answer: 'right' } });
+  const partway = await money();
+  check('rules walk: a rule he asked to change keeps his words and holds every figure, after a reload', /You said: Count it once the bank feed shows it\./.test(partway.text) && /4 of 5 marked right/.test(partway.text) && !/75%|4,321/.test(partway.text));
+  const bogus = await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'nope', answer: 'right' } });
+  check('rules walk: an unknown rule is refused', /m=rule_refused/.test(bogus.location || ''));
+  await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'settled', answer: 'right' } });
+  const second = await signIn(env, OWNER, PW);
+  const m = await call(env, '/dashboard/money', { cookie: second.cookie });
+  check('rules walk: once every rule is marked right the figures show, on a second device too', m.status === 200 && /You walked every rule/.test(m.text) && /75%/.test(m.text) && /4,321/.test(m.text));
   check('a margin with costs not all entered shows no percentage', m.status === 200 && !/60%/.test(m.text));
+  // A rule whose words change asks him again.
+  CASH_RULES[0].v += 1;
+  const again = await money();
+  CASH_RULES[0].v -= 1;
+  check('rules walk: a reworded rule asks again and holds the figures', /4 of 5 marked right/.test(again.text) && !/4,321/.test(again.text));
+  // The wider Google grant holds every money figure, walked or not.
+  await db.prepare("UPDATE connection SET scopes = ? WHERE provider = 'google'").bind('openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send').run();
+  const wide = await money();
+  check('money: while Google holds the wider grant, no money figure shows', /Google still holds the wider access/.test(wide.text) && !/4,321|75%/.test(wide.text));
 }
 
 // The cron door.

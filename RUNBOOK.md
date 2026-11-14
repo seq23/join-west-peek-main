@@ -172,8 +172,16 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   - **Cash rules** (`cashPicture`): "paid" without a Settled on date is neither cash nor forecast;
     actual and forecast are separate; a payment dated on/before the balance date (or a receipt matching
     an open invoice) is counted once; open invoices date by their terms (Net N from Issued; a
-    condition holds them out of the forecast); an unpaid overdue invoice stays forecast. Money is
-    preview-only until Scooter walks these rules.
+    condition holds them out of the forecast); an unpaid overdue invoice stays forecast.
+  - **The rules are walked before any money figure shows** (Scooter, 14 Nov 2026: "We will walk the
+    rules before any money view ships"): `CASH_RULES` / `rulesWalk` in `deal.mjs`. Money opens on "The
+    cash rules, walked first" (`rulesWalkSection`): each rule, a worked example and how many of his rows
+    it decides (counts only); he presses That's right, or writes how it should work (`POST
+    /dashboard/cash-rule` → setting `cash_rule:<id>` with the rule's `v`, plus the action log; refused in
+    sample mode). Until every rule is marked right (`ctx.moneyHidden`), no money figure shows anywhere:
+    Money shows only the walk, Today's money fold and invoice rows are held, Work shows no invoiced/paid
+    sums. Rewording a rule = bump its `v`, which asks him again. While Google still holds the wider grant,
+    Money shows no figure at all.
   - **Who can see what** (`/dashboard/access`): the Google scopes in words (`GOOGLE_SCOPE_WORDS`:
     openid, email, spreadsheets, drive.metadata.readonly, calendar.events.readonly — no Gmail, no
     Drive contents; the first sync that sees a connection still holding a wider grant revokes it at

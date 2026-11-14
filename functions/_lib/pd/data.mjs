@@ -20,7 +20,7 @@
 import { BACKUP_TABLES, dbOf, ensureSchema } from './schema.mjs';
 import { accessToken, connectionRow, disconnect, docusignHost, markConnection, wideGoogleScopes } from './providers.mjs';
 import { daysSince, isoDay, num, toTime } from './core.mjs';
-import { catalogFromGrid, webInquiryRows } from './deal.mjs';
+import { CASH_RULES, catalogFromGrid, webInquiryRows } from './deal.mjs';
 
 export const FUNNEL_STAGES = [
   'Relationship identified', 'Introductory conversation', 'Qualified opportunity', 'Discovery',
@@ -337,7 +337,7 @@ export async function loadView(env, { sample }, now = Date.now()) {
   const sources = {};
   for (const r of (await db.prepare('SELECT * FROM source').all()).results || []) sources[r.kind] = r;
   const settings = {};
-  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run','google_narrowed') OR key LIKE 'disconnected:%' OR key LIKE 'layout:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
+  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run','google_narrowed') OR key LIKE 'disconnected:%' OR key LIKE 'layout:%' OR key LIKE 'cash_rule:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
   for (const list of Object.values(rows)) list.sort((a, b) => (a._row || 0) - (b._row || 0));
   return { sample: false, rows, sync, sources, settings };
 }
@@ -839,6 +839,22 @@ export async function makeChoice(env, { key, value, session }, now = Date.now())
   if (key === 'money' && value === 'off') await purgeKinds(db, Object.keys(KINDS).filter((k) => KINDS[k].group === 'money'), 'off');
   await logAction(db, { at: now, owner: session.ownerId, sample: false, action: `choice:${key}`, outcome: 'saved', detail: value });
   return true;
+}
+
+/**
+ * Scooter marks one cash rule right, or says how it should work instead (his words, kept with the rule
+ * and in the action log). Refused in sample mode and for an unknown rule. Returns 'right' | 'change' | false.
+ */
+export async function walkCashRule(env, { id, answer, note, session }, now = Date.now()) {
+  const rule = CASH_RULES.find((r) => r.id === id);
+  if (!rule || session.sample || !['right', 'change'].includes(answer)) return false;
+  const words = String(note || '').trim().slice(0, 1000);
+  if (answer === 'change' && !words) return false;
+  const db = dbOf(env);
+  await ensureSchema(db);
+  await setSetting(db, `cash_rule:${id}`, { v: rule.v, ok: answer === 'right', note: answer === 'change' ? words : '', at: now });
+  await logAction(db, { at: now, owner: session.ownerId, sample: false, action: `cash_rule:${id}`, outcome: 'saved', detail: answer === 'right' ? 'right' : `change|${words}` });
+  return answer;
 }
 
 /* ------------------------------------------------------------------ find a document */
