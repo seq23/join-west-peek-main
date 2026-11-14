@@ -507,7 +507,7 @@ async function callMailer(env, path, payload) {
  * recipient because it is not (yet) a verified destination address: the Worker answers 422
  * recipient_unverified and names it, and Resend carries the lead instead.
  */
-async function sendViaCloudflare(env, mail) {
+export async function sendViaCloudflare(env, mail) {
   if (!mailerReady(env)) return { status: 'not_configured', detail: 'cloudflare: FORMS_MAILER binding or FORMS_MAILER_SECRET not set' };
   try {
     const res = await callMailer(env, '/send', {
@@ -528,7 +528,7 @@ async function sendViaCloudflare(env, mail) {
 }
 
 /** Channel 2: Resend. 'ok' | 'failed' | 'not_configured'. */
-async function sendViaResend(env, mail) {
+export async function sendViaResend(env, mail) {
   const apiKey = clean(env.RESEND_API_KEY);
   const from = clean(env.EMAIL_FROM);
   if (!apiKey || !from) return { status: 'not_configured', detail: 'resend: RESEND_API_KEY or EMAIL_FROM not set' };

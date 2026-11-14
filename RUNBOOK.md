@@ -124,6 +124,62 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+- **The Productions dashboard v1.0 is at westpeekproductions.com/dashboard, Scooter only**
+  (Scooter, 13 Nov 2026: "No dashboard page or data without the password. Private figures never in
+  the repo or any public file"; "The Productions dashboard is for Scooter only ... the owners list is
+  Scooter alone"; v1.0, Sequoia's go 13 Nov 2026: "his working phone screen onto his own Google
+  files"). Code: `functions/_lib/productions-dashboard.mjs` (routes) and `functions/_lib/pd/`
+  (`auth`, `providers`, `data`, `views`, `schema`, `core`). Productions hosts and their Pages
+  previews only (404 elsewhere).
+  - **Source of truth = his Google Sheets.** Work sheet (Projects, Waiting on client, Deals, Agent
+    drafts, Agent activity, Cold email log), Money sheet (Invoices, Expected receipts, Vendor
+    obligations, Project margin, Cash, Tracker; Scooter only) plus the same-named Finance tabs of
+    each binder the Projects tab links, and his inquiry Form response sheet (read only; never any
+    West Peek network sheet). He names each on Connections or presses "Create it for me". Quick
+    actions (Mark received, Move to next stage, Mark paid, Approve/Changes/Skip) write the row found
+    by its `ID` column, re-read it, and only a re-read that shows the change is "Saved and checked".
+    Chase / Send reminder create Gmail DRAFTS; there is no send code.
+  - **Own storage per environment**: D1 `west-peek-productions-dashboard-<env>` bound as
+    `PRODUCTIONS_DB` (owner, sessions, connections, sources, last-synced rows, action log, ticks,
+    choices). Preview and production never share a database, bucket or Worker. The pre-v1.0 KV
+    snapshot is retired from every screen; KV `PRODUCTIONS_DASHBOARD` is read only to copy Scooter's
+    existing owner record and swap a still-valid old cookie for a D1 session (nobody signed out).
+  - **Sign-in**: Sign in with Google (an Internal OAuth app in his Productions Workspace that he
+    creates: Help → "Setting up the Google sign-in app"); until its secrets exist the sign-in screen
+    says so calmly and the emailed one-time code → own password flow is the working fallback.
+    Sessions are D1 rows (cookie holds a random token, the row holds its hash), "remember this phone"
+    = 30 days, sign-out revokes the row, changing the password revokes every other session. Wrong
+    tries: 10 per connection and 5 per owner per 15 minutes. A password typed without an email opens
+    nothing. `OWNER_IDS` (`['scooter']`) in `functions/_lib/pd/auth.mjs` is the whole owners list.
+  - **Connections**: Google (Drive, Sheets, Gmail drafts, Calendar), Dropbox (read), DocuSign
+    (envelope status), QuickBooks or Xero (cash now, read) — each through the service's own OAuth
+    screen; refresh tokens AES-GCM encrypted with `PRODUCTIONS_TOKEN_KEY`. Each service's app keys
+    are PASTED by Scooter into its box under Connections → "Paste your app keys" (password fields,
+    owner session, strictly same-origin POST `/dashboard/keys`, refused in sample mode, 303 back with
+    "Saved. You can connect <app> now."); the pair is kept AES-GCM encrypted with
+    `PRODUCTIONS_TOKEN_KEY` in D1 table `app_key` of THAT host's database (preview and production
+    separate), shown afterwards only as "Saved <date>" + Replace, never logged and never returned by
+    any page or answer. Every request runs with `withAppKeys(env)`: the Worker secret first, the
+    pasted pair only where the secret is missing (Scooter, 14 Nov 2026: "app keys are pasted into
+    the dashboard, never emailed"). Disconnect revokes at the
+    provider where it can and deletes the token. DocuSign connects to its live server
+    (`account.docusign.com`) or, for an app DocuSign has not yet moved live, its test server
+    (`account-d.docusign.com`); the stage is kept in the connection's `meta.server` and every
+    refresh and sync uses it. His open choices (accounting tool, bank cash
+    source, CRM, Shared Drive, agent seat, developer view, link) are buttons on Connections.
+  - **Sync**: the Worker `west-peek-productions-dashboard-<env>` (`workers/productions-dashboard/`)
+    calls `POST /dashboard/cron/sync` every 15 minutes (secret checked against a hash in D1) and
+    "Refresh now" does the same; blocks older than 2 hours say "may be out of date"; a failed sync
+    or a broken connection is a red row on Today. Nightly (08:30 UTC) it exports every table to the
+    private R2 bucket `west-peek-productions-dashboard-backups-<env>`, keeps 30 days, and logs the
+    real-data check (counts only).
+  - **Preview sample mode**: on a preview host only, `sample@preview.invalid` /
+    `preview-sample-only` signs in to synthetic rows (`sampleRows()`), never a connection or real
+    row; refused on every production host. `npm run first-run` uses it.
+  - Cold email sending is off in code (`COLD_EMAIL_SENDING`), cap 25 a week.
+  Guards: `npm run test:dashboard`, `npm run validate:dashboard-privacy` (sample rows and the test
+  fixtures' sheet grids carry placeholder names only).
+
 ## Lead delivery and alarms
 **A lead has two independent ways out** (outage 2 Nov to 6 Nov 2026: the Resend key behind every
 form was deleted, every submission failed with 502, and only `console.error` knew). Code and the
@@ -177,12 +233,39 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | Script | Pins |
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
+| `scripts/validate_dashboard_privacy.mjs` | no owners file or dashboard loader input in the repo; sample rows are all "Sample …" with example.test addresses; no address (beyond the OS inbox and test domains) or dollar figure in dashboard code; no private package document; with `DASHBOARD_PRIVATE_NAMES_FILE`, none of those names anywhere |
+| `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout (a locked password never blocks a fresh emailed code); sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are drafts; ticks persist; failed sync, broken connection and a disconnected account on Today; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
 | `.github/workflows/entity-validation.yml` | runs the build and the guards above on every push and PR |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
+
+## Porter may run
+
+Derived by Porter from this repo's `package.json` because the RUNBOOK had no such section. Edit it freely — a human's list here wins over the derivation, and a job that needs a data-op the repo lacks writes the script and names it here in the same PR.
+
+- `build` — `node scripts/build.mjs community && node scripts/build.mjs ventures && node scripts/build.mjs productions`
+- `build:community` — `node scripts/build.mjs community`
+- `build:productions` — `node scripts/build.mjs productions`
+- `build:ventures` — `node scripts/build.mjs ventures`
+- `test:lead` — `node scripts/test_lead_delivery.mjs`
+- `validate` — `npm run build && npm run test:lead && npm run validate:forms && npm run validate:disclosure && npm run validate:ventures-isolation && npm run validate:community-site`
+- `validate:community-site` — `node scripts/validate_community_site.mjs`
+- `validate:disclosure` — `node scripts/validate_disclosure.mjs`
+- `validate:forms` — `node scripts/validate_forms.mjs`
+- `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
+- `test:dashboard` — `node scripts/test_dashboard.mjs`
+- `dashboard:setup` — `node scripts/dashboard_setup.mjs --env preview|production [--site-url https://…] [--prove-restore]`: finds or creates that environment's D1, applies migrations, binds it as `PRODUCTIONS_DB`, adds `PRODUCTIONS_TOKEN_KEY` if absent, finds or creates the private R2 backup bucket (30-day expiry), deploys the sync/backup Worker with a fresh cron secret (hash kept in D1), and with `--prove-restore` backs up, deletes a marker, restores and checks it came back. On production with no owner row it copies Scooter's owner record (address, name, password hash; never sessions or codes) from the preview database, or before his first preview sign-in from the pre-v1.0 KV `owners` record bound to preview; none in either is NAMED STOP `owner_missing` (exit 2), cleared by `dashboard:owners -- --env production --file <owners JSON outside the repo>` (no `--send`). When it changed the binding or the key (or with `--redeploy`) it waits for that environment's newest deployment to finish and redeploys that same commit, so the binding is live when setup exits (`redeploy=done(…)`; a failed or 12-minute-stuck deploy exits 1). Safe to repeat. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+  State: preview set up 14 Nov 2026 (D1 `west-peek-productions-dashboard-preview`, Worker `west-peek-productions-dashboard-preview`, backup bucket with 30-day expiry, one restore proven).
+  Production, in this order (review, 14 Nov 2026: a binding added after the merge reached no deployment, and production had no owner row, so the live page would have said "not set up"):
+  1. BEFORE the merge: `dashboard:setup -- --env production`. The binding rides on the live pre-v1.0 code harmlessly, and the merge's own deployment carries it. Expect `owner=copied_from_preview(1)`, `copied_from_preview_kv(1)` or `kept`.
+  2. LAND merges and deploys.
+  3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
+- `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
+- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab, moves one deal a stage (confirmed), reloads, sees it on a second device, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
+- `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
@@ -191,3 +274,16 @@ Per Pages project; set through `pages_env`, never by hand.
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
+- `west-peek-productions` (dashboard v1.0): `PRODUCTIONS_DB` (D1) and `PRODUCTIONS_TOKEN_KEY`
+  are set by `npm run dashboard:setup`, never by hand. `GOOGLE_OAUTH_CLIENT_ID` +
+  `GOOGLE_OAUTH_CLIENT_SECRET` (Internal app in his Productions Workspace; Sign in with Google and the
+  Drive/Sheets/Gmail/Calendar connection) are HELD in the vault (14 Nov 2026) and set on this project
+  through `pages_env`; `first-run` follows the button to Google's own screen and fails on a key Google
+  does not know. Dropbox, DocuSign, QuickBooks and Xero keys are not Pages secrets at all: Scooter
+  pastes each pair into its box on the dashboard's Connections page (encrypted in that host's D1;
+  never emailed, never asked for by email). A Pages secret of the same name, if one is ever set,
+  wins over the pasted pair. Redirect URI for every one:
+  `https://westpeekproductions.com/dashboard/oauth/callback` and, for this preview,
+  `https://work-wpc-c548d043-next.west-peek-productions.pages.dev/dashboard/oauth/callback`. One-time codes
+  need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
+  `RESEND_API_KEY` + `EMAIL_FROM`).
