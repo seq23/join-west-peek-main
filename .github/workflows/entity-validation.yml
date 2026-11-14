@@ -23,7 +23,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22: the dashboard tests run a real SQLite (node:sqlite) in place of D1.
+          node-version: '22'
 
       - name: Validate Cloudflare Function syntax
         run: node --check functions/api/lead.js
@@ -34,7 +35,12 @@ jobs:
       # Scooter, 13 Nov 2026: no dashboard page or data without the password; finance for
       # Scooter only (the owners list is Scooter alone); sending off; no private figures in this repo.
       - name: Productions dashboard gate
-        run: node --check "functions/dashboard/[[path]].js" && node scripts/test_dashboard.mjs
+        run: node --check "functions/dashboard/[[path]].js" && node --check workers/productions-dashboard/src/index.js && node scripts/test_dashboard.mjs
+
+      # v1.0 ruling, 13 Nov 2026: no figure, client name, owner address or loader input in this
+      # public repo; synthetic sample rows only.
+      - name: Productions dashboard privacy
+        run: node scripts/validate_dashboard_privacy.mjs
 
       - name: Build all three sites
         run: npm run build

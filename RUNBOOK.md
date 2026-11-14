@@ -124,29 +124,49 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
-- **The Productions dashboard is at westpeekproductions.com/dashboard, behind a password**
+- **The Productions dashboard v1.0 is at westpeekproductions.com/dashboard, Scooter only**
   (Scooter, 13 Nov 2026: "No dashboard page or data without the password. Private figures never in
-  the repo or any public file: read server-side from a private store."). Server-rendered by
-  `functions/dashboard/[[path]].js` → `functions/_lib/productions-dashboard.mjs`; Productions hosts
-  only (404 elsewhere). **Who signs in** (Scooter, 13 Nov 2026, after the second preview: "The
-  Productions dashboard is for Scooter only ... the owners list is Scooter alone, and nobody else can
-  be added except by Scooter asking"): Scooter alone, with his own firm email and his own password,
-  seeing everything including Money. There is no team sign-in, no team view and no shared password:
-  a password typed without an email opens nothing. The owners list is `OWNER_IDS` in
-  `functions/_lib/productions-dashboard.mjs` (`['scooter']`); a store record under any other id opens
-  nothing and `dashboard:owners` refuses it, so adding someone is a code change made only when
-  Scooter asks. The owner's first password is a one-time password emailed to their own firm email by the
-  site's existing mail sender (Cloudflare email, then Resend, to that address only); signing in with
-  it uses it up and the next screen makes them choose a password before anything is shown; unused, it
-  stops working after 7 days. "Change password" on the dashboard; "Forgot it?" on the sign-in screen
-  sends a fresh one-time password to the owner's address on record only (at most one per 5 minutes).
-  Owner records (address, salted PBKDF2 hashes, `gen`) live only in the private store under `owners`,
-  loaded by `npm run dashboard:owners` from a file outside this repo; never in the repo or a log.
-  Wrong tries: 10 per connection and 5 per owner per 15 minutes.
-  Figures live only in the KV namespace bound as `PRODUCTIONS_DASHBOARD`
-  (keys `team`, `finance`, `meta`; plus `owners` and `session_key` for sign-in), loaded by `npm run dashboard:store` from a file that lives
-  outside this repo. Cold email sending is off in code (`COLD_EMAIL_SENDING`); there is no sender
-  here. Guard: `npm run test:dashboard`.
+  the repo or any public file"; "The Productions dashboard is for Scooter only ... the owners list is
+  Scooter alone"; v1.0, Sequoia's go 13 Nov 2026: "his working phone screen onto his own Google
+  files"). Code: `functions/_lib/productions-dashboard.mjs` (routes) and `functions/_lib/pd/`
+  (`auth`, `providers`, `data`, `views`, `schema`, `core`). Productions hosts and their Pages
+  previews only (404 elsewhere).
+  - **Source of truth = his Google Sheets.** Work sheet (Projects, Waiting on client, Deals, Agent
+    drafts, Agent activity, Cold email log), Money sheet (Invoices, Expected receipts, Vendor
+    obligations, Project margin, Cash, Tracker; Scooter only) plus the same-named Finance tabs of
+    each binder the Projects tab links, and his inquiry Form response sheet (read only; never any
+    West Peek network sheet). He names each on Connections or presses "Create it for me". Quick
+    actions (Mark received, Move to next stage, Mark paid, Approve/Changes/Skip) write the row found
+    by its `ID` column, re-read it, and only a re-read that shows the change is "Saved and checked".
+    Chase / Send reminder create Gmail DRAFTS; there is no send code.
+  - **Own storage per environment**: D1 `west-peek-productions-dashboard-<env>` bound as
+    `PRODUCTIONS_DB` (owner, sessions, connections, sources, last-synced rows, action log, ticks,
+    choices). Preview and production never share a database, bucket or Worker. The pre-v1.0 KV
+    snapshot is retired from every screen; KV `PRODUCTIONS_DASHBOARD` is read only to copy Scooter's
+    existing owner record and swap a still-valid old cookie for a D1 session (nobody signed out).
+  - **Sign-in**: Sign in with Google (an Internal OAuth app in his Productions Workspace that he
+    creates: Help → "Setting up the Google sign-in app"); until its secrets exist the sign-in screen
+    says so calmly and the emailed one-time code → own password flow is the working fallback.
+    Sessions are D1 rows (cookie holds a random token, the row holds its hash), "remember this phone"
+    = 30 days, sign-out revokes the row, changing the password revokes every other session. Wrong
+    tries: 10 per connection and 5 per owner per 15 minutes. A password typed without an email opens
+    nothing. `OWNER_IDS` (`['scooter']`) in `functions/_lib/pd/auth.mjs` is the whole owners list.
+  - **Connections**: Google (Drive, Sheets, Gmail drafts, Calendar), Dropbox (read), DocuSign
+    (envelope status), QuickBooks or Xero (cash now, read) — each through the service's own OAuth
+    screen; refresh tokens AES-GCM encrypted with `PRODUCTIONS_TOKEN_KEY`; Disconnect revokes at the
+    provider where it can and deletes the token. His open choices (accounting tool, bank cash
+    source, CRM, Shared Drive, agent seat, developer view, link) are buttons on Connections.
+  - **Sync**: the Worker `west-peek-productions-dashboard-<env>` (`workers/productions-dashboard/`)
+    calls `POST /dashboard/cron/sync` every 15 minutes (secret checked against a hash in D1) and
+    "Refresh now" does the same; blocks older than 2 hours say "may be out of date"; a failed sync
+    or a broken connection is a red row on Today. Nightly (08:30 UTC) it exports every table to the
+    private R2 bucket `west-peek-productions-dashboard-backups-<env>`, keeps 30 days, and logs the
+    real-data check (counts only).
+  - **Preview sample mode**: on a preview host only, `sample@preview.invalid` /
+    `preview-sample-only` signs in to synthetic rows (`sampleRows()`), never a connection or real
+    row; refused on every production host. `npm run first-run` uses it.
+  - Cold email sending is off in code (`COLD_EMAIL_SENDING`), cap 25 a week.
+  Guards: `npm run test:dashboard`, `npm run validate:dashboard-privacy`.
 
 ## Lead delivery and alarms
 **A lead has two independent ways out** (outage 2 Nov to 6 Nov 2026: the Resend key behind every
@@ -201,7 +221,8 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | Script | Pins |
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
-| `scripts/test_dashboard.mjs` | /dashboard: no page or store read without a password; Scooter alone signs in, with his own email and password (`OWNER_IDS`), and sees everything including Money; a password typed without an email opens nothing; a store record off the owners list opens nothing and gets no one-time password; no password setting is read; a one-time password goes to the owner's own address only, is stored hashed, works once, forces a new password before anything shows, and expires after 7 days; change password signs other sessions out; per-owner lockout; forged, stale or old team cookies refused; a session signed before the team sign-in was removed still opens; other hosts 404; cross-site sign-in refused; missing store said, never shown as clear; sending off; store text escaped; no store file committed |
+| `scripts/validate_dashboard_privacy.mjs` | no owners file or dashboard loader input in the repo; sample rows are all "Sample …" with example.test addresses; no address (beyond the OS inbox and test domains) or dollar figure in dashboard code; no private package document; with `DASHBOARD_PRIVATE_NAMES_FILE`, none of those names anywhere |
+| `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout; sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are drafts; ticks persist; failed sync and broken connection on Today; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
@@ -224,8 +245,10 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
 - `validate:forms` — `node scripts/validate_forms.mjs`
 - `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
 - `test:dashboard` — `node scripts/test_dashboard.mjs`
-- `dashboard:store` — `node scripts/dashboard_store.mjs --env preview|production --file <store JSON outside the repo>`: checks the file, finds or creates the KV namespace, binds it to west-peek-productions as `PRODUCTIONS_DASHBOARD` for that environment, writes `team`, `finance`, `meta`. Prints counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-- `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owners (`{"owners":[{"id","name","email"}]}`, every id on `OWNER_IDS`, i.e. Scooter alone) into that environment's store under `owners`; the file is the whole list, so anyone else in the store is removed (an unchanged email keeps its password and session); with `--url`, proves the sign-in on that live site with a throwaway owner that opens for 30 minutes at most (signed out shows nothing; a one-time password forces a new password, then stops working; Money shows; a password typed without an email opens nothing; a record not on the owners list opens nothing with its own email and password; the store's owners are the file's) and removes it; with `--send`, only after the proof passes, presses "Forgot it?" for each owner so the site emails their one-time password, and reads back the channel. An owner with a password or an unused one already sent is skipped: one email each. Prints ids and counts only. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- `dashboard:setup` — `node scripts/dashboard_setup.mjs --env preview|production [--site-url https://…] [--prove-restore]`: finds or creates that environment's D1, applies migrations, binds it as `PRODUCTIONS_DB`, adds `PRODUCTIONS_TOKEN_KEY` if absent, finds or creates the private R2 backup bucket (30-day expiry), deploys the sync/backup Worker with a fresh cron secret (hash kept in D1), and with `--prove-restore` backs up, deletes a marker, restores and checks it came back. Safe to repeat. Bindings and the key take effect on that environment's next deployment. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
+- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab, moves one deal a stage (confirmed), reloads, sees it on a second device, signs out and proves that session dead. Prints `FIRST_RUN OK`.
+- `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
@@ -234,9 +257,12 @@ Per Pages project; set through `pages_env`, never by hand.
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
-- `west-peek-productions`: the dashboard needs no password setting; Scooter's record is in the
-  private store (`dashboard:owners`). Without the store, /dashboard is shut and reads nothing (fail
-  closed). One-time
-  passwords need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
-  `RESEND_API_KEY` + `EMAIL_FROM`) for that environment.
-  KV binding `PRODUCTIONS_DASHBOARD` is set by `npm run dashboard:store`, not by hand.
+- `west-peek-productions` (dashboard v1.0): `PRODUCTIONS_DB` (D1) and `PRODUCTIONS_TOKEN_KEY`
+  are set by `npm run dashboard:setup`, never by hand. OAuth apps he creates, each emailed to
+  os@joinwestpeek.com as `SECRET NAME=value`: `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET`
+  (Internal app in his Productions Workspace; also Sign in with Google), `DROPBOX_APP_KEY` +
+  `DROPBOX_APP_SECRET`, `DOCUSIGN_INTEGRATION_KEY` + `DOCUSIGN_SECRET_KEY`, `QUICKBOOKS_CLIENT_ID` +
+  `QUICKBOOKS_CLIENT_SECRET` or `XERO_CLIENT_ID` + `XERO_CLIENT_SECRET`. Redirect URI for every one:
+  `https://westpeekproductions.com/dashboard/oauth/callback` (plus the preview's own). One-time codes
+  need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
+  `RESEND_API_KEY` + `EMAIL_FROM`).
