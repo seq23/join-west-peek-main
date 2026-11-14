@@ -18,8 +18,9 @@
  * no real names, the same write-then-re-read path. It never touches a connection.
  */
 import { BACKUP_TABLES, dbOf, ensureSchema } from './schema.mjs';
-import { accessToken, connectionRow, docusignHost, markConnection, wideGoogleScopes } from './providers.mjs';
+import { accessToken, connectionRow, disconnect, docusignHost, markConnection, wideGoogleScopes } from './providers.mjs';
 import { daysSince, isoDay, num, toTime } from './core.mjs';
+import { catalogFromGrid, webInquiryRows } from './deal.mjs';
 
 export const FUNNEL_STAGES = [
   'Relationship identified', 'Introductory conversation', 'Qualified opportunity', 'Discovery',
@@ -48,17 +49,17 @@ export const KINDS = {
   // that tracker without creating a second pipeline or changing the original records"): the tab is
   // found by its columns, the header row may sit below a title, and a tracker with no ID column is
   // keyed by its organization name (`keyFrom`), so no column is ever added to his sheet.
-  deals: { group: 'work', altGroup: 'tracker', keyFrom: 'org', layout: ['org', 'stage'], tabs: ['Deals', 'CRM', 'Pipeline', 'Deal tracker', 'Sales tracker', 'Sales pipeline', 'Tracker', 'Leads', 'Prospects', 'Opportunities'], cols: { id: ID, org: ['Organization', 'Organisation', 'Organization name', 'Company', 'Company name', 'Client', 'Client name', 'Account', 'Prospect', 'Org'], stage: ['Stage', 'Pipeline stage', 'Deal stage', 'Funnel stage', 'Sales stage', 'Status', 'Step'], owner: ['Owner', 'Deal owner', 'Assigned to', 'Rep', 'Who'], contact: ['Contact', 'Contact name', 'Primary contact', 'Decision maker'], next_action: ['Next action', 'Next step', 'Next steps', 'Action'], next_date: ['Next date', 'Next action date', 'Next step date', 'Due', 'Due date', 'Date'], proposal_sent: ['Proposal sent', 'Proposal date', 'Proposal sent on'], follow_up: ['Follow up', 'Follow-up', 'Follow up on', 'Follow-up date', 'Follow up date'], value: ['Value', 'Deal value', 'Estimated value', 'Est. value', 'Budget'], source: ['Source', 'Lead source', 'How they heard', 'Referral'], last_contact: ['Last contact', 'Last touch', 'Last contacted'], notes: ['Notes', 'Note', 'Comments'], email: ['Contact email', 'Email', 'Email address'] } },
+  deals: { group: 'work', altGroup: 'tracker', keyFrom: 'org', layout: ['org', 'stage'], tabs: ['Deals', 'CRM', 'Pipeline', 'Deal tracker', 'Sales tracker', 'Sales pipeline', 'Tracker', 'Leads', 'Prospects', 'Opportunities'], cols: { id: ID, opportunity: ['Opportunity', 'Opportunity name', 'Deal', 'Deal name', 'Project'], org: ['Organization', 'Organisation', 'Organization name', 'Company', 'Company name', 'Client', 'Client name', 'Account', 'Prospect', 'Org'], service: ['Service', 'Service line', 'Services', 'Capability', 'Offer', 'Type'], buyer: ['Buyer', 'Buyer type', 'Sector', 'Organization type', 'Segment'], probability: ['Probability', 'Likelihood', 'Chance', 'Prob'], expected_close: ['Expected close', 'Close date', 'Expected close date', 'Target close'], flag: ['Flag', 'Flags', 'Risk', 'Priority'], stage: ['Stage', 'Pipeline stage', 'Deal stage', 'Funnel stage', 'Sales stage', 'Status', 'Step'], owner: ['Owner', 'Deal owner', 'Assigned to', 'Rep', 'Who'], contact: ['Contact', 'Contact name', 'Primary contact', 'Decision maker'], next_action: ['Next action', 'Next step', 'Next steps', 'Action'], next_date: ['Next date', 'Next action date', 'Next step date', 'Due', 'Due date', 'Date'], proposal_sent: ['Proposal sent', 'Proposal date', 'Proposal sent on'], follow_up: ['Follow up', 'Follow-up', 'Follow up on', 'Follow-up date', 'Follow up date'], value: ['Value', 'Deal value', 'Estimated value', 'Est. value', 'Budget'], source: ['Source', 'Lead source', 'How they heard', 'Referral'], last_contact: ['Last contact', 'Last touch', 'Last contacted'], notes: ['Notes', 'Note', 'Comments'], email: ['Contact email', 'Email', 'Email address'] } },
   drafts: { group: 'work', tabs: ['Agent drafts', 'Drafts'], cols: { id: ID, project: ['Project'], document: ['Document', 'Draft'], link: ['Link'], agent: ['Agent'], drafted: ['Drafted', 'Date'], status: ['Status'] } },
   activity: { group: 'work', tabs: ['Agent activity', 'Agent log', 'Activity'], idless: true, cols: { at: ['When', 'Date', 'Timestamp'], agent: ['Agent'], project: ['Project'], document: ['Document'], action: ['Action', 'Did'], approver: ['Approver', 'Approved by'] } },
   cold: { group: 'work', tabs: ['Cold email log'], idless: true, cols: { date: ['Date'], org: ['Organization'], recipient: ['Recipient', 'To'], subject: ['Subject'], status: ['Status'], replies: ['Replies'] } },
-  invoices: { group: 'money', binder: true, tabs: ['Invoices'], cols: { id: [...ID, 'Invoice', 'Invoice #', 'Invoice number'], client: ['Client'], project: ['Project'], amount: ['Amount'], due: ['Due', 'Due date'], status: ['Status'], paid_on: ['Paid on'], email: ['Contact email', 'Billing email', 'Email'] } },
+  invoices: { group: 'money', binder: true, tabs: ['Invoices'], cols: { id: [...ID, 'Invoice', 'Invoice #', 'Invoice number'], client: ['Client'], project: ['Project'], amount: ['Amount'], due: ['Due', 'Due date'], status: ['Status'], paid_on: ['Paid on'], settled_on: ['Settled on', 'Cleared on', 'In bank on', 'Deposited on', 'Bank date'], issued: ['Issued', 'Issued on', 'Invoice date', 'Sent on'], terms: ['Terms', 'Payment terms', 'Payment condition', 'Conditions'], email: ['Contact email', 'Billing email', 'Email'] } },
   receipts: { group: 'money', binder: true, tabs: ['Expected receipts'], cols: { id: ID, client: ['From', 'Client'], amount: ['Amount'], date: ['Expected', 'Expected on', 'Date'], confidence: ['How sure', 'Confidence'] } },
   vendors: { group: 'money', binder: true, tabs: ['Vendor obligations', 'Vendors'], cols: { id: ID, vendor: ['Vendor'], project: ['Project'], amount: ['Amount'], date: ['Due', 'Date'], note: ['Note'] } },
   margin: { group: 'money', binder: true, tabs: ['Project margin', 'Margin'], cols: { id: ID, project: ['Project'], contract: ['Contract', 'Contract value'], costs: ['Direct costs', 'Costs'], complete: ['Costs complete', 'All costs in'] } },
   cash: { group: 'money', tabs: ['Cash'], idless: true, cols: { week: ['Week of', 'Week'], opening: ['Opening cash', 'Cash now', 'Opening'], cash_in: ['Cash in', 'In'], cash_out: ['Cash out', 'Out'], closing: ['Closing cash', 'Closing'] } },
   tracker: { group: 'money', tabs: ['Tracker', 'Targets'], idless: true, cols: { measure: ['Measure'], actual: ['Actual'], target: ['Target'] } },
-  inquiries: { group: 'inquiries', tabs: null, idless: true, cols: { at: ['Timestamp', 'Date'], name: ['Name', 'Your name'], org: ['Organization', 'Organization name'], email: ['Email', 'Email address'], initiative: ['Initiative', 'What are you working on?', 'Project'] } }
+  inquiries: { group: 'inquiries', tabs: null, idless: true, cols: { at: ['Timestamp', 'Date'], name: ['Name', 'Your name', 'Full name'], org: ['Organization', 'Organization name', 'Organisation', 'Company'], email: ['Email', 'Email address', 'Work email'], initiative: ['Initiative', 'What are you working on?', 'What do you need?', 'What do you need help with?', 'Tell us about your project', 'Project', 'Message'], timing: ['Timing', 'When', 'Timeline'], budget: ['Budget', 'Budget range'] } }
 };
 /** The header row the dashboard writes when it creates his sheets for him. */
 export const TEMPLATE_HEADERS = {
@@ -100,20 +101,32 @@ function headerIndex(def, line) {
   }
   return idx;
 }
-const HEADER_SCAN = 10;
+// Scooter's Pipeline tab carries a summary block above the table, with its column names on row 11
+// (Scooter, 14 Nov 2026: "The headers sit on row 11 of the Pipeline tab (Opportunity through Flag,
+// columns A to N) and the data starts on row 12. Read that table as it is"). Ten rows was too few.
+const HEADER_SCAN = 40;
+/** A deal tracker's name column: Organization when it has one, else Opportunity. */
+function withNameColumn(def, idx) {
+  if (def.layout && idx.org === undefined && idx.opportunity !== undefined) return { ...idx, org: idx.opportunity, _orgFromOpportunity: true };
+  return idx;
+}
+const recognisedBy = (def, idx) => !def.layout || def.layout.every((k) => idx[k] !== undefined);
+const named = (idx) => Object.keys(idx).filter((k) => !k.startsWith('_')).length;
 
 /**
- * Rows from a values grid. The header row is whichever of the top ten names the most of this kind's
- * columns (a tracker often has a title line above it). Each row: { ...keys, _row (the sheet's own
- * row number), _id }. A kind with `keyFrom` and no ID in the row is keyed by that column's value.
+ * Rows from a values grid. The header row is the one in the top forty that names this kind's
+ * required columns AND the most of its other columns (a summary block above the table, with a
+ * Stage or Value line, never wins over the table's own header row). Each row: { ...keys, _row (the
+ * sheet's own row number), _id }. A kind with `keyFrom` and no ID in the row is keyed by that value.
  */
 export function parseGrid(kind, grid) {
   const def = KINDS[kind];
   let headerRow = 0;
-  let idx = headerIndex(def, grid[0]);
+  let idx = withNameColumn(def, headerIndex(def, grid[0]));
   for (let r = 1; r < Math.min(grid.length, HEADER_SCAN); r += 1) {
-    const t = headerIndex(def, grid[r]);
-    if (Object.keys(t).length > Object.keys(idx).length) { headerRow = r; idx = t; }
+    const t = withNameColumn(def, headerIndex(def, grid[r]));
+    const better = recognisedBy(def, t) !== recognisedBy(def, idx) ? recognisedBy(def, t) : named(t) > named(idx);
+    if (better) { headerRow = r; idx = t; }
   }
   const rows = [];
   const seen = new Set();
@@ -121,7 +134,7 @@ export function parseGrid(kind, grid) {
     const line = grid[r] || [];
     if (!line.some((v) => String(v ?? '').trim())) continue;
     const row = { _row: r + 1 };
-    for (const [key, i] of Object.entries(idx)) row[key] = String(line[i] ?? '').trim();
+    for (const [key, i] of Object.entries(idx)) if (!key.startsWith('_')) row[key] = String(line[i] ?? '').trim();
     let id = def.idless ? `r${r + 1}` : row.id;
     if (!id && def.keyFrom && orgKey(row[def.keyFrom])) {
       const base = `k:${orgKey(row[def.keyFrom])}`;
@@ -133,7 +146,7 @@ export function parseGrid(kind, grid) {
     row._id = id;
     rows.push(row);
   }
-  const recognised = !def.layout || def.layout.every((k) => idx[k] !== undefined);
+  const recognised = recognisedBy(def, idx);
   return { rows, idx, headerRow, headers: (grid[headerRow] || []).map((h) => String(h ?? '').trim()), recognised, missingId: !def.idless && !def.keyFrom && idx.id === undefined };
 }
 
@@ -314,10 +327,17 @@ export async function loadView(env, { sample }, now = Date.now()) {
     if (rows[r.kind]) rows[r.kind].push({ ...JSON.parse(r.data), _id: r.row_id, _origin: JSON.parse(r.origin).title || '' });
   }
   for (const r of (await db.prepare('SELECT * FROM sync_state').all()).results || []) sync[r.kind] = r;
+  // His own site's Start a project form feeds the same inquiry list as his form's response sheet.
+  const site = await webInquiryRows(db);
+  if (site.length) {
+    rows.inquiries.push(...site.map((x, i) => ({ ...x, _row: 100000 + i })));
+    sync.inquiries = sync.inquiries || { status: 'ok', synced_at: now, rows: 0, origins: '' };
+    sync.inquiries = { ...sync.inquiries, origins: [sync.inquiries.origins, 'Start a project form on your site'].filter(Boolean).join(' + '), synced_at: sync.inquiries.synced_at || now };
+  }
   const sources = {};
   for (const r of (await db.prepare('SELECT * FROM source').all()).results || []) sources[r.kind] = r;
   const settings = {};
-  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run') OR key LIKE 'disconnected:%' OR key LIKE 'layout:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
+  for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run','google_narrowed') OR key LIKE 'disconnected:%' OR key LIKE 'layout:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
   for (const list of Object.values(rows)) list.sort((a, b) => (a._row || 0) - (b._row || 0));
   return { sample: false, rows, sync, sources, settings };
 }
@@ -358,7 +378,17 @@ export async function syncAll(env, now = Date.now()) {
   const moneyOff = (await db.prepare("SELECT value FROM choice WHERE key = 'money'").first())?.value === 'off';
   if (moneyOff) await purgeKinds(db, Object.keys(KINDS).filter((k) => KINDS[k].group === 'money'), 'off');
 
-  if (google) {
+  // The wider grant of an earlier connection (Gmail, every Drive file, every calendar) is withdrawn
+  // at Google by the first sync that sees it (Scooter, 14 Nov 2026: "Before any financial data comes
+  // near the dashboard, I need the current Google grant tightened - the broad Drive and Gmail access
+  // is still active"). His named sheets stay; Today asks him to reconnect with the narrow set.
+  if (google && wideGoogleScopes(google.scopes).length) {
+    const how = await disconnect(env, 'google');
+    await setSetting(db, 'google_narrowed', { at: now, how, withdrew: wideGoogleScopes(google.scopes) });
+    out.notes.push(`google:wide_grant_withdrawn(${how})`);
+  }
+  const googleNow = await connectionRow(env, 'google');
+  if (googleNow) {
     let googleOk = true;
     const binderIds = [];
     for (const group of ['work', 'tracker', 'money', 'inquiries']) {
@@ -390,7 +420,7 @@ export async function syncAll(env, now = Date.now()) {
           if (KINDS[kind].layout) {
             // What the dashboard made of his tracker, said on the Deals page (column names only, never a value).
             const parsed = picked?.parsed;
-            const columns = parsed ? Object.fromEntries(Object.entries(parsed.idx).map(([k, i]) => [k, parsed.headers[i]])) : {};
+            const columns = parsed ? Object.fromEntries(Object.entries(parsed.idx).filter(([k]) => !k.startsWith('_')).map(([k, i]) => [k, parsed.headers[i]])) : {};
             const listed = tab && parsed?.recognised && parsed.idx.stage !== undefined ? await stageListFromSheet(env, src.spreadsheet_id, tab, parsed.idx.stage, parsed.headerRow) : null;
             await setSetting(db, `layout:${kind}`, { group, id: src.spreadsheet_id, title: src.title || '', tab, headerRow: parsed ? parsed.headerRow + 1 : null, recognised: Boolean(parsed?.recognised), columns, headers: (parsed?.headers || []).filter(Boolean).slice(0, 20), looked: picked?.looked || null, stages: listed, keyed: Boolean(parsed && parsed.idx.id === undefined) });
             if (!parsed?.recognised) out.notes.push(`${kind}:layout_not_recognised`);
@@ -535,6 +565,17 @@ export async function createSheet(env, group, now = Date.now()) {
   await db.prepare('INSERT INTO source (kind, spreadsheet_id, title, updated_at) VALUES (?,?,?,?) ON CONFLICT(kind) DO UPDATE SET spreadsheet_id=excluded.spreadsheet_id, title=excluded.title, updated_at=excluded.updated_at').bind(group, made.spreadsheetId, made.properties.title, now).run();
   return made.spreadsheetId;
 }
+/** A rate card he links once: the first tab whose columns read as service lines (read only; nothing kept as a source). */
+export async function readSheetGrid(env, link) {
+  const id = spreadsheetIdFrom(link);
+  if (!id) return null;
+  const { tabs } = await sheetTabs(env, id);
+  for (const tab of tabs.slice(0, 10)) {
+    const grid = await readTab(env, id, tab);
+    if (catalogFromGrid(grid)?.length) return grid;
+  }
+  return [];
+}
 export const sheetUrl = (id) => (id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : '');
 
 /* ------------------------------------------------------------------ quick actions */
@@ -661,11 +702,16 @@ export async function updateDeal(env, { rowId, fields, session }, now = Date.now
   }
   const action = String(fields.next_action ?? '').trim().slice(0, 300);
   if (fields.next_action !== undefined && action !== String(row.next_action || '')) changes.next_action = action;
+  // His notes and the deal's owner live in his tracker, where he can see and edit them (Scooter,
+  // 14 Nov 2026: "notes save only into your site's database and never reach my tracker - they need
+  // to live where I can see and edit them").
+  if (fields.notes !== undefined) { const t = String(fields.notes).replace(/\r\n/g, '\n').trim().slice(0, 4000); if (t !== String(row.notes || '').trim()) changes.notes = t; }
+  if (fields.owner !== undefined) { const o = String(fields.owner).trim().slice(0, 120); if (o !== String(row.owner || '').trim()) changes.owner = o; }
   const date = String(fields.next_date ?? '').trim();
   if (fields.next_date !== undefined && date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'bad_date' }), outcome: 'failed' };
   if (fields.next_date !== undefined && !sameCell('next_date', date, row.next_date) && !(date === '' && !row.next_date)) changes.next_date = date;
   if (!Object.keys(changes).length) return { id: await logAction(db, { ...base, outcome: 'failed', detail: 'nothing_to_change' }), outcome: 'failed' };
-  const words = { stage: 'stage', next_action: 'next action', next_date: 'next date' };
+  const words = { stage: 'stage', next_action: 'next action', next_date: 'next date', notes: 'notes', owner: 'owner' };
   return writeRow(env, db, { kind: 'deals', rowId, changes, base, label: `${row.org || 'the deal'}: ${Object.keys(changes).map((k) => words[k]).join(', ')}`, session }, now);
 }
 
@@ -674,17 +720,21 @@ export async function updateDeal(env, { rowId, fields, session }, now = Date.now
  * pipeline, never a change to an existing row), filled only in the columns his tracker has. Then it
  * re-reads the tab and only a row that is really there counts.
  */
-export async function addDealFromInquiry(env, { journey, session }, now = Date.now()) {
+export async function addDealFromInquiry(env, { journey, session, carry = {} }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
   const base = { at: now, owner: session.ownerId, sample: session.sample, kind: 'deals', rowId: journey.key, action: 'add_deal' };
   const fail = async (detail) => ({ id: await logAction(db, { ...base, outcome: 'failed', detail }), outcome: 'failed' });
   const inq = journey.inquiries.at(-1) || {};
   const { stages } = await dealStages(db, session.sample);
-  const values = { org: journey.name, stage: stages[0] || FUNNEL_STAGES[0], contact: inq.name || '', email: inq.email || '', source: 'Website inquiry', next_action: 'Reply to the inquiry', next_date: isoDay(now) };
+  const values = { org: journey.name, stage: stages[0] || FUNNEL_STAGES[0], contact: inq.name || '', email: inq.email || '', source: carry.source || (inq.from_site ? 'Website: Start a project' : 'Website inquiry'), next_action: carry.next_action || 'Reply to the inquiry', next_date: isoDay(now) };
+  if (carry.owner) values.owner = carry.owner;
+  values.opportunity = journey.name; // only where his tracker has an Opportunity column of its own
+  const need = carry.need || inq.initiative || '';
+  if (carry.note || need) values.notes = [need ? `Need: ${need}` : '', carry.note || ''].filter(Boolean).join('\n').slice(0, 4000);
   if (session.sample) {
     const id = `SD-${orgKey(journey.name).slice(0, 20)}`;
-    await db.prepare('INSERT OR IGNORE INTO sample_sheet (kind, row_id, data) VALUES (?,?,?)').bind('deals', id, JSON.stringify({ id, owner: 'Sample Lead', proposal_sent: '', follow_up: '', ...values })).run();
+    await db.prepare('INSERT OR IGNORE INTO sample_sheet (kind, row_id, data) VALUES (?,?,?)').bind('deals', id, JSON.stringify({ id, owner: 'Sample Lead', proposal_sent: '', follow_up: '', notes: '', ...values })).run();
     return { id: await logAction(db, { ...base, outcome: 'saved', detail: `${journey.name}: added to the tracker|Sample sheet` }), outcome: 'saved' };
   }
   const layoutRow = await db.prepare("SELECT value FROM setting WHERE key = 'layout:deals'").first();
@@ -914,7 +964,10 @@ export function todayItems(view, { connections, ticked, now = Date.now() }) {
     const provider = key.startsWith('disconnected:') ? key.slice(13) : '';
     if (!provider || connections.some((c) => c.provider === provider)) continue;
     const label = provider === 'google' ? 'Google' : provider === 'docusign' ? 'DocuSign' : provider === 'quickbooks' ? 'QuickBooks' : provider[0].toUpperCase() + provider.slice(1);
-    items.push({ key: `off:${provider}:${at}`, kind: 'connection', rowId: provider, title: `${label} is disconnected`, sub: `${DISCONNECTED_STOPS[provider] || 'What it showed is paused'} until you connect it again`, tone: 'gold', action: 'reconnect' });
+    const narrowed = provider === 'google' && Boolean(view.settings.google_narrowed);
+    items.push(narrowed
+      ? { key: `off:${provider}:${at}`, kind: 'connection', rowId: provider, title: 'Google\'s wider access was withdrawn', sub: 'Connect Google again: it now asks only for your sheets, file names and calendar events', tone: 'gold', action: 'reconnect' }
+      : { key: `off:${provider}:${at}`, kind: 'connection', rowId: provider, title: `${label} is disconnected`, sub: `${DISCONNECTED_STOPS[provider] || 'What it showed is paused'} until you connect it again`, tone: 'gold', action: 'reconnect' });
   }
   for (const [kind, s] of Object.entries(view.sync)) {
     if (s.status === 'failed') items.unshift({ key: `sync:${kind}:${s.error}`, kind: 'sync', rowId: kind, title: `Could not read your ${KINDS[kind].group} sheet`, sub: s.error === 'cannot_open_sheet' ? 'The sheet could not be opened: check it still exists and is shared with you' : 'The last sync failed; the numbers below may be out of date', tone: 'red', action: 'reconnect' });
@@ -983,7 +1036,7 @@ export function journeys(view, { notes = {}, now = Date.now() } = {}) {
       : deal?.next_action ? { text: deal.next_action, date: deal.next_date, tone: (daysSince(deal.next_date, now) ?? -1) > 0 ? 'gold' : '' }
         : step === 1 ? { text: 'Reply, and add them to your tracker', date: j.inquiries.at(-1)?.at, tone: 'gold' } : null;
     const when = Math.max(0, ...j.inquiries.map((i) => toTime(i.at) || 0), ...j.invoices.map((i) => toTime(i.due) || 0), ...j.deals.map((d) => toTime(d.next_date) || 0));
-    return { ...j, deal, signedBy, invoiced, paid, open: invoiced - paid - j.invoices.filter((i) => /draft/i.test(i.status || '')).reduce((a, i) => a + amount(i), 0), openRows, overdue, step, lost, where, next, when, note: notes[j.key] || null };
+    return { ...j, deal, signedBy, invoiced, paid, open: invoiced - paid - j.invoices.filter((i) => /draft/i.test(i.status || '')).reduce((a, i) => a + amount(i), 0), openRows, overdue, step, lost, where, next, when, note: deal?.notes ? { text: String(deal.notes), at: null } : notes[j.key] || null };
   });
   const rank = (j) => (j.overdue.length ? 0 : j.next?.tone === 'gold' ? 1 : j.lost ? 3 : 2);
   return list.sort((a, b) => rank(a) - rank(b) || b.when - a.when || a.name.localeCompare(b.name));

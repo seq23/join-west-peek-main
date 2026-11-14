@@ -431,13 +431,19 @@ const realFetch = globalThis.fetch;
     const again = await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-z', back: '/dashboard/flow/org-z' } });
     check('lead to cash: it is never added twice', pipeline.length === rows0 + 1 && again.status === 303);
 
+    // Notes live in his tracker's Notes cell (Scooter, 14 Nov 2026: "they need to live where I can see and edit them").
+    const cellsBeforeNote = g.cellsWritten;
+    const rowsBeforeNote = pipeline.length;
     const n1 = await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-b', text: 'Board meets in March', back: '/dashboard/flow/org-b' } });
-    check('notes: saving a note is confirmed', /Note saved/.test((await call(env, n1.location, { cookie: s.cookie })).text));
+    check('notes: saving a note writes his tracker\'s Notes cell on that row, confirmed', pipeline.find((r) => r[0] === 'Org B')[4] === 'Board meets in March' && /Saved and checked: Org B: notes/.test((await call(env, n1.location, { cookie: s.cookie })).text));
+    check('notes: only the Notes cell is written; no row or column added, other cells unchanged', g.cellsWritten - cellsBeforeNote === 1 && pipeline.length === rowsBeforeNote && pipeline.find((r) => r[0] === 'Org B')[1] === 'Signed agreement' && pipeline.every((r, i) => i < 2 || r.length === 6));
     await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-b', text: 'Board moved to April', back: '/dashboard/flow/org-b' } });
     const onPhone = await call(env, '/dashboard/flow/org-b', { cookie: second.cookie });
-    check('notes: the newest note shows after a reload and on a second device, with the earlier one kept', /Board moved to April/.test(onPhone.text) && /Earlier versions · 1/.test(onPhone.text) && /Board meets in March/.test(onPhone.text));
-    check('notes: never written into his tracker', pipeline.find((r) => r[0] === 'Org B')[4] === 'Original note' && !JSON.stringify(pipeline).includes('Board'));
-    check('notes: Lead to cash shows the note line', /Note: Board moved to April/.test((await call(env, '/dashboard/flow', { cookie: s.cookie })).text));
+    check('notes: the newest note is in his tracker and shows after a reload and on a second device, every version kept', pipeline.find((r) => r[0] === 'Org B')[4] === 'Board moved to April' && /<textarea id="nt"[^>]*>Board moved to April</.test(onPhone.text) && /Earlier versions · 2/.test(onPhone.text) && /Board meets in March/.test(onPhone.text));
+    pipeline.find((r) => r[0] === 'Org B')[4] = 'Edited in the sheet';
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
+    check('notes: a note he edits in his tracker is what the record shows', /<textarea id="nt"[^>]*>Edited in the sheet</.test((await call(env, '/dashboard/flow/org-b', { cookie: s.cookie })).text));
+    check('notes: Lead to cash shows the note line from his tracker', /Note: Edited in the sheet/.test((await call(env, '/dashboard/flow', { cookie: s.cookie })).text));
 
     // Access: what Google allows, who can open each sheet, what is kept.
     await env.PRODUCTIONS_DB.prepare("UPDATE connection SET scopes = ? WHERE provider = 'google'").bind('openid https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/calendar.readonly').run();
@@ -445,7 +451,7 @@ const realFetch = globalThis.fetch;
     const acc = await call(env, '/dashboard/access', { cookie: s.cookie });
     check('access: the wider grant is named in plain words with Narrow', /Write and send email as you/.test(acc.text) && /action="\/dashboard\/google\/narrow"/.test(acc.text));
     check('access: who can open each connected sheet, live from Google', /Tracker test/.test(acc.text) && /Anyone with the link can open it/.test(acc.text) && /Helper A \(helper-a@example\.test\) can edit/.test(acc.text));
-    check('access: every kept table is described, with counts', BACKUP_TABLES.every((t) => TABLE_WORDS[t]) && /Your notes on each lead and client, every saved version<\/span><span>2 rows/.test(acc.text));
+    check('access: every kept table is described, with counts', BACKUP_TABLES.every((t) => TABLE_WORDS[t]) && /Every saved version of your notes[^<]*<\/span><span>2 rows/.test(acc.text));
     const revokedBefore = g.revoked.length;
     const nar = await call(env, '/dashboard/google/narrow', { method: 'POST', cookie: s.cookie });
     const nScope = nar.location ? new URL(nar.location).searchParams.get('scope') : '';
@@ -791,6 +797,184 @@ const realFetch = globalThis.fetch;
   const helpIn = await call(env, '/dashboard/help', { cookie: s.cookie });
   const asksByEmail = (t) => /SECRET [A-Z_]+=|Email <a href="mailto:[^"]+">[^<]+<\/a> two lines/.test(t) || /email[^.<]{0,80}\b(key|secret)\b/i.test(t.replace(/Never include a password or an app key[^.]*\./g, '').replace(/Never email a key\./g, ''));
   check('keys: Help asks for no key by email, signed in or out', !asksByEmail(help.text) && !asksByEmail(helpIn.text) && /Paste each key into its box on the Connections page/.test(help.text));
+}
+
+// Lead to delivery (Scooter, 14 Nov 2026, the whole vision). His Pipeline tab: a summary block on rows
+// 1-10, column names on row 11 (Opportunity through Flag, A to N), data from row 12. Then intake from
+// his own site's form, a researched lead he picks, discovery shaped per deal, the pricing builder
+// (floor, his price, rationale apart), quote to proposal, acceptance to delivery, a client portal that
+// shows one client only and no money, the money hold, the Google grant withdrawn, and the cash rules.
+{
+  const { onRequestPost } = await import('../functions/api/lead.js');
+  const { discoveryQuestions, quoteMath, cashPicture, proposalDraft } = await import('../functions/_lib/pd/deal.mjs');
+  const g = fakeGoogle();
+  const PIPE = 'PIPELINESHEETID00000000000001';
+  const head = ['Opportunity', 'Organization', 'Contact', 'Service', 'Buyer type', 'Stage', 'Owner', 'Value', 'Probability', 'Expected close', 'Next step', 'Next step date', 'Notes', 'Flag'];
+  const summary = [['Pipeline summary'], ['Stage', 'Count', 'Value'], ['Discovery', '1', '9'], ['Proposal', '1', '9'], [], ['Owner', 'Open'], ['Lead', '2'], [], ['Updated', '11/14/2026'], []];
+  const pipeline = [...summary, head, ['Org K film', 'Org K', 'Contact K', 'Brand', 'Foundation', 'Discovery', 'Lead', '9', '50%', '12/15/2026', 'Scope call', '11/20/2026', 'First note', ''], ['Org L summit', 'Org L', 'Contact L', 'Events', 'Brand', 'Proposal', 'Lead', '9', '30%', '1/10/2027', '', '', '', 'Hot']];
+  g.sheets[PIPE] = { title: 'Pipeline test', tabs: { Pipeline: pipeline } };
+  globalThis.fetch = g.fetch;
+  try {
+    const env = ENV({ google: true });
+    await seedOwner(env);
+    const s = await signIn(env, OWNER, PW);
+    const start = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'google' } });
+    await call(env, `/dashboard/oauth/callback?state=${new URL(start.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
+    await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${PIPE}/edit` } });
+    const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
+    check('row 11: the table under his summary block is read, not the summary', /Deals · 2/.test(deals.text) && /Org K/.test(deals.text) && /Org L/.test(deals.text) && /Pipeline, column names on row 11/.test(deals.text), (deals.text.match(/Deals · \d+|column names on row \d+/g) || []).join(' '));
+    check('row 11: Opportunity through Flag are each understood', ['Opportunity', 'Organization', 'Service', 'Buyer type', 'Probability', 'Expected close', 'Notes', 'Flag'].every((h) => new RegExp(`<span>${h}</span><span>`).test(deals.text)));
+    const snap = JSON.stringify(pipeline);
+    await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-k', stage: 'Solution and budget', back: '/dashboard/flow/org-k' } });
+    check('row 11: a stage change writes row 12 only, in the Stage column', pipeline[11][5] === 'Solution and budget' && JSON.stringify(pipeline.slice(0, 11)) === JSON.stringify(JSON.parse(snap).slice(0, 11)) && pipeline[12][5] === 'Proposal' && pipeline.length === 13);
+
+    // His own site's Start a project form lands in Inquiries (productions host; email to Scooter, never the network sheet).
+    const leadEnv = { ...env, LEAD_TO: 'owner-a@example.test' };
+    const body = new URLSearchParams({ lead_type: 'productions_start_a_project', name: 'Person M', email: 'org-m@example.test', organization: 'Org M', initiative: 'A member summit in spring', timing: 'Next quarter', heard_about: 'Referral', source_page: '/start' });
+    const lead = await onRequestPost({ request: new Request('https://westpeekproductions.com/api/lead', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body }), env: leadEnv });
+    const leadBody = await lead.json();
+    check('intake: a Start a project submission is delivered by email and never written to the network sheet', lead.status === 200 && leadBody.ok === true && leadBody.sheet === 'not_applicable');
+    const inq = await call(env, '/dashboard/inquiries', { cookie: s.cookie });
+    check('intake: it shows on Inquiries with person, organization, need and owner', /Org M ›/.test(inq.text) && /Person M · org-m@example\.test/.test(inq.text) && /Needs: A member summit in spring/.test(inq.text) && /Owner: <span class="d-gap">nobody yet/.test(inq.text) && /your site/.test(inq.text));
+    await call(env, '/dashboard/intake', { method: 'POST', cookie: s.cookie, form: { key: 'org-m', owner: 'Owner A', need: 'Spring member summit, hybrid', back: '/dashboard/flow/org-m' } });
+    await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-m', text: 'Met at the conference', back: '/dashboard/flow/org-m' } });
+    const second = await signIn(env, OWNER, PW);
+    const recM = await call(env, '/dashboard/flow/org-m', { cookie: second.cookie });
+    check('intake: the owner and need persist on a second device', /value="Owner A"/.test(recM.text) && /Spring member summit, hybrid/.test(recM.text));
+    const rowsBefore = pipeline.length;
+    await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-m', back: '/dashboard/flow/org-m' } });
+    const mRow = pipeline.at(-1);
+    check('intake: added to his tracker as ONE row carrying owner, need and note', pipeline.length === rowsBefore + 1 && mRow[1] === 'Org M' && mRow[0] === 'Org M' && mRow[6] === 'Owner A' && /Need: Spring member summit, hybrid/.test(mRow[12]) && /Met at the conference/.test(mRow[12]) && mRow.length === 14, JSON.stringify(mRow));
+    await call(env, '/dashboard/intake', { method: 'POST', cookie: s.cookie, form: { key: 'org-m', owner: 'Owner B', back: '/dashboard/flow/org-m' } });
+    check('intake: once in his tracker, the owner is written to its Owner cell', pipeline.at(-1)[6] === 'Owner B');
+
+    // A researched lead he picks by hand: one row, Source "Researched" only if his tracker has that column (it has not: nothing added).
+    const before2 = pipeline.length;
+    await call(env, '/dashboard/lead/add', { method: 'POST', cookie: s.cookie, form: { org: 'Org N', name: 'Person N', email: 'org-n@example.test', need: 'Annual report film', owner: 'Owner A', back: '/dashboard/inquiries' } });
+    check('researched lead: exactly one row, only in his columns, never a new column', pipeline.length === before2 + 1 && pipeline.at(-1)[1] === 'Org N' && pipeline.at(-1)[6] === 'Owner A' && pipeline.at(-1).length === 14 && pipeline[10].length === 14);
+    await call(env, '/dashboard/lead/add', { method: 'POST', cookie: s.cookie, form: { org: 'Org N', back: '/dashboard/inquiries' } });
+    check('researched lead: never added twice', pipeline.length === before2 + 1);
+
+    // Discovery: different questions for a foundation asking for brand work and a brand asking for an activation.
+    const fq = discoveryQuestions({ service: 'brand', buyer: 'foundation', objective: 'funding', budget: 'unknown' }).map((q) => q.id);
+    const bq = discoveryQuestions({ service: 'activation', buyer: 'brand', objective: 'sales', budget: 'initiative' }).map((q) => q.id);
+    check('discovery: a foundation\'s brand work and a brand\'s activation get different questions', fq.includes('f_board') && fq.includes('b_gap') && !fq.includes('a_moment') && bq.includes('a_moment') && bq.includes('br_kpi') && !bq.includes('f_board') && fq.slice(0, 5).join() === bq.slice(0, 5).join());
+    const dPage = await call(env, '/dashboard/flow/org-k/discovery', { cookie: s.cookie });
+    check('discovery: the deal\'s own Service and Buyer type columns shape the questions', /value="brand" selected/.test(dPage.text) && /value="foundation" selected/.test(dPage.text) && /board or trustees/.test(dPage.text));
+    await call(env, '/dashboard/discovery', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', p_service: 'brand', p_buyer: 'foundation', p_objective: 'funding', p_budget: 'unknown', a_outcome: 'Funders understand the grantee work', a_audience: 'Program officers', back: '/dashboard/flow/org-k/discovery' } });
+    check('discovery: answers persist on a second device', /Funders understand the grantee work/.test((await call(env, '/dashboard/flow/org-k/discovery', { cookie: second.cookie })).text));
+
+    // Money hold: a Google connection that still holds the wide grant refuses rates and quotes.
+    await env.PRODUCTIONS_DB.prepare("UPDATE connection SET scopes = ? WHERE provider = 'google'").bind('openid https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.compose').run();
+    const held = await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', qty_L11: '1', price: '9', back: '/dashboard/flow/org-k/quote' } });
+    check('money hold: no quote is kept while the wide Google grant stands', /m=money_held/.test(held.location || '') && !(await env.PRODUCTIONS_DB.prepare('SELECT id FROM quote').first()));
+    // The next sync withdraws the wide grant at Google by itself, and Today says so.
+    const revoked0 = g.revoked.length;
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
+    const today = await call(env, '/dashboard', { cookie: s.cookie });
+    check('grant: the next sync withdraws the wider Google grant at Google; his named sheets stay', g.revoked.length === revoked0 + 1 && !(await env.PRODUCTIONS_DB.prepare("SELECT provider FROM connection WHERE provider = 'google'").first()) && (await env.PRODUCTIONS_DB.prepare("SELECT kind FROM source WHERE kind = 'tracker'").first()) && /Google(&#39;|')s wider access was withdrawn/.test(today.text));
+    const st = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'google' } });
+    check('grant: reconnecting asks Google for no Gmail and no Drive contents', !/gmail|drive\.readonly/.test(new URL(st.location).searchParams.get('scope')));
+    await call(env, `/dashboard/oauth/callback?state=${new URL(st.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
+
+    // The pricing builder: catalog rates are his, kept encrypted; floor, price and rationale stay apart.
+    const cat = await call(env, '/dashboard/catalog', { cookie: s.cookie });
+    check('catalog: the structure is there and every rate starts unknown', /Account lead time/.test(cat.text) && !/name="cost_0" inputmode="decimal" value="\d/.test(cat.text));
+    const catForm = { n: '3', id_0: 'L11', line_0: 'Discovery workshop', service_0: 'brand', unit_0: 'session', cost_0: '700', id_1: 'L12', line_1: 'Narrative and messaging', service_1: 'brand', unit_1: 'deliverable', cost_1: '', id_2: 'L20', line_2: 'Account lead time', service_2: 'team', unit_2: 'hour', cost_2: '90', back: '/dashboard/catalog' };
+    const cs = await call(env, '/dashboard/catalog', { method: 'POST', cookie: s.cookie, form: catForm });
+    const catRow = await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM catalog').first();
+    check('catalog: saved, read back, and stored encrypted (no rate in plain)', /m=catalog_saved/.test(cs.location || '') && catRow && !/700|Discovery workshop/.test(catRow.data_enc));
+    const q1 = await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', qty_L11: '2', qty_L12: '1', qty_L20: '10', month_L11: '1', price: '', term: '6', plan: 'monthly', rationale: 'A story funders can repeat', back: '/dashboard/flow/org-k/quote' } });
+    const qp = await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie });
+    check('quote: the floor counts team time, names the unknown line, and no price is picked for him', /m=quote_saved/.test(q1.location || '') && /[$]2,300/.test(qp.text) && /Unknown costs: Narrative and messaging/.test(qp.text) && /set your price to see it/.test(qp.text) && /name="price" inputmode="decimal" value=""/.test(qp.text));
+    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', qty_L11: '2', qty_L12: '1', qty_L20: '10', month_L11: '1', price: '6000', term: '6', plan: 'monthly', rationale: 'A story funders can repeat', title: 'Proposal for Org K', back: '/dashboard/flow/org-k/quote' } });
+    const qp2 = await call(env, '/dashboard/flow/org-k/quote', { cookie: second.cookie });
+    check('quote: with his price, the margin is "at most" while a cost is unknown, and the 6-month bundle is visible', /[$]3,700/.test(qp2.text) && /at most/.test(qp2.text) && /[$]1,000 a month for 6 months/.test(qp2.text));
+    check('quote: payment timing against when costs go out, month by month', /Month 1/.test(qp2.text) && /Month 6/.test(qp2.text));
+    const m = quoteMath({ lines: [{ line: 'x', qty: 1, cost: 5000, month: 1 }], price: 6000, term: 3, plan: 'monthly' });
+    check('quote: a month where costs go out before payment arrive is named', m.shortMonths.includes(1) && m.timeline[2].position === 1000);
+    check('quote: every quote is stored encrypted', !(await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM quote').all()).results.some((r) => /6000|funders/.test(r.data_enc)));
+
+    // Quote to proposal: the draft carries price, scope and term; never the floor, a rate or the margin.
+    await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'draft', back: '/dashboard/flow/org-k/proposal' } });
+    const pp = await call(env, '/dashboard/flow/org-k/proposal', { cookie: s.cookie });
+    const text = (pp.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '';
+    check('proposal: drafted from the quote and discovery, editable', /Funders understand the grantee work/.test(text) && /[$]6,000 in total/.test(text) && /bundled over 6 months, [$]1,000 a month/.test(text) && /Discovery workshop: 2 sessions/.test(text));
+    check('proposal: never the cost floor, a rate, team time or the margin', !/2,300|3,700|700|Account lead time|margin|floor/i.test(text));
+    await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'save', status: 'sent', text: `${text.replace(/&amp;/g, '&')}\nEdited by hand.`, back: '/dashboard/flow/org-k/proposal' } });
+    const pp2 = await call(env, '/dashboard/flow/org-k/proposal', { cookie: second.cookie });
+    check('proposal: his edit and its Sent status persist on a second device', /Edited by hand\./.test(pp2.text) && /Sent to the client · version 2/.test(pp2.text));
+    check('proposal: the deal record carries discovery, quote, proposal, documents and emails in one place', ((t) => /Discovery ›/.test(t) && /Sent to the client/.test(t) && /Documents named for Org K/.test(t) && /mail\.google\.com\/mail\/u\/0\/#search/.test(t))((await call(env, '/dashboard/flow/org-k', { cookie: s.cookie })).text));
+
+    // Accepted: the deal moves to his signed stage in his tracker, and the work side starts.
+    const acc = await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'accept', team: 'Owner A: account lead', back: '/dashboard/flow/org-k/proposal' } });
+    const tokenK = new URL(`${PROD}${acc.location}`).searchParams.get('portal');
+    check('accepted: the deal moves to Signed agreement in his tracker, read back', pipeline[11][5] === 'Signed agreement' && /m=accepted/.test(acc.location || ''));
+    const dv = await call(env, acc.location, { cookie: s.cookie });
+    check('accepted: account team, a task per scope line (no team-time task) and the portal link shown once', /Owner A: account lead/.test(dv.text) && /Discovery workshop/.test(dv.text) && /Narrative and messaging/.test(dv.text) && !/<s>Account lead time|>Account lead time</.test(dv.text) && dv.text.includes(`/portal/${tokenK}`));
+    check('accepted: no invoice is created', !(await env.PRODUCTIONS_DB.prepare("SELECT row_id FROM row_cache WHERE kind = 'invoices'").first()) && !Object.values(g.sheets).some((x) => x.tabs.Invoices));
+    check('accepted: the portal link itself is never stored, only its hash', !JSON.stringify((await env.PRODUCTIONS_DB.prepare('SELECT * FROM portal').all()).results).includes(tokenK));
+    await call(env, '/dashboard/delivery/task', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', title: 'Internal budget check', owner: 'Owner A', back: '/dashboard/flow/org-k/delivery' } });
+    await call(env, '/dashboard/delivery/asset', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', label: 'Shared folder K', url: 'https://drive.google.com/drive/folders/folder-k', client: '1', back: '/dashboard/flow/org-k/delivery' } });
+    const taskId = (await env.PRODUCTIONS_DB.prepare("SELECT id FROM task WHERE key = 'org-k' AND title = 'Discovery workshop'").first())?.id ?? -1;
+    await call(env, '/dashboard/delivery/task/set', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', id: String(taskId), field: 'done', value: '1', back: '/dashboard/flow/org-k/delivery' } });
+
+    // A second client, accepted the same way, has its own portal.
+    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', qty_L11: '1', price: '4000', back: '/dashboard/flow/org-l/quote' } });
+    await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', do: 'draft', back: '/dashboard/flow/org-l/proposal' } });
+    const accL = await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', do: 'accept', team: '', back: '/dashboard/flow/org-l/proposal' } });
+    const tokenL = new URL(`${PROD}${accL.location}`).searchParams.get('portal');
+    await call(env, '/dashboard/delivery/task', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', title: 'Venue walk-through L', client: '1', back: '/dashboard/flow/org-l/delivery' } });
+
+    const { handlePortal } = await import('../functions/_lib/productions-dashboard.mjs');
+    const portal = async (t, host = PROD) => { const r = await handlePortal({ request: new Request(`${host}/portal/${t}`), env }); return { status: r.status, text: await r.text() }; };
+    const pK = await portal(tokenK);
+    check('portal: the client sees their own tasks (done marked) and shared files', pK.status === 200 && /Org K/.test(pK.text) && /<s>Discovery workshop<\/s>/.test(pK.text) && /Shared folder K/.test(pK.text));
+    check('portal: never an internal task, another client, a note, a quote, a rate, a price or money', !/Internal budget check|Org L|Venue walk-through L|Board|First note|6,000|6000|2,300|700|\$|Proposal|margin|floor/i.test(pK.text.replace(/<style>[\s\S]*?<\/style>/, '')));
+    const pL = await portal(tokenL);
+    check('portal: each client sees only their own', /Venue walk-through L/.test(pL.text) && !/Shared folder K|Org K/.test(pL.text) && !/<s>/.test(pL.text));
+    check('portal: a made-up link opens nothing', (await portal('A'.repeat(32))).status === 404);
+    check('portal: other hosts 404', (await portal(tokenK, 'https://joinwestpeek.com')).status === 404);
+    await call(env, '/dashboard/delivery/portal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'off', back: '/dashboard/flow/org-k/delivery' } });
+    check('portal: turned off, the link stops working at once', (await portal(tokenK)).status === 404 && (await portal(tokenL)).status === 200);
+    const nw = await call(env, '/dashboard/delivery/portal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'new', back: '/dashboard/flow/org-k/delivery' } });
+    const tokenK2 = new URL(`${PROD}${nw.location}`).searchParams.get('portal');
+    check('portal: a new link works, the old one does not', (await portal(tokenK2)).status === 200 && (await portal(tokenK)).status === 404);
+
+    // Keep money out also holds the pricing builder.
+    await call(env, '/dashboard/choice', { method: 'POST', cookie: s.cookie, form: { key: 'money', value: 'off', back: '/dashboard/access#limit' } });
+    check('money hold: with Keep money out, the quote page shows no figures', /Keep money out is on/.test((await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie })).text) && !/[$]2,300/.test((await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie })).text));
+    await call(env, '/dashboard/choice', { method: 'POST', cookie: s.cookie, form: { key: 'money', value: 'on', back: '/dashboard/access#limit' } });
+
+    // Synced copies can be deleted on request; his sheets are not touched.
+    const pipeBefore = JSON.stringify(pipeline);
+    await call(env, '/dashboard/copies/delete', { method: 'POST', cookie: s.cookie });
+    check('copies: Delete the synced copies empties the copy and leaves his sheet as it was', Number((await env.PRODUCTIONS_DB.prepare('SELECT COUNT(*) AS n FROM row_cache').first()).n) === 0 && JSON.stringify(pipeline) === pipeBefore);
+    check('access: the page says what is stored, who can reach it and how it is deleted', ((t) => /How it is deleted/.test(t) && /Backups are kept 30 days/.test(t) && /administrators could technically open/.test(t))((await call(env, '/dashboard/access', { cookie: s.cookie })).text));
+    check('backup: every new table is carried', ['web_inquiry', 'intake', 'discovery', 'catalog', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal'].every((t) => BACKUP_TABLES.includes(t) && TABLE_WORDS[t]));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  // The cash rules, as numbers.
+  const day = (n) => new Date(NOW + n * 86400000).toISOString().slice(0, 10);
+  const pic = cashPicture({
+    now: NOW,
+    cash: [{ week: day(-2), opening: '10000' }],
+    invoices: [
+      { id: 'I1', client: 'Org A', amount: '1000', status: 'Paid', settled_on: '' },
+      { id: 'I2', client: 'Org B', amount: '2000', status: 'Paid', settled_on: day(-5) },
+      { id: 'I3', client: 'Org C', amount: '3000', status: 'Sent', issued: day(-10), terms: 'Net 30' },
+      { id: 'I4', client: 'Org D', amount: '4000', status: 'Sent', terms: 'On delivery' },
+      { id: 'I5', client: 'Org E', amount: '500', status: 'Sent', issued: day(-40), terms: 'Net 30' }
+    ],
+    receipts: [{ client: 'Org C', amount: '3000', date: day(20) }, { client: 'Org F', amount: '700', date: day(-3) }, { client: 'Org G', amount: '800', date: day(5) }]
+  });
+  check('cash: "paid" on a sheet with no settled date is neither cash nor forecast', pic.markedOnly.length === 1 && pic.markedOnly[0].what === 'Invoice I1' && !pic.forecast.some((f) => f.what === 'Invoice I1'));
+  check('cash: actual and forecast stay two numbers', pic.actual.amount === 10000 && pic.forecastNext4 === 4300 && pic.forecast.find((f) => f.client === 'Org E')?.overdue === true);
+  check('cash: a payment already in the balance is not counted again, and a receipt that is an open invoice counts once', pic.alreadyInBalance === 2 && pic.forecast.filter((f) => f.client === 'Org C').length === 1);
+  check('cash: payment terms carry through: Net 30 from issue; "on delivery" waits out of the forecast', new Date(pic.forecast.find((f) => f.client === 'Org C').at).toISOString().slice(0, 10) === day(20) && pic.held.some((h) => h.client === 'Org D' && /delivery/i.test(h.waits)));
+  check('proposal draft: no unknown or team line leaks', !/Specialist/.test(proposalDraft({ name: 'Org A', quote: { lines: [{ line: 'Specialist time', qty: 2, unit: 'hour', team: true, cost: 100 }], price: 100, term: 0, plan: 'signing' }, discovery: null })));
 }
 
 if (failures.length) {

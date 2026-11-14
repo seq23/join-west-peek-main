@@ -46,11 +46,39 @@ export const MIGRATIONS = [
       'CREATE TABLE IF NOT EXISTS note (id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, owner_id TEXT, at INTEGER NOT NULL, text TEXT NOT NULL)',
       'CREATE INDEX IF NOT EXISTS note_subject ON note (subject, sample)'
     ]
+  },
+  {
+    // Lead to delivery (Scooter, 14 Nov 2026: "a lead comes in, becomes a deal, becomes a signed
+    // client, becomes delivered work with a client portal, and the money stays mine to see").
+    // web_inquiry: the Start a project form on his own site. intake: the owner and need on an inquiry
+    // that is not in his tracker yet. discovery, quote, proposal: every save a row (newest wins).
+    // Rates, quotes and the catalog are AES-GCM encrypted with PRODUCTIONS_TOKEN_KEY. delivery, task,
+    // asset: the work side of an accepted deal. portal: a client's private page, found by a token
+    // hash; one client per token, revocable.
+    version: 4,
+    sql: [
+      'CREATE TABLE IF NOT EXISTS web_inquiry (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, form TEXT, name TEXT, org TEXT, email TEXT, need TEXT, timing TEXT, budget TEXT, heard TEXT, page TEXT)',
+      'CREATE TABLE IF NOT EXISTS intake (key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, owner TEXT, need TEXT, at INTEGER NOT NULL, PRIMARY KEY (key, sample))',
+      'CREATE TABLE IF NOT EXISTS discovery (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, data TEXT NOT NULL)',
+      'CREATE INDEX IF NOT EXISTS discovery_key ON discovery (key, sample)',
+      'CREATE TABLE IF NOT EXISTS catalog (sample INTEGER PRIMARY KEY, data_enc TEXT NOT NULL, at INTEGER NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS quote (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, data_enc TEXT NOT NULL)',
+      'CREATE INDEX IF NOT EXISTS quote_key ON quote (key, sample)',
+      'CREATE TABLE IF NOT EXISTS proposal (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, quote_id INTEGER, status TEXT NOT NULL, text_enc TEXT NOT NULL)',
+      'CREATE INDEX IF NOT EXISTS proposal_key ON proposal (key, sample)',
+      'CREATE TABLE IF NOT EXISTS delivery (key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, team TEXT, PRIMARY KEY (key, sample))',
+      'CREATE TABLE IF NOT EXISTS task (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, title TEXT NOT NULL, owner TEXT, due TEXT, done INTEGER NOT NULL DEFAULT 0, client INTEGER NOT NULL DEFAULT 0)',
+      'CREATE INDEX IF NOT EXISTS task_key ON task (key, sample)',
+      'CREATE TABLE IF NOT EXISTS asset (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, label TEXT NOT NULL, url TEXT NOT NULL, client INTEGER NOT NULL DEFAULT 0)',
+      'CREATE INDEX IF NOT EXISTS asset_key ON asset (key, sample)',
+      'CREATE TABLE IF NOT EXISTS portal (token_hash TEXT PRIMARY KEY, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, revoked_at INTEGER)',
+      'CREATE INDEX IF NOT EXISTS portal_key ON portal (key, sample)'
+    ]
   }
 ];
 
 /** Every table a backup carries (restore replaces each one whole). */
-export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'note', 'schema_version'];
+export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'note', 'web_inquiry', 'intake', 'discovery', 'catalog', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal', 'schema_version'];
 /** What each table keeps, in his words: the Access page lists every table a backup carries. */
 export const TABLE_WORDS = {
   owner: 'Your sign-in record: your work email, your name and a salted hash of your password (never the password itself)',
@@ -65,7 +93,17 @@ export const TABLE_WORDS = {
   setting: 'Small settings: the last sync, signature statuses, cash now from an accounting tool, and the column names of your tracker',
   sample_sheet: 'Made-up rows for the preview\'s sample mode (never real)',
   app_key: 'App keys you pasted on Connections, encrypted',
-  note: 'Your notes on each lead and client, every saved version',
+  note: 'Every saved version of your notes (the current note is the Notes cell in your tracker, where it has one)',
+  web_inquiry: 'Inquiries sent from the Start a project form on your site: name, organization, email and what they need',
+  intake: 'The owner and need you set on an inquiry that is not in your tracker yet',
+  discovery: 'Your discovery answers on each deal, every saved version',
+  catalog: 'Your service catalog and rates, encrypted',
+  quote: 'Each quote you built (cost floor, your price, rationale), encrypted, every version',
+  proposal: 'Each proposal version and whether it was sent or accepted, encrypted',
+  delivery: 'The account team on each accepted deal',
+  task: 'Tasks on each accepted deal, and which ones the client sees',
+  asset: 'Asset links on each accepted deal, and which ones the client sees',
+  portal: 'A hash of each client portal link (never the link itself), and when it was turned off',
   schema_version: 'The database\'s version number'
 };
 

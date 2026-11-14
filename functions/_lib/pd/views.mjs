@@ -8,6 +8,8 @@ import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, GROUPS, JOURNEY_FIL
 import { GOOGLE_SCOPE_WORDS, KEY_FIELDS, PROVIDERS, RETIRED_GOOGLE_SCOPES, wideGoogleScopes } from './providers.mjs';
 import { BACKUP_TABLES, TABLE_WORDS } from './schema.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
+import { cashPicture } from './deal.mjs';
+import { cashRulesSection, dealSections, inquiriesBody, intakeSection } from './views-deal.mjs';
 
 const HELP = '/dashboard/help';
 export const providerName = (p) => ({ google: 'Google', dropbox: 'Dropbox', docusign: 'DocuSign', quickbooks: 'QuickBooks', xero: 'Xero' }[p] || p);
@@ -397,11 +399,18 @@ export function renderFlowRecord(view, j, ctx) {
       : `<p class="d-sub">Not in your tracker yet.</p><form method="post" action="/dashboard/deal/add"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><button type="submit" class="d-primary">Add them to my tracker</button></form><p class="d-sub">Adds one new row at the bottom of ${esc(layout?.tab || 'your tracker')} with their organization, contact and first stage. No existing row changes.</p>`;
   } else deal = '<p class="d-sub">No row for them in your tracker.</p>';
 
-  const history = (ctx.history || []).slice(1);
-  const notes = `${j.note ? `<p class="d-note">${esc(j.note.text)}</p><p class="d-src">Saved ${esc(usTime(j.note.at, now))}</p>` : '<p class="d-sub">No note yet. What you write here stays on this record, on every device.</p>'}
-    <form class="d-form" method="post" action="/dashboard/note"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><label for="nt">${j.note ? 'Update the note' : 'Write a note'}</label><textarea id="nt" name="text" maxlength="${NOTE_MAX}">${esc(j.note?.text || '')}</textarea><p><button type="submit" class="d-primary">Save note</button></p></form>
+  // His notes live in his tracker's Notes cell where his tracker has one (Scooter, 14 Nov 2026: "they
+  // need to live where I can see and edit them"); every save is also kept here as a version.
+  const inTracker = Boolean(j.deal) && (ctx.sample || layout?.columns?.notes !== undefined);
+  const current = inTracker ? { text: String(j.deal.notes || ''), at: null } : j.note;
+  const history = (ctx.history || []).slice(inTracker ? 0 : 1);
+  const where = inTracker ? `Saved into the ${esc(ctx.sample ? 'Notes' : layout.columns.notes)} cell on their row of your tracker (only that cell), then read back. Edit it there too; the dashboard shows what your tracker says.`
+    : j.deal ? 'Your tracker has no Notes column, so notes are kept here. Nothing is ever added to your tracker; add a Notes column there and they move into it.'
+      : 'Kept with this inquiry, and written into your tracker\'s Notes when you add them.';
+  const notes = `${current?.text ? `<p class="d-note">${esc(current.text)}</p>${current.at ? `<p class="d-src">Saved ${esc(usTime(current.at, now))}</p>` : '<p class="d-src">From your tracker</p>'}` : '<p class="d-sub">No note yet. What you write here stays on this record, on every device.</p>'}
+    <form class="d-form" method="post" action="/dashboard/note"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><label for="nt">${current?.text ? 'Update the note' : 'Write a note'}</label><textarea id="nt" name="text" maxlength="${NOTE_MAX}">${esc(current?.text || '')}</textarea><p><button type="submit" class="d-primary">${inTracker ? 'Save note to my tracker' : 'Save note'}</button></p></form>
     ${history.length ? `<details class="d-fold"><summary><span>Earlier versions · ${history.length}</span></summary>${history.map((h) => `<p class="d-src">${esc(usTime(h.at, now))}</p><p class="d-note">${h.text ? esc(h.text) : '<span class="d-gap">cleared</span>'}</p>`).join('')}</details>` : ''}
-    <p class="d-sub">Notes are kept in the dashboard's own private database, never written into your tracker.</p>`;
+    <p class="d-sub">${where}</p>`;
 
   const inquiry = j.inquiries.length ? `<ul class="d-list">${j.inquiries.map((i) => `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(i.name || i.org || 'Inquiry')}${i.initiative ? ` · ${esc(i.initiative)}` : ''}</span><span class="d-row__sub">${dayOr(i.at)}${i.email ? ` · ${esc(i.email)}` : ''}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No inquiry from your form for them.</p>';
 
@@ -418,19 +427,21 @@ export function renderFlowRecord(view, j, ctx) {
 
   const nextLine = j.next ? `<p class="d-row__sub ${j.next.tone}">Next: ${esc(j.next.text)}${toTime(j.next.date) !== null ? ` · ${esc(usDay(j.next.date))}` : ''}</p>` : '';
   const body = `<p><a class="d-help" href="/dashboard/flow">← Lead to cash</a></p><h1>${esc(j.name)}</h1><p class="d-sub">${esc(j.where)}</p>${nextLine}${steps}${ctx.flash || ''}
+    ${intakeSection(j, ctx)}
     ${sec('deal', 'Deal, in your tracker', deal, source(view, ['deals'], now))}
     ${sec('notes', 'Your notes', notes)}
+    ${dealSections(j, ctx)}
     ${sec('inquiry', `Inquiry · ${j.inquiries.length}`, inquiry, source(view, ['inquiries'], now))}
     ${sec('work', 'Agreement and work', work, source(view, ['projects'], now))}
     ${sec('cash', 'Invoices and cash', money_, moneyOff ? '' : source(view, ['invoices'], now))}`;
   return page(j.name, body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
-export function renderInquiries(view, ctx) {
-  const rows = [...view.rows.inquiries].reverse().slice(0, 30);
-  const list = rows.length ? `<ul class="d-list">${rows.map((r) => `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(r.org || r.name || 'Inquiry')}</span><span class="d-row__sub">${esc(r.name || '')}${r.initiative ? ` · ${esc(r.initiative)}` : ''} · ${dayOr(r.at)}</span></div></li>`).join('')}</ul>`
-    : notConnected(ctx, 'Inquiries') || (ctx.sample || ctx.sources.inquiries ? '<p class="d-sub">No inquiries yet.</p>' : empty('Inquiries from your form show here once you name its response sheet. It is read only and never goes into any West Peek network sheet.', '/dashboard/connections#sheets', 'Name the response sheet', 'sheets'));
-  return page('Inquiries', `<h1>Inquiries</h1>${seg('inquiries')}${sec('inq', `Newest first · ${view.rows.inquiries.length}`, list, source(view, ['inquiries'], ctx.now))}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+export function renderInquiries(view, ctx, journeysByKey = {}) {
+  const { list: rows, add } = inquiriesBody(view, ctx, journeysByKey);
+  const list = rows
+    || notConnected(ctx, 'Inquiries') || (ctx.sample || ctx.sources.inquiries ? '<p class="d-sub">No inquiries yet. The Start a project form on your site and your form\'s response sheet both land here.</p>' : empty('Inquiries from the Start a project form on your site land here by themselves. To add your Google Form too, name its response sheet. Neither ever goes into any West Peek network sheet.', '/dashboard/connections#sheets', 'Name the response sheet', 'sheets'));
+  return page('Inquiries', `<h1>Inquiries</h1>${seg('inquiries')}<p class="d-sub">Every inquiry: the person, the organization, what they need and who owns it. Tap one to set its owner, keep notes and move it into your tracker.</p>${ctx.flash || ''}${sec('inq', `Newest first · ${view.rows.inquiries.length}`, list, source(view, ['inquiries'], ctx.now))}${sec('researched', 'Researched leads', add)}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
 export function renderFind(found, term, ctx) {
@@ -474,8 +485,10 @@ export function renderMoney(view, ctx) {
   const margin = r.margin.length ? `<ul class="d-kv">${r.margin.map((m) => { const c = num(m.contract); const k = num(m.costs); const complete = /^(yes|y|true|done|all)$/i.test(String(m.complete || '').trim()); return `<li><span>${esc(projectName(view, m.project))}</span><span>${!complete || c === null || k === null || !c ? gap('incomplete: costs not all entered') : `${Math.round(((c - k) / c) * 100)}%`}</span></li>`; }).join('')}</ul>` : '<p class="d-sub">No projects in the Project margin tab yet.</p>';
   // 7. Tracker vs targets.
   const tracker = r.tracker.length ? r.tracker.map((t) => { const a = num(t.actual); const g = num(t.target); const pct = a !== null && g ? Math.max(0, Math.min(100, Math.round((a / g) * 100))) : 0; return `<p class="d-row__title">${esc(t.measure)} · ${a === null ? gap() : esc(money(a))}${g ? ` of ${esc(money(g))}` : ''}</p><div class="d-meter" role="img" aria-label="${pct}% of target"><span style="width:${pct}%"></span></div>`; }).join('') : '<p class="d-sub">No measures in the Tracker tab yet.</p>';
-  const body = `<h1>Money</h1><p class="d-sub">Your Friday review, top to bottom. Scooter only; never shown to clients or agents.</p>${ctx.flash || ''}
-    ${sec('cash', 'Cash now and the next 4 weeks', cash)}
+  const pic = cashPicture({ invoices: r.invoices, receipts: r.receipts, cash: r.cash, acct, useAcct, now });
+  const body = `<h1>Money</h1><p class="d-sub">Your Friday review, top to bottom. Scooter only; never shown to clients or agents. Preview for our walk-through of the cash rules: nothing here is live until you say yes.</p>${ctx.flash || ''}
+    ${cashRulesSection(pic, ctx)}
+    ${sec('cash', 'Your Cash tab, week by week', cash)}
     ${sec('invoices', `Invoices due · ${open.length}`, inv, source(view, ['invoices'], now))}
     ${sec('aged', 'Aged receivables', aged, source(view, ['invoices'], now))}
     ${sec('receipts', 'Expected receipts', `${receipts}<p class="d-sub">A promised payment is not collected cash.</p>`, source(view, ['receipts'], now))}
@@ -609,8 +622,10 @@ export function renderAccess(ctx) {
   const scopes = `<ul class="d-kv">${Object.values(GOOGLE_SCOPE_WORDS).map((w) => `<li><span><strong>${esc(w.allows)}</strong><br><span class="d-sub">${esc(w.why)}</span></span><span></span></li>`).join('')}</ul>
     <p class="d-sub">No Gmail access: a reminder opens, written, in your own Gmail and you press Send. Google describes the Sheets permission as all spreadsheets your account can open; Google has no narrower Sheets permission without its file picker, which this dashboard does not use yet. The dashboard's code opens only the sheets listed below.</p>
     ${sample ? '' : !g ? '<p class="d-sub">Google is not connected. When you connect, Google asks for only these.</p>'
-      : wide.length ? `<div class="d-errbox" role="alert"><p><strong>Your Google connection still holds the wider access from before:</strong></p><ul>${wide.map((x) => `<li>${esc(RETIRED_GOOGLE_SCOPES[x] || x)}</li>`).join('')}</ul>${narrowForm}</div>`
-        : '<p class="d-sub">Your Google connection holds exactly these, nothing more.</p>'}`;
+      : wide.length ? `<div class="d-errbox" role="alert"><p><strong>Your Google connection still holds the wider access from before. The next sync withdraws it at Google by itself; or narrow it now:</strong></p><ul>${wide.map((x) => `<li>${esc(RETIRED_GOOGLE_SCOPES[x] || x)}</li>`).join('')}</ul>${narrowForm}</div>`
+        : '<p class="d-sub">Your Google connection holds exactly these, nothing more.</p>'}
+    ${ctx.settings?.google_narrowed && !sample ? `<p class="d-sub">The earlier, wider grant (${esc(ctx.settings.google_narrowed.withdrew.map((x) => RETIRED_GOOGLE_SCOPES[x] || x).join('; '))}) was withdrawn at Google on ${esc(usDay(isoDay(ctx.settings.google_narrowed.at)))}${ctx.settings.google_narrowed.how === 'revoked' ? '' : ' (Google did not confirm; remove it on Google\'s own page below to be sure)'}.</p>` : ''}
+    <p class="d-sub">Narrower still: Google can limit the dashboard to only the files you pick, through its file picker. That needs a browser key from your own Google Cloud project, which the dashboard does not have; tell us if you want it and how you would like that key handled.</p>`;
   const files = access.notConnected ? empty('Who can open each sheet shows here once Google is connected.', '/dashboard/connections', 'Go to Connections', 'connecting')
     : !access.files.length ? empty('No sheets are named yet, so the dashboard opens none.', '/dashboard/connections#sheets', 'Name your sheets', 'sheets')
       : `<ul class="d-list">${access.files.map((f) => {
@@ -621,7 +636,9 @@ export function renderAccess(ctx) {
   const counts = ctx.counts_stored || {};
   const stored = `<ul class="d-kv">${BACKUP_TABLES.map((t) => `<li><span>${esc(TABLE_WORDS[t] || t)}</span><span>${sample || counts[t] === undefined || counts[t] === null ? '' : `${counts[t]} row${counts[t] === 1 ? '' : 's'}`}</span></li>`).join('')}</ul>
     <p class="d-sub">Where: this site's own private database on Cloudflare (one for the preview, one for the live site, never shared), and a nightly backup of it kept for 30 days in a private storage bucket. Never in the website's code, never in a West Peek network sheet.</p>
-    <p class="d-sub">Who else could reach it: the site runs on West Peek's Cloudflare account, and that account's administrators could technically open the database. Nothing reads it but the dashboard. Account keys are encrypted and your password is kept only as a hash.</p>`;
+    <p class="d-sub">Who else could reach it: the site runs on West Peek's Cloudflare account, and that account's administrators could technically open the database. Nothing reads it but the dashboard. Account keys, rates, quotes and proposals are encrypted, and your password is kept only as a hash.</p>
+    <p class="d-sub">How it is deleted: the copy of your sheets is replaced at every sync, and deleted at once by Stop using a sheet, Keep money out, or the button below. Backups are kept 30 days and then deleted by the storage itself, so a deleted copy is gone from every backup within 30 days.</p>
+    ${sample ? '' : `<form method="post" action="/dashboard/copies/delete"><button type="submit">Delete the synced copies now</button></form><p class="d-sub">Deletes the copy of your sheets' rows held here (your sheets are not touched). Your notes, quotes and settings stay. The next sync reads your sheets again unless you disconnect first.</p>`}`;
   const moneyChoice = ctx.choices.money?.value;
   const limit = `<ul class="d-list">
     <li class="d-row"><div class="d-row__main"><span class="d-row__title">Google's access</span><span class="d-row__sub">${!g || sample ? 'Asks only for what is listed above.' : wide.length ? 'Still wider than needed.' : 'Narrowed: only what is listed above.'}</span>${g && !sample && wide.length ? narrowForm : ''}</div></li>
@@ -724,3 +741,6 @@ export function manifest() {
 }
 
 export { isoDay };
+
+/* Shared with views-deal.mjs (lead to delivery screens). */
+export { sec, gap, val, dayOr, link, act, source };

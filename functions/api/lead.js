@@ -66,6 +66,7 @@
 import {
   PROBE_HEADER, PROBE_TO, verifyProbe, incidentsFor, alarmEmail, ALARM_INTERVAL_MS, parseAddressList
 } from '../_lib/lead-delivery.mjs';
+import { recordWebInquiry } from '../_lib/pd/deal.mjs';
 
 const MAX_FIELD = 5000;
 const REQUIRED = ['email'];
@@ -434,6 +435,10 @@ export async function onRequestPost({ request, env, waitUntil }) {
   // them because a mail key is missing would be a second failure caused by the
   // first. A probe never writes.
   const sheetWrite = isProbe ? Promise.resolve('skipped') : addToNetworkSheet(fields, env, request, site);
+  // A productions inquiry also lands in Scooter's own dashboard (his private database on this same
+  // Pages project), beside his form's responses (Scooter, 14 Nov 2026: "Wire the forms on my live
+  // sites to feed this same flow"). Never a network sheet; it never changes what the visitor sees.
+  const dashboardKept = !isProbe && siteForHost(host) === 'productions' ? recordWebInquiry(env, fields) : Promise.resolve('not_applicable');
 
   // Only the traps are stripped from the notification. company_website is real
   // founder-supplied data the fund wants, so it stays in the email body.
@@ -479,11 +484,13 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
   if (!delivered) {
     console.error('lead delivery failed on every channel', JSON.stringify({ host, form: formName, channels: delivery.channels, detail: delivery.detail }));
+    await dashboardKept;
     return json({ ok: false, error, sheet: await sheetWrite, bot_check: botCheck, channels: delivery.channels }, bothUnconfigured ? 503 : 502);
   }
 
   // The email is delivered, so the visitor succeeded. The sheet result is
   // reported, never allowed to overturn that.
+  await dashboardKept;
   return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, delivered_by: delivery.deliveredBy, channels: delivery.channels }, 200);
 }
 

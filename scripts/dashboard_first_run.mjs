@@ -12,7 +12,8 @@
  * deal to its next stage (written to the sample sheet and read back), reloads and sees it, signs in
  * as a second device and sees it there too, signs the first device out and proves that session is
  * dead while the second still opens. Lead to cash: records show, a note saved on one persists after a
- * reload and on the second device, and Who can see what opens.
+ * reload and on the second device, and Who can see what opens. One deal all the way through:
+ * discovery, a priced quote, a proposal, accepted, delivery, and a client portal with no money.
  * Exits non-zero on any failure; prints one line starting "FIRST_RUN OK" when every step passed.
  */
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
@@ -164,12 +165,51 @@ if (rec.status !== 200 || !/action="\/dashboard\/note"/.test(rec.text) || !/Invo
 const key = recLink.split('/').pop();
 const noteText = `First-run note ${Date.now()}`;
 const saved = await post('/dashboard/note', { key, text: noteText, back: recLink }, A);
-if (saved.status !== 303 || !/Note saved/.test((await get(saved.location, A)).text)) fail('notes', 'the note was not confirmed');
+if (saved.status !== 303 || !/Note saved|Saved and checked/.test((await get(saved.location, A)).text)) fail('notes', 'the note was not confirmed');
 if (!(await get(recLink, A)).text.includes(noteText)) fail('notes', 'the note is gone after a reload');
 if (!(await get(recLink, B)).text.includes(noteText)) fail('notes', 'the note does not show on a second device');
 const access = await get('/dashboard/access', A);
 if (access.status !== 200 || !/Who can open the dashboard/.test(access.text) || !/What the dashboard keeps/.test(access.text) || /gmail\.compose/.test(access.text)) fail('access', `Who can see what did not load as expected (${access.status})`);
 ok('Lead to cash shows records; a note persists after a reload and on a second device; Who can see what opens');
+
+// 6c. One deal all the way through: discovery, a priced quote, a proposal, accepted, delivery and a
+// client portal that shows the client's tasks and no money (Scooter, 14 Nov 2026: "First test: one
+// real deal, all the way through"). On a preview this runs on the sample deal.
+const dealKey = 'sample-org-d';
+const deal = `/dashboard/flow/${dealKey}`;
+const outcome = `First-run outcome ${Date.now()}`;
+const disc = await get(`${deal}/discovery`, A);
+if (disc.status !== 200 || !/Questions · \d+/.test(disc.text)) fail('discovery', `no guided questions (${disc.status})`);
+const shaped = await get(`${deal}/discovery?p_service=brand&p_buyer=foundation&p_objective=funding&p_budget=unknown`, A);
+if (!/board or trustees/.test(shaped.text)) fail('discovery', 'a foundation buying brand work did not get its own questions');
+await post('/dashboard/discovery', { key: dealKey, p_service: 'brand', p_buyer: 'foundation', p_objective: 'funding', p_budget: 'unknown', a_outcome: outcome, back: `${deal}/discovery` }, A);
+if (!(await get(`${deal}/discovery`, B)).text.includes(outcome)) fail('discovery', 'answers do not show on a second device');
+ok('discovery: questions shaped by the deal, answers persist on a second device');
+const q = await post('/dashboard/quote', { key: dealKey, qty_L11: '2', qty_L20: '5', price: '5000', term: '3', plan: 'monthly', rationale: 'First-run rationale', back: `${deal}/quote` }, A);
+if (!/m=quote_saved/.test(q.location || '')) fail('quote', `not saved (${q.location || q.status})`);
+const qv = await get(`${deal}/quote`, B);
+if (!/a month for 3 months/.test(qv.text) || !/Unknown costs|Cost floor/.test(qv.text) || !/Month 3/.test(qv.text)) fail('quote', 'the floor, the 3-month bundle or the timing is missing');
+ok('quote: floor, his price, the 3-month bundle and payment timing, on a second device');
+let prop = await get(`${deal}/proposal`, A);
+if (!/Accepted ·|>Accepted</.test(prop.text)) {
+  await post('/dashboard/proposal', { key: dealKey, do: 'draft', back: `${deal}/proposal` }, A);
+  prop = await get(`${deal}/proposal`, A);
+  if (!/in total/.test(prop.text) || !/First-run rationale/.test(prop.text) || /Cost floor|margin/i.test((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '')) fail('proposal', 'the draft lacks the price or rationale, or shows internal costs');
+  const accepted = await post('/dashboard/proposal', { key: dealKey, do: 'accept', team: 'Sample Lead: account lead', back: `${deal}/proposal` }, A);
+  if (!/delivery\?m=accepted/.test(accepted.location || '')) fail('accepted', `delivery did not start (${accepted.location || accepted.status})`);
+}
+ok('proposal: drafted from the quote, accepted, deal moved');
+const fresh = await post('/dashboard/delivery/portal', { key: dealKey, do: 'new', back: `${deal}/delivery` }, A);
+const token = new URL(`${base}${fresh.location || '/'}`).searchParams.get('portal');
+if (!token) fail('portal', 'no portal link was made');
+const dv = await get(`${deal}/delivery`, B);
+if (!/Account team/.test(dv.text) || !/Discovery workshop/.test(dv.text)) fail('delivery', 'no team or scope tasks on the work side');
+const portal = await get(`/portal/${token}`);
+const portalText = portal.text.replace(/<style>[\s\S]*?<\/style>/, '');
+if (portal.status !== 200 || !/Discovery workshop/.test(portalText) || /[$]|First-run rationale|First-run note|Sample Org E|margin|floor/i.test(portalText)) fail('portal', `the client page is missing its tasks or shows money or another client (${portal.status})`);
+await post('/dashboard/delivery/portal', { key: dealKey, do: 'off', back: `${deal}/delivery` }, A);
+if ((await get(`/portal/${token}`)).status !== 404) fail('portal', 'a turned-off portal link still opens');
+ok('delivery: team and tasks; the client portal shows their tasks, no money, and stops when turned off');
 
 // 7. Sign-out revokes the session.
 const so = await post('/dashboard/logout', {}, A);
