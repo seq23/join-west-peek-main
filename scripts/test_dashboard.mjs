@@ -566,6 +566,8 @@ const realFetch = globalThis.fetch;
     await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie });
     const ds = await env.PRODUCTIONS_DB.prepare("SELECT status, meta, last_sync FROM connection WHERE provider = 'docusign'").first();
     check('…and looks them up again on the next sync', ds?.status === 'ok' && JSON.parse(ds.meta).account_id === 'acc1' && Number(ds.last_sync) === NOW);
+    const run = JSON.parse((await env.PRODUCTIONS_DB.prepare("SELECT value FROM setting WHERE key = 'last_sync_run'").first())?.value || '{}');
+    check('the sync record counts each of the four accounts that synced', run.ok === 4 && run.failed === 0, JSON.stringify(run));
 
     for (const provider of ['dropbox', 'quickbooks', 'xero']) await call(env, '/dashboard/disconnect', { method: 'POST', cookie: s.cookie, form: { provider } });
     check('Disconnect revokes at Dropbox, QuickBooks and Xero', ['api.dropboxapi.com', 'developer.api.intuit.com', 'identity.xero.com'].every((h) => seen.revoked.includes(h)), seen.revoked.join(','));

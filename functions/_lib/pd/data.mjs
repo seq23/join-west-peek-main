@@ -234,7 +234,8 @@ export async function getSetting(env, key) {
 
 /**
  * Pulls every source into the cache. Runs every 15 minutes (the cron Worker) and on "Refresh now".
- * Returns { ok, kinds, failed, notes } — counts only, safe to log.
+ * Returns { ok, failed, notes } — counts only, safe to log. ok counts each sheet section and each
+ * non-Google account that synced; failed counts each that did not, so a run that did nothing says so.
  */
 export async function syncAll(env, now = Date.now()) {
   const db = dbOf(env);
@@ -326,6 +327,7 @@ export async function syncAll(env, now = Date.now()) {
       }
       await setSetting(db, 'envelopes', statuses);
       await markConnection(env, 'docusign', { status: 'ok', synced: now });
+      out.ok += 1;
     } catch { await markConnection(env, 'docusign', { status: 'broken', error: 'needs_reconnect' }); out.failed += 1; }
   }
 
@@ -335,6 +337,7 @@ export async function syncAll(env, now = Date.now()) {
       const token = await accessToken(env, 'dropbox');
       const res = await fetch('https://api.dropboxapi.com/2/users/get_current_account', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
       await markConnection(env, 'dropbox', res.ok ? { status: 'ok', synced: now } : { status: 'broken', error: 'needs_reconnect' });
+      if (res.ok) out.ok += 1; else out.failed += 1;
     } catch { await markConnection(env, 'dropbox', { status: 'broken', error: 'needs_reconnect' }); out.failed += 1; }
   }
 
@@ -361,6 +364,7 @@ export async function syncAll(env, now = Date.now()) {
       }
       await setSetting(db, 'acct_cash', { tool, amount, at: now });
       await markConnection(env, tool, { status: 'ok', synced: now });
+      out.ok += 1;
     } catch { await markConnection(env, tool, { status: 'broken', error: 'needs_reconnect' }); out.failed += 1; }
   }
   await setSetting(db, 'last_sync_run', { at: now, ok: out.ok, failed: out.failed });
