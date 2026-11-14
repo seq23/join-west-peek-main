@@ -16,9 +16,16 @@
  *      bound to that D1 and R2, with a fresh CRON_SECRET; the dashboard keeps only its hash;
  *   7. with --prove-restore: writes a marker row, backs up, deletes the marker, restores the
  *      backup, and checks the marker and the row count came back.
+ * Two steps make the environment work the moment setup ends (review, 14 Nov 2026: production would
+ * otherwise answer "not set up" until some unrelated push, with nobody able to sign in):
+ *   3b. production with no owner row: copies Scooter's owner record (address, name, password hash;
+ *       never sessions or codes) from the preview database, where he already exists. None there →
+ *       NAMED STOP owner_missing, exit 2: run dashboard:owners --env production --file <owners JSON>.
+ *   3c. when a binding or the key changed (or with --redeploy): waits for that environment's newest
+ *       deployment to finish, then redeploys that same commit so it carries them, and waits for it.
+ *       The same commit, never an older one, so a merge that is still building is never undone.
  * Preview and production never share a database, a bucket or a Worker, so approving the preview
- * cannot break the live page. Bindings and the token key take effect on that environment's next
- * deployment. Prints names and counts only. Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+ * cannot break the live page. Prints names and counts only. Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
  * (the firm's, injected by the runner); without them it is a NAMED STOP, exit 2.
  */
 import { execFileSync } from 'node:child_process';
@@ -27,6 +34,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { webcrypto as crypto } from 'node:crypto';
 import { MIGRATIONS } from '../functions/_lib/pd/schema.mjs';
+import { OWNER_IDS } from '../functions/_lib/pd/auth.mjs';
 
 const PROJECT = 'west-peek-productions';
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
@@ -41,7 +49,10 @@ const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 if (!token || !account) stop(2, 'NAMED STOP dashboard:setup: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are needed');
 
 const API = `${process.env.CLOUDFLARE_API_BASE || 'https://api.cloudflare.com/client/v4'}/accounts/${account}`;
-const WAITS = [2000, 5000, 10000, 20000, 40000];
+const WAITS = (process.env.DASHBOARD_SETUP_FAST ? [10, 10, 10, 10, 10] : [2000, 5000, 10000, 20000, 40000]);
+const POLL_MS = process.env.DASHBOARD_SETUP_FAST ? 10 : 10000;
+const DEPLOY_WAIT_MS = 12 * 60000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const done = [];
 async function cf(path, init = {}, { allow404 = false, soft = false } = {}) {
   for (let attempt = 0; ; attempt++) {
@@ -53,7 +64,7 @@ async function cf(path, init = {}, { allow404 = false, soft = false } = {}) {
     if (allow404 && res.status === 404) return null;
     if ((res.status === 429 || res.status >= 500 || res.status === 0) && attempt < WAITS.length) {
       console.error(`dashboard:setup: ${init.method || 'GET'} ${path.split('?')[0]} answered ${res.status}; retry ${attempt + 1}/${WAITS.length}`);
-      await new Promise((r) => setTimeout(r, WAITS[attempt]));
+      await sleep(WAITS[attempt]);
       continue;
     }
     if ((!res.ok || body.success === false) && soft) return false;
@@ -94,6 +105,49 @@ if (keyState === 'added') patch.env_vars = { PRODUCTIONS_TOKEN_KEY: { type: 'sec
 if (Object.keys(patch).length) await cf(`/pages/projects/${PROJECT}`, { method: 'PATCH', body: JSON.stringify({ deployment_configs: { [env]: patch } }) });
 const bindingState = patch.d1_databases ? 'bound' : 'present';
 done.push(`binding ${bindingState}`, `token key ${keyState}`);
+
+// 3b. the owner row on production (the pre-v1.0 KV record exists on preview only)
+let ownerState = 'kept';
+if (env === 'production') {
+  const have = Number((await query('SELECT COUNT(*) AS n FROM owner'))?.[0]?.results?.[0]?.n) || 0;
+  if (!have) {
+    const pvName = `${PROJECT}-dashboard-preview`;
+    const pv = (await cf(`/d1/database?name=${encodeURIComponent(pvName)}`) || []).find((d) => d.name === pvName);
+    const rows = pv ? ((await cf(`/d1/database/${pv.uuid}/query`, { method: 'POST', body: JSON.stringify({ sql: 'SELECT id, name, email, pw FROM owner', params: [] }) }, { soft: true })) || [])?.[0]?.results || [] : [];
+    let copied = 0;
+    for (const r of rows.filter((x) => OWNER_IDS.includes(x.id) && /@/.test(String(x.email || '')))) {
+      await query('INSERT OR IGNORE INTO owner (id, name, email, pw, gen, updated_at) VALUES (?,?,?,?,0,?)', [r.id, r.name || null, r.email, r.pw || null, Date.now()]);
+      copied += 1;
+    }
+    ownerState = copied ? `copied_from_preview(${copied})` : 'missing';
+  }
+  done.push(`owner ${ownerState}`);
+}
+
+// 3c. a fresh deployment of the same commit, so the binding and key are live when setup ends
+let redeployState = 'not_needed';
+if (patch.d1_databases || patch.env_vars || flag('redeploy')) {
+  const newest = async () => (await cf(`/pages/projects/${PROJECT}/deployments?env=${env}&per_page=1`))?.[0];
+  const settled = async (pick) => {
+    const until = Date.now() + DEPLOY_WAIT_MS;
+    for (;;) {
+      const d = await pick();
+      const st = d?.latest_stage;
+      if (!d || (st?.name === 'deploy' && ['success', 'failure', 'canceled'].includes(st.status)) || ['failure', 'canceled'].includes(st?.status)) return d;
+      if (Date.now() > until) return { ...d, timedOut: true };
+      await sleep(POLL_MS);
+    }
+  };
+  const last = await settled(newest);
+  if (!last) redeployState = 'none_yet(the first deployment carries them)';
+  else if (last.timedOut) redeployState = `FAILED(deployment ${String(last.id).slice(0, 8)} still building after 12 min)`;
+  else {
+    const again = await cf(`/pages/projects/${PROJECT}/deployments/${last.id}/retry`, { method: 'POST' });
+    const fin = await settled(async () => (await cf(`/pages/projects/${PROJECT}/deployments/${again.id}`)));
+    redeployState = fin?.latest_stage?.name === 'deploy' && fin.latest_stage.status === 'success' ? `done(${String(again.id).slice(0, 8)})` : `FAILED(${String(again.id).slice(0, 8)} ${fin?.timedOut ? 'still building after 12 min' : fin?.latest_stage?.status || 'unknown'})`;
+  }
+  done.push(`redeploy ${redeployState}`);
+}
 
 // 5. R2
 const bucket = `${PROJECT}-dashboard-backups-${env}`;
@@ -155,7 +209,8 @@ if (flag('prove-restore')) {
   await query("DELETE FROM setting WHERE key = 'restore_proof'");
 }
 
-const line = `OUTPUT dashboard:setup env=${env} d1=${dbName} migrations_applied=${applied} binding=${bindingState} token_key=${keyState} bucket=${bucketState} lifecycle=${lifecycle} worker=${worker} site_url=${siteUrl || 'none'} restore=${proof}${bindingState === 'bound' || keyState === 'added' ? ' (binding/key take effect on the next deployment)' : ''}`;
+const line = `OUTPUT dashboard:setup env=${env} d1=${dbName} migrations_applied=${applied} binding=${bindingState} token_key=${keyState} owner=${ownerState} redeploy=${redeployState} bucket=${bucketState} lifecycle=${lifecycle} worker=${worker} site_url=${siteUrl || 'none'} restore=${proof}`;
 console.log(line);
 console.error(line);
-if (proof.startsWith('FAILED')) process.exit(1);
+if (proof.startsWith('FAILED') || redeployState.startsWith('FAILED')) process.exit(1);
+if (ownerState === 'missing') stop(2, `NAMED STOP dashboard:setup owner_missing: ${dbName} has no owner row and the preview store has none to copy; run npm run dashboard:owners -- --env ${env} --file <owners JSON outside the repo>`);

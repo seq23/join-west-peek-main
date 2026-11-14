@@ -253,7 +253,12 @@ export function renderToday(view, ctx) {
   const week = view.rows.projects.filter((p) => { const d = daysSince(p.milestone_date, now); return d !== null && d <= 0 && d > -8; });
   const fourWeeks = view.rows.invoices.filter((i) => !/paid/i.test(i.status || '') && (daysSince(i.due, now) ?? -99) > -8);
   const drafts = view.rows.drafts.filter((a) => /^(|waiting|new|to approve)$/i.test(String(a.status || '').trim()));
-  const folds = `
+  // Before Google is connected the folds say so and lead to Connections, never a zero that reads as real.
+  const offLine = (what) => `<details class="d-fold"><summary><span>${what} · not connected yet</span></summary><p class="d-sub">This fills in once your Google account is connected.</p><a class="d-help" href="/dashboard/connections">Connect Google ›</a> · <a class="d-help" href="/dashboard/help">What this shows</a></details>`;
+  const folds = !ctx.sample && !ctx.googleConnected ? `
+    ${offLine('This week')}
+    ${offLine('Money')}
+    ${offLine('Agents')}` : `
     <details class="d-fold"><summary><span>This week · ${week.length} milestone${week.length === 1 ? '' : 's'}</span></summary>${week.length ? `<ul class="d-list">${week.map((p) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/work/${encodeURIComponent(p._id)}">${esc(p.milestone || 'Milestone')} · ${esc(p.name || p.client || '')}</a><span class="d-row__sub">${dayOr(p.milestone_date)}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No milestones in the next seven days.</p>'}</details>
     <details class="d-fold"><summary><span>Money · ${fourWeeks.length} invoice${fourWeeks.length === 1 ? '' : 's'} due or late this week</span></summary><p class="d-sub">${fourWeeks.length ? fourWeeks.map((i) => `${esc(i.client || '')} ${esc(money(num(i.amount)))} · ${esc(usDay(i.due))}`).join('<br>') : 'Nothing due this week.'}</p><a class="d-help" href="/dashboard/money">Friday money review ›</a></details>
     <details class="d-fold"><summary><span>Agents · ${drafts.length} draft${drafts.length === 1 ? '' : 's'} to approve · cold email off</span></summary><a class="d-help" href="/dashboard/agents">Open Agents ›</a></details>`;

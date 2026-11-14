@@ -330,6 +330,7 @@ const realFetch = globalThis.fetch;
   check('Disconnect revokes at Google and deletes the token', g.revoked.includes('REFRESH-TOKEN-PLAIN') && dis.location === '/dashboard/connections?m=disconnected' && !(await env.PRODUCTIONS_DB.prepare("SELECT * FROM connection WHERE provider = 'google'").first()));
   const off = (await call(env, '/dashboard', { cookie: s.cookie })).text;
   check('a disconnected account shows on Today with Connect', /Google is disconnected/.test(off) && /href="\/dashboard\/connections">Connect</.test(off));
+  check('…and Today\'s folds say "not connected yet", never a zero count', /Money · not connected yet/.test(off) && !/· 0 (milestones|invoices|drafts)/.test(off));
 
   // Google sign-in: only the owner's account opens it
   const gs = await call(env, '/dashboard/google', { method: 'POST', form: { remember: '1' } });
@@ -423,6 +424,52 @@ const realFetch = globalThis.fetch;
   const again = await run();
   check('…and a second run applies nothing', /migrations applied=0/.test(again.out), again.out.trim());
   server.close();
+}
+
+// dashboard:setup on production (review, 14 Nov 2026): the binding reaches a fresh deployment of the
+// SAME commit before setup ends, and the owner row is copied from preview, so the live page opens.
+{
+  const { createServer } = await import('node:http');
+  const prod = fakeD1();
+  const pv = fakeD1();
+  resetSchemaMemo(); await ensureSchema(pv);
+  await pv.prepare("INSERT INTO owner (id, name, email, pw, gen, updated_at) VALUES ('scooter', 'Owner', 'owner@example.test', '{\"h\":\"x\"}', 3, 1)").run();
+  await pv.prepare("INSERT INTO owner (id, name, email, gen, updated_at) VALUES ('intruder', 'X', 'x@example.test', 0, 1)").run();
+  const calls = { patch: 0, retried: [], polls: 0 };
+  const server = createServer(async (req, res) => {
+    let raw = ''; for await (const c of req) raw += c;
+    const send = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+    const u = new URL(req.url, 'http://x');
+    const q = (db) => { const { sql, params } = JSON.parse(raw); try { const out = db.prepare(sql).bind(...(params || []))._exec(); return send(200, { success: true, result: [{ results: Array.isArray(out) ? out.map((r) => ({ ...r })) : [] }] }); } catch { return send(400, { success: false, errors: [{ code: 7500 }] }); } };
+    if (u.pathname.endsWith('/d1/database') && req.method === 'GET') {
+      const name = u.searchParams.get('name');
+      return send(200, { success: true, result: name.endsWith('-production') ? [{ uuid: 'db-prod', name }] : [{ uuid: 'db-pv', name }] });
+    }
+    if (u.pathname.endsWith('/db-prod/query')) return q(prod);
+    if (u.pathname.endsWith('/db-pv/query')) return q(pv);
+    if (u.pathname.endsWith('/pages/projects/west-peek-productions') && req.method === 'GET') return send(200, { success: true, result: { deployment_configs: { production: {} } } });
+    if (u.pathname.endsWith('/pages/projects/west-peek-productions') && req.method === 'PATCH') { calls.patch += 1; return send(200, { success: true, result: {} }); }
+    if (u.pathname.endsWith('/deployments') && u.searchParams.get('env') === 'production') {
+      calls.polls += 1; // the merge's own deployment is still building on the first look
+      return send(200, { success: true, result: [{ id: 'merge-commit-deploy', latest_stage: calls.polls < 2 ? { name: 'build', status: 'active' } : { name: 'deploy', status: 'success' } }] });
+    }
+    if (/\/deployments\/[^/]+\/retry$/.test(u.pathname)) { calls.retried.push(u.pathname.split('/').at(-2)); return send(200, { success: true, result: { id: 'fresh-deploy' } }); }
+    if (u.pathname.endsWith('/deployments/fresh-deploy')) return send(200, { success: true, result: { id: 'fresh-deploy', latest_stage: { name: 'deploy', status: 'success' } } });
+    return send(403, { success: false, errors: [{ code: 10000 }] });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const { spawn } = await import('node:child_process');
+  const out = await new Promise((resolveRun) => {
+    const p = spawn(process.execPath, ['scripts/dashboard_setup.mjs', '--env', 'production'], { env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'a', CLOUDFLARE_API_BASE: base, DASHBOARD_SETUP_FAST: '1' } });
+    let o = ''; p.stdout.on('data', (d) => { o += d; }); p.on('close', () => resolveRun(o));
+  });
+  server.close();
+  const rows = (await prod.prepare('SELECT id, email, pw FROM owner').all()).results || [];
+  check('dashboard:setup production binds the database and the key', calls.patch === 1, out.trim());
+  check('…waits for the building deployment, then redeploys that same commit', calls.retried.join(',') === 'merge-commit-deploy' && calls.polls >= 2 && /redeploy done\(fresh-de\)/.test(out), out.trim());
+  check('…copies only the owner on the owners list from preview, with his password', rows.length === 1 && rows[0].id === 'scooter' && rows[0].email === 'owner@example.test' && rows[0].pw === '{"h":"x"}' && /owner copied_from_preview\(1\)/.test(out), JSON.stringify(rows.map((r) => r.id)));
+  check('…and never prints the owner address', !/owner@example\.test/.test(out));
 }
 
 if (failures.length) {
