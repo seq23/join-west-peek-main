@@ -517,6 +517,64 @@ const realFetch = globalThis.fetch;
   }
 }
 
+// Dropbox, DocuSign, QuickBooks and Xero: each connects through its own OAuth screen, its token is
+// stored encrypted, the connection shows a real synced time the moment it is back, and Disconnect
+// revokes and deletes. Stand-in provider servers; ids and secrets are invented markers.
+{
+  const AUTH_HOST = { dropbox: 'www.dropbox.com', docusign: 'account.docusign.com', quickbooks: 'appcenter.intuit.com', xero: 'login.xero.com' };
+  const KEYS = { DROPBOX_APP_KEY: 'dbk', DROPBOX_APP_SECRET: 'dbs', DOCUSIGN_INTEGRATION_KEY: 'dsk', DOCUSIGN_SECRET_KEY: 'dss', QUICKBOOKS_CLIENT_ID: 'qbk', QUICKBOOKS_CLIENT_SECRET: 'qbs', XERO_CLIENT_ID: 'xk', XERO_CLIENT_SECRET: 'xs' };
+  const seen = { revoked: [], userinfoFails: false };
+  globalThis.fetch = async (url, init = {}) => {
+    const u = new URL(String(url));
+    const json = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
+    const tok = { access_token: `ACCESS-${u.host}`, refresh_token: `REFRESH-${u.host}`, expires_in: 3600 };
+    if (/token\/revoke|tokens\/revoke|connect\/revocation/.test(u.pathname)) { seen.revoked.push(u.host); return json({}); }
+    if (u.pathname === '/oauth2/token' || u.pathname === '/oauth/token' || u.pathname === '/oauth2/v1/tokens/bearer' || u.pathname === '/connect/token') return json(tok);
+    if (u.pathname === '/2/users/get_current_account') return json({ email: 'owner-a@example.test' });
+    if (u.pathname === '/oauth/userinfo') return seen.userinfoFails ? json({}, 500) : json({ email: OWNER, accounts: [{ is_default: true, account_id: 'acc1', base_uri: 'https://demo.docusign.test' }] });
+    if (u.host === 'api.xero.com' && u.pathname === '/connections') return json([{ tenantId: 't1', tenantName: 'Test org' }]);
+    if (u.host === 'api.xero.com') return json({ Reports: [{ Rows: [{ Rows: [{ RowType: 'SummaryRow', Cells: [{ Value: 'x' }, { Value: '10' }] }] }] }] });
+    if (u.host === 'quickbooks.api.intuit.com') return json({ QueryResponse: { Account: [{ CurrentBalance: 10 }] } });
+    return json({ error: 'unexpected' }, 500);
+  };
+  try {
+    const env = { ...ENV(), ...KEYS };
+    await seedOwner(env);
+    const s = await signIn(env, OWNER, PW);
+    for (const provider of ['dropbox', 'docusign', 'quickbooks', 'xero']) {
+      const start = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider } });
+      const to = start.location ? new URL(start.location) : null;
+      check(`${provider}: Connect goes to its own OAuth screen`, to?.host === AUTH_HOST[provider] && to.searchParams.get('redirect_uri') === `${PROD}/dashboard/oauth/callback`, String(start.location));
+      const back = await call(env, `/dashboard/oauth/callback?state=${to?.searchParams.get('state')}&code=good${provider === 'quickbooks' ? '&realmId=r1' : ''}`, { cookie: s.cookie });
+      const row = await env.PRODUCTIONS_DB.prepare('SELECT * FROM connection WHERE provider = ?').bind(provider).first();
+      check(`${provider}: the callback stores the connection, token encrypted`, back.location === '/dashboard/connections?m=connected' && row && !row.token_enc.includes('REFRESH-') && !row.token_enc.includes('ACCESS-'));
+      check(`${provider}: synced the moment it connected`, row?.status === 'ok' && Number(row?.last_sync) === NOW, `${row?.status} ${row?.last_sync}`);
+    }
+    const page = await call(env, '/dashboard/connections', { cookie: s.cookie });
+    const synced = (page.text.match(/synced \d{1,2}:\d{2}/g) || []).length;
+    check('Connections shows a synced time on each of the four rows', synced >= 4 && !/not synced yet/.test(page.text.split('id="choices"')[0] || ''), String(synced));
+    const cash = await env.PRODUCTIONS_DB.prepare("SELECT value FROM setting WHERE key = 'acct_cash'").first();
+    check('the accounting tool fills cash now', cash && JSON.parse(cash.value).amount === 10);
+
+    // DocuSign whose account details never arrive: a red Reconnect row, never a silent "connected".
+    await env.PRODUCTIONS_DB.prepare("UPDATE connection SET meta = '{}', last_sync = NULL WHERE provider = 'docusign'").run();
+    seen.userinfoFails = true;
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie });
+    check('DocuSign without its account details turns red with Reconnect', (await env.PRODUCTIONS_DB.prepare("SELECT status FROM connection WHERE provider = 'docusign'").first())?.status === 'broken');
+    seen.userinfoFails = false;
+    await env.PRODUCTIONS_DB.prepare("UPDATE connection SET status = 'ok', meta = '{}' WHERE provider = 'docusign'").run();
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie });
+    const ds = await env.PRODUCTIONS_DB.prepare("SELECT status, meta, last_sync FROM connection WHERE provider = 'docusign'").first();
+    check('…and looks them up again on the next sync', ds?.status === 'ok' && JSON.parse(ds.meta).account_id === 'acc1' && Number(ds.last_sync) === NOW);
+
+    for (const provider of ['dropbox', 'quickbooks', 'xero']) await call(env, '/dashboard/disconnect', { method: 'POST', cookie: s.cookie, form: { provider } });
+    check('Disconnect revokes at Dropbox, QuickBooks and Xero', ['api.dropboxapi.com', 'developer.api.intuit.com', 'identity.xero.com'].every((h) => seen.revoked.includes(h)), seen.revoked.join(','));
+    check('…and deletes each token', !(await env.PRODUCTIONS_DB.prepare("SELECT provider FROM connection WHERE provider IN ('dropbox','quickbooks','xero')").first()));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
 if (failures.length) {
   console.error(`test:dashboard FAILED ${failures.length}/${cases}:\n - ${failures.join('\n - ')}`);
   process.exit(1);

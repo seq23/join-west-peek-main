@@ -303,10 +303,20 @@ export async function syncAll(env, now = Date.now()) {
   }
 
   // DocuSign: the SOW envelope status for each project that names one.
+  // A connection whose account details did not arrive when it connected looks them up again here;
+  // without them it is a red Reconnect row, never a silent "connected" that never syncs.
   const docusign = await connectionRow(env, 'docusign');
-  if (docusign?.meta?.base_uri) {
+  if (docusign) {
     try {
       const token = await accessToken(env, 'docusign');
+      if (!docusign.meta?.base_uri || !docusign.meta?.account_id) {
+        const r = await fetch('https://account.docusign.com/oauth/userinfo', { headers: { authorization: `Bearer ${token}` } });
+        const u = await r.json().catch(() => ({}));
+        const acct = (u.accounts || []).find((a) => a.is_default) || (u.accounts || [])[0];
+        if (!r.ok || !acct?.base_uri || !acct?.account_id) throw new Error('no_account');
+        docusign.meta = { ...(docusign.meta || {}), account_id: acct.account_id, base_uri: acct.base_uri };
+        await db.prepare('UPDATE connection SET meta = ? WHERE provider = ?').bind(JSON.stringify(docusign.meta), 'docusign').run();
+      }
       const ids = ((await db.prepare("SELECT data FROM row_cache WHERE kind = 'projects'").all()).results || []).map((r) => JSON.parse(r.data).sow_envelope).filter(Boolean);
       const statuses = {};
       for (const id of ids.slice(0, 40)) {

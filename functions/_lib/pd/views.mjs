@@ -405,7 +405,9 @@ export function renderConnections(ctx) {
   const { now, connections, ready, choices, sources, sample, origin } = ctx;
   const byP = Object.fromEntries(connections.map((c) => [c.provider, c]));
   const acctChoice = choices.accounting?.value;
-  const providers = ['google', 'dropbox', 'docusign', ...(acctChoice === 'quickbooks' || acctChoice === 'xero' ? [acctChoice] : [])];
+  // The chosen accounting tool, plus any one that is connected (so a live token is never out of
+  // sight and can always be disconnected).
+  const providers = ['google', 'dropbox', 'docusign', ...['quickbooks', 'xero'].filter((t) => acctChoice === t || byP[t])];
   const rows = providers.map((p) => {
     const c = byP[p];
     const P = PROVIDERS[p];

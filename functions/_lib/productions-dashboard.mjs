@@ -179,7 +179,9 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     const s = await sessionFromRequest(env, request, now);
     if (!s || s.sample || s.stage !== 'full' || (done.ownerId && done.ownerId !== s.ownerId)) return redirect('/dashboard');
     if (done.error) return redirect(`/dashboard/connections?m=${done.error}`);
-    if (done.provider === 'google') await syncAll(env, now).catch(() => null);
+    // Every account syncs the moment it connects, so its row shows a real synced time (or a red
+    // Reconnect) straight away rather than "not synced yet" until the next 15-minute run.
+    await syncAll(env, now).catch(() => null);
     return redirect('/dashboard/connections?m=connected');
   }
 
