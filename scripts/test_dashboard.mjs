@@ -452,6 +452,7 @@ const realFetch = globalThis.fetch;
     check('access: the wider grant is named in plain words with Narrow', /Write and send email as you/.test(acc.text) && /action="\/dashboard\/google\/narrow"/.test(acc.text));
     check('access: who can open each connected sheet, live from Google', /Tracker test/.test(acc.text) && /Anyone with the link can open it/.test(acc.text) && /Helper A \(helper-a@example\.test\) can edit/.test(acc.text));
     check('access: every kept table is described, with counts', BACKUP_TABLES.every((t) => TABLE_WORDS[t]) && /Every saved version of your notes[^<]*<\/span><span>2 rows/.test(acc.text));
+    check('access: before the cash rules are walked, Money reads held (never "shown") and links to the walk', /Money in the dashboard · held until you walk the cash rules/.test(acc.text) && !/Money in the dashboard · shown/.test(acc.text) && /href="\/dashboard\/money">Walk the cash rules/.test(acc.text));
     const revokedBefore = g.revoked.length;
     const nar = await call(env, '/dashboard/google/narrow', { method: 'POST', cookie: s.cookie });
     const nScope = nar.location ? new URL(nar.location).searchParams.get('scope') : '';
