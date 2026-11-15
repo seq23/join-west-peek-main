@@ -447,13 +447,17 @@ export async function onRequestPost({ request, env, waitUntil }) {
     .map(([k, v]) => (k === FILE_FIELD && v ? `${k}: ${clean(v)} (attached to this email)` : `${k}: ${clean(v)}`))
     .concat([`submitted_at: ${new Date().toISOString()}`])
     .join('\n');
+  // A productions inquiry is read on Scooter's phone (Scooter, 15 Nov 2026): his own layout, no
+  // empty or tracking lines, a link to Inquiries. Every other site keeps its raw field list.
+  const inquiry = siteForHost(host) === 'productions' ? productionsInquiryMail(fields, request.url) : null;
   const mail = {
     to,
     replyTo: email,
-    subject: `${isProbe ? '[probe] ' : ''}${isCommunityViabilityAssessment
+    subject: `${isProbe ? '[probe] ' : ''}${inquiry ? inquiry.subject : isCommunityViabilityAssessment
       ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
       : `New enquiry from ${site}`}`,
-    text: `${lines}\n\nSubmitted from: ${request.url}`,
+    text: inquiry ? inquiry.text : `${lines}\n\nSubmitted from: ${request.url}`,
+    ...(inquiry ? { html: inquiry.html } : {}),
     deckFile
   };
 
@@ -494,6 +498,64 @@ export async function onRequestPost({ request, env, waitUntil }) {
   return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, delivered_by: delivery.deliveredBy, channels: delivery.channels }, 200);
 }
 
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+/**
+ * A submission is a TEST when it came through a preview deployment (pages.dev, localhost) or its
+ * name, organization or email says test (a reserved .test / example domain, or the word "test").
+ */
+export function isTestInquiry(fields, requestUrl) {
+  const host = new URL(requestUrl).hostname.toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.pages.dev')) return true;
+  const email = clean(fields.email).toLowerCase();
+  if (/\.test$/.test(email) || /@(?:[^@]+\.)?example\.(?:com|org|net)$/.test(email)) return true;
+  return [fields.name, fields.organization, email.split('@')[0]].some((v) => /(^|[^a-z])test([^a-z]|$)/i.test(clean(v)));
+}
+
+/** "Saturday, November 15, 2026 at 3:42 PM EST": the moment it arrived, in Eastern time. */
+export function easternTime(date = new Date()) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+  }).format(date);
+}
+
+/**
+ * Scooter's inquiry email (15 Nov 2026), in his order: Name, Email (a link), Organization, Needs
+ * (the choice and their own words), Timing, Heard about us, Submitted (Eastern), then Open in the
+ * dashboard (Inquiries on the same site the form was sent from). Empty fields and the hidden
+ * tracking fields are left out; a test submission says TEST in the subject.
+ */
+export function productionsInquiryMail(fields, requestUrl, now = new Date()) {
+  const v = (k) => clean(fields[k]);
+  const name = v('name');
+  const org = v('organization') || v('company');
+  const email = v('email');
+  const choice = v('need_type') === 'Other' ? (v('need_other') ? `Something else: ${v('need_other')}` : 'Something else') : v('need_type');
+  const needs = [choice, v('initiative') || v('message')].filter(Boolean).join(' — ');
+  const heard = [v('heard_about'), v('heard_about_detail')].filter(Boolean).join(' · ');
+  const dashboard = `${new URL(requestUrl).origin}/dashboard/inquiries`;
+  const test = isTestInquiry(fields, requestUrl);
+  const rows = [
+    ['Name', name], ['Email', email], ['Organization', org], ['Needs', needs],
+    ['Timing', v('timing')], ['Heard about us', heard], ['Submitted', easternTime(now)]
+  ].filter(([, val]) => val);
+  const who = [org, name].filter(Boolean).join(' - ') || email;
+  const subject = `${test ? 'TEST: ' : ''}New inquiry: ${who}`;
+  const text = `${test ? 'TEST SUBMISSION\n\n' : ''}${rows.map(([k, val]) => `${k}: ${val}`).join('\n')}\n\nOpen in the dashboard: ${dashboard}\n\nReply to this email to answer ${name || email} directly.`;
+  const cell = (k, val) => {
+    const shown = k === 'Email' ? `<a href="mailto:${escapeHtml(val)}" style="color:#c25e00">${escapeHtml(val)}</a>` : escapeHtml(val).replace(/\n/g, '<br>');
+    return `<tr><td style="padding:10px 0 2px;font-size:13px;color:#6b6b6b">${k}</td></tr><tr><td style="padding:0 0 10px;font-size:17px;line-height:1.45;color:#111;border-bottom:1px solid #eee;word-break:break-word;overflow-wrap:anywhere">${shown}</td></tr>`;
+  };
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#fff"><div style="max-width:560px;margin:0 auto;padding:20px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">`
+    + (test ? '<p style="margin:0 0 12px;padding:8px 12px;background:#fff3e0;color:#8a3c00;font-weight:700;font-size:14px;border-radius:6px">TEST SUBMISSION</p>' : '')
+    + `<h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:#111">New inquiry: ${escapeHtml(who)}</h1>`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed">${rows.map(([k, val]) => cell(k, val)).join('')}</table>`
+    + `<p style="margin:20px 0 8px"><a href="${escapeHtml(dashboard)}" style="display:inline-block;padding:14px 20px;background:#ff8500;color:#111;font-weight:700;font-size:16px;text-decoration:none;border-radius:8px">Open in the dashboard</a></p>`
+    + `<p style="margin:12px 0 0;font-size:13px;color:#6b6b6b">Reply to this email to answer ${escapeHtml(name || email)} directly.</p></div></body></html>`;
+  return { subject, text, html, test, dashboard };
+}
+
 const MAILER_URL = 'https://forms-mailer.internal';
 
 function mailerReady(env) {
@@ -518,7 +580,7 @@ export async function sendViaCloudflare(env, mail) {
   if (!mailerReady(env)) return { status: 'not_configured', detail: 'cloudflare: FORMS_MAILER binding or FORMS_MAILER_SECRET not set' };
   try {
     const res = await callMailer(env, '/send', {
-      to: mail.to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text,
+      to: mail.to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text, ...(mail.html ? { html: mail.html } : {}),
       ...(mail.deckFile ? { attachments: [{ filename: mail.deckFile.filename, contentBase64: bytesToBase64(mail.deckFile.bytes), type: 'application/pdf' }] } : {})
     });
     if (res.ok) return { status: 'ok' };
@@ -549,6 +611,7 @@ export async function sendViaResend(env, mail) {
         reply_to: mail.replyTo,
         subject: mail.subject,
         text: mail.text,
+        ...(mail.html ? { html: mail.html } : {}),
         ...(mail.deckFile ? { attachments: [{ filename: mail.deckFile.filename, content: bytesToBase64(mail.deckFile.bytes) }] } : {})
       })
     });

@@ -53,7 +53,7 @@ export async function sendCloudflare(env, msg) {
   try {
     await env.EMAIL.send({
       to: msg.to, from: FROM, ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
-      subject: msg.subject, text: msg.text, ...(attachments.length ? { attachments } : {})
+      subject: msg.subject, text: msg.text, ...(msg.html ? { html: msg.html } : {}), ...(attachments.length ? { attachments } : {})
     });
   } catch (err) {
     const why = String(err && err.message ? err.message : err);
