@@ -232,9 +232,12 @@ export function rulesWalkSection(pic, ctx) {
   const w = rulesWalk(ctx.view?.settings || ctx.settings || {});
   const touches = { settled: pic.markedOnly.length, apart: pic.forecast.length, once: pic.alreadyInBalance, terms: pic.forecast.length + pic.held.length, late: pic.forecast.filter((f) => f.overdue).length };
   const rows = w.rules.map((r, i) => {
-    const pill = r.state === 'right' ? `<span class="d-pill ok">right · ${esc(usDay(isoDay(r.at)))}</span>` : r.state === 'change' ? '<span class="d-pill wait">you asked for a change</span>' : '<span class="d-pill">not walked yet</span>';
+    const pill = r.state === 'right' ? `<span class="d-pill ok">right · ${esc(usDay(isoDay(r.at)))}</span>` : r.state === 'change' ? (r.sent === 'ok' ? '<span class="d-pill wait">sent to Porter</span>' : '<span class="d-pill wait">sending</span>') : '<span class="d-pill">not walked yet</span>';
     const yours = touches[r.id] ? `<p class="d-sub">On your sheet now: ${touches[r.id]} row${touches[r.id] === 1 ? '' : 's'} this rule decides.</p>` : '';
-    const said = r.state === 'change' ? `<p class="d-sub d-gold">You said: ${esc(r.note)}</p>` : '';
+    const where = r.sent === 'ok'
+      ? `Sent to Porter${r.sentAt ? ` on ${esc(usDay(isoDay(r.sentAt)))}` : ''}, waiting on the new wording. It comes back here for you to mark right; nothing else to send.`
+      : 'Change kept here and still being sent to Porter. The dashboard tries again on its own every 15 minutes; nothing for you to do.';
+    const said = r.state === 'change' ? `<p class="d-sub d-gold">You said: ${esc(r.note)}</p><p class="d-sub">${where}</p>` : '';
     const form = ctx.sample ? '<p class="d-sub">Sample mode: the walk is recorded only on your real dashboard.</p>' : `<form class="d-form" method="post" action="/dashboard/cash-rule">${hidden('id', r.id)}
       <div class="d-acts"><button type="submit" name="answer" value="right" class="${r.state === 'right' ? '' : 'd-primary'}" ${r.state === 'right' ? 'disabled' : ''}>That's right</button></div>
       <label for="rule-note-${r.id}">Not right? Say how it should work</label><textarea id="rule-note-${r.id}" name="note" maxlength="1000">${esc(r.state === 'change' ? r.note : '')}</textarea>
@@ -246,7 +249,12 @@ export function rulesWalkSection(pic, ctx) {
     : w.all
     ?`<p class="d-sub">You walked every rule and marked it right${w.lastAt ? ` (last on ${esc(usDay(isoDay(w.lastAt)))})` : ''}. The figures below follow them.</p>`
     : `<p class="d-sub">${w.right} of ${w.rules.length} marked right. Before any of your money figures show, we walk these together: read each rule and its example, then press That's right, or say how it should work. Your figures stay hidden here until every rule is marked right.</p>`;
-  return { html: sec('walk', 'The cash rules, walked first', `${head}<ol class="d-list">${rows}</ol>`), all: w.all || Boolean(ctx.sample) };
+  const list = `<ol class="d-list">${rows}</ol>`;
+  // Once every rule is marked right, the walk folds shut so the Friday review stays short on a phone.
+  const html = w.all && !ctx.sample
+    ? sec('walk', 'The cash rules', `<details class="d-fold"><summary><span>Cash rules · all ${w.rules.length} marked right${w.lastAt ? ` on ${esc(usDay(isoDay(w.lastAt)))}` : ''}</span></summary>${head}${list}</details>`)
+    : sec('walk', 'The cash rules, walked first', `${head}${list}`);
+  return { html, all: w.all || Boolean(ctx.sample) };
 }
 
 export function cashRulesSection(pic, ctx) {

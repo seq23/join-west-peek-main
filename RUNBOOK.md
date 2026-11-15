@@ -181,7 +181,16 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     sample mode). Until every rule is marked right (`ctx.moneyHidden`), no money figure shows anywhere:
     Money shows only the walk, Today's money fold and invoice rows are held, Work shows no invoiced/paid
     sums. Rewording a rule = bump its `v`, which asks him again. While Google still holds the wider grant,
-    Money shows no figure at all.
+    no money figure shows anywhere either (`moneyHidden` covers both).
+  - **A rule change reaches Porter on its own** (review, 14 Nov 2026: he must never say it twice): a
+    "Save how it should work" answer sends ONE email to `os@joinwestpeek.com` (`RULE_CHANGE_TO`,
+    `ruleChangeEmail` in `data.mjs`: rule number, id, `v`, its current words, his words) through the
+    forms mailer, Resend as backup. The setting records `sent` / `sent_at`; the rule shows "sent to
+    Porter · waiting on the new wording", or "change kept · sending to Porter" when the send failed, and
+    the 15-minute cron (`resendRuleChanges`) sends every unsent current change again, never one that
+    arrived. Porter's follow-up: reword that rule in `CASH_RULES` and bump its `v`. Once all rules are
+    right the walk folds into one closed line on Money; until then Today opens with "Start here" (walk
+    the rules, then name the first real deal).
   - **Who can see what** (`/dashboard/access`): the Google scopes in words (`GOOGLE_SCOPE_WORDS`:
     openid, email, spreadsheets, drive.metadata.readonly, calendar.events.readonly — no Gmail, no
     Drive contents; the first sync that sees a connection still holding a wider grant revokes it at

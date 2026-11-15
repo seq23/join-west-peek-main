@@ -31,7 +31,7 @@ import {
 import { PROVIDERS, appKeysSaved, disconnect, finishOAuth, listConnections, providerReady, saveAppKeys, startOAuth, withAppKeys } from './pd/providers.mjs';
 import {
   ACTION_KINDS, addDealFromInquiry, createSheet, orgKey, stageOptions, fileAccess, findDocuments, journeys, latestNotes, loadView, makeChoice, nextMeeting, noteHistory,
-  readAction, readChoices, realCheck, removeSource, runAction, saveNote, setSource, storedCounts, syncAll, tick, ticks, todayItems, updateDeal, getSetting, walkCashRule
+  readAction, readChoices, realCheck, removeSource, runAction, saveNote, setSource, storedCounts, syncAll, tick, ticks, todayItems, updateDeal, getSetting, walkCashRule, resendRuleChanges
 } from './pd/data.mjs';
 import * as V from './pd/views.mjs';
 import * as D from './pd/views-deal.mjs';
@@ -104,7 +104,8 @@ async function context(env, session, url, now) {
   const choices = await readChoices(env, session.sample);
   // No money figure shows anywhere until Scooter has walked the cash rules (Money page), and never while
   // Google still holds the wider grant.
-  const moneyHidden = !session.sample && !rulesWalk(view.settings).all;
+  const g0 = connections.find((c) => c.provider === 'google');
+  const moneyHidden = !session.sample && (!rulesWalk(view.settings).all || Boolean(g0 && wideGoogleScopes(g0.scopes).length));
   const items = todayItems(view, { connections, ticked, now }).filter((i) => !(moneyHidden && MONEY_KINDS.has(i.kind)));
   const actionRow = await readAction(env, url.searchParams.get('a'));
   const flash = actionRow && (actionRow.sample === 1) === session.sample ? V.flashBox(actionRow) : '';
@@ -114,8 +115,8 @@ async function context(env, session, url, now) {
   const keyFor = url.searchParams.get('p');
   if (PROVIDERS[keyFor]) words.keys_saved = `Saved. You can connect ${V.providerName(keyFor)} now.`;
   const m = url.searchParams.get('m');
-  Object.assign(words, DEAL_WORDS, { rule_right: 'Saved: you marked that rule right.', rule_change: 'Saved: your words are kept with that rule. Send the same words to os@joinwestpeek.com and Porter changes the rule to match; your figures stay held until you mark every rule right.', rule_no_words: 'Say how it should work in the box, then press Save. Nothing was saved.', rule_sample: 'Sample mode does not record the rules walk. Nothing was saved.', rule_refused: 'That was not recognised. Nothing was saved.' });
-  const good = ['source_removed', 'keys_saved', 'connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved', 'rule_right', 'rule_change', ...DEAL_GOOD].includes(m);
+  Object.assign(words, DEAL_WORDS, { rule_right: 'Saved: you marked that rule right.', rule_change: 'Saved, and sent to Porter with the rule and your words. You do not need to send anything else. Porter rewrites the rule to match, and it comes back here for you to mark right; your figures stay held until every rule is marked right.', rule_change_unsent: 'Saved here, but it did not reach Porter yet. The dashboard sends it again on its own every 15 minutes; you do not need to do anything.', rule_no_words: 'Say how it should work in the box, then press Save. Nothing was saved.', rule_sample: 'Sample mode does not record the rules walk. Nothing was saved.', rule_refused: 'That was not recognised. Nothing was saved.' });
+  const good = ['source_removed', 'keys_saved', 'connected', 'disconnected', 'disconnected_local', 'source_saved', 'created', 'refreshed', 'choice_saved', 'rule_right', 'rule_change', 'rule_change_unsent', ...DEAL_GOOD].includes(m);
   const note = m && words[m] ? `<p class="d-flash ${good ? 'd-flash--ok' : 'd-flash--bad'}" role="${good ? 'status' : 'alert'}">${words[m]}</p>` : '';
   const googleConnected = Boolean(connections.find((c) => c.provider === 'google'));
   const counts = {
@@ -126,7 +127,7 @@ async function context(env, session, url, now) {
   };
   const g = connections.find((c) => c.provider === 'google');
   const intake = await intakeAll(env, session.sample);
-  return { notes, view, now, sample: session.sample, connections, connected, choices, items, counts, flash: flash + note, googleConnected, googleWide: Boolean(g && wideGoogleScopes(g.scopes).length), moneyHidden, intake, sources: view.sources, settings: view.settings, origin: url.origin, session };
+  return { notes, view, now, sample: session.sample, connections, connected, choices, items, counts, flash: flash + note, googleConnected, googleWide: Boolean(g && wideGoogleScopes(g.scopes).length), moneyHidden, rulesDone: rulesWalk(view.settings).all, intake, sources: view.sources, settings: view.settings, origin: url.origin, session };
 }
 
 const DEAL_WORDS = {
@@ -190,6 +191,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   if (post && path === '/dashboard/cron/sync') {
     if (!(await cronAllowed(env, request))) return new Response('refused', { status: 401 });
     const out = await syncAll(env, now);
+    await resendRuleChanges(env, now).catch((err) => console.error('dashboard rule change resend failed', err?.message || err));
     const check = url.searchParams.get('check') === '1' ? await realCheck(env, now).catch(() => null) : null;
     return new Response(JSON.stringify({ ok: out.ok, failed: out.failed, check: check && { ok: check.ok, lines: check.lines } }), { headers: { 'content-type': 'application/json' } });
   }
@@ -337,7 +339,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     if (path === '/dashboard/cash-rule') {
       const id = field(form, 'id');
       const r = await walkCashRule(env, { id, answer: field(form, 'answer'), note: field(form, 'note'), session }, now);
-      const m = r === 'right' ? 'rule_right' : r === 'change' ? 'rule_change' : session.sample ? 'rule_sample' : field(form, 'answer') === 'change' ? 'rule_no_words' : 'rule_refused';
+      const m = r === 'right' ? 'rule_right' : r === 'change' ? 'rule_change' : r === 'change_unsent' ? 'rule_change_unsent' : session.sample ? 'rule_sample' : field(form, 'answer') === 'change' ? 'rule_no_words' : 'rule_refused';
       return redirect(`/dashboard/money?m=${m}#rule-${encodeURIComponent(id.replace(/[^a-z]/g, ''))}`);
     }
     if (path === '/dashboard/choice') {

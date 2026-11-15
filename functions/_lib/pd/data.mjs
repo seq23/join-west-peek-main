@@ -21,6 +21,7 @@ import { BACKUP_TABLES, dbOf, ensureSchema } from './schema.mjs';
 import { accessToken, connectionRow, disconnect, docusignHost, markConnection, wideGoogleScopes } from './providers.mjs';
 import { daysSince, isoDay, num, toTime } from './core.mjs';
 import { CASH_RULES, catalogFromGrid, webInquiryRows } from './deal.mjs';
+import { sendViaCloudflare, sendViaResend } from '../../api/lead.js';
 
 export const FUNNEL_STAGES = [
   'Relationship identified', 'Introductory conversation', 'Qualified opportunity', 'Discovery',
@@ -841,9 +842,40 @@ export async function makeChoice(env, { key, value, session }, now = Date.now())
   return true;
 }
 
+/** Where a rule change goes: the West Peek OS inbox, which Porter works from. Never a personal address. */
+export const RULE_CHANGE_TO = 'os@joinwestpeek.com';
+
+/** The one email a rule change sends: which rule, its version, its words now, and his words. */
+export function ruleChangeEmail(rule, words, now) {
+  const n = CASH_RULES.findIndex((r) => r.id === rule.id) + 1;
+  return {
+    to: RULE_CHANGE_TO,
+    subject: `Productions dashboard: Scooter asked to change cash rule ${n} (${rule.id}, v${rule.v})`,
+    text: [
+      `Scooter walked the cash rules on the Productions dashboard and asked for rule ${n} of ${CASH_RULES.length} to change.`, '',
+      `Rule: ${rule.id}, version ${rule.v}`, `The rule now: ${rule.rule}`, '',
+      'How he says it should work:', words, '',
+      `Saved ${new Date(now).toISOString()}. Rewrite the rule in functions/_lib/pd/deal.mjs (CASH_RULES) to match and raise its v,`,
+      'so the dashboard asks him to mark the new wording right. His money figures stay held until every rule is marked right.'
+    ].join('\n')
+  };
+}
+
+/** One send to the OS inbox: Cloudflare email first, Resend second. 'ok' | 'failed' | 'not_configured'. */
+async function sendRuleChange(env, mail) {
+  const cf = await sendViaCloudflare(env, mail).catch(() => ({ status: 'failed' }));
+  if (cf.status === 'ok') return 'ok';
+  const rs = await sendViaResend(env, mail).catch(() => ({ status: 'failed' }));
+  if (rs.status === 'ok') return 'ok';
+  return cf.status === 'not_configured' && rs.status === 'not_configured' ? 'not_configured' : 'failed';
+}
+
 /**
- * Scooter marks one cash rule right, or says how it should work instead (his words, kept with the rule
- * and in the action log). Refused in sample mode and for an unknown rule. Returns 'right' | 'change' | false.
+ * Scooter marks one cash rule right, or says how it should work instead. His words are kept with the
+ * rule and in the action log, AND sent on their own to the OS inbox (RULE_CHANGE_TO) with the rule id
+ * and version, so he never says it twice; a send that fails is retried by the 15-minute cron
+ * (resendRuleChanges). Refused in sample mode and for an unknown rule.
+ * Returns 'right' | 'change' (sent) | 'change_unsent' (kept, send to be retried) | false.
  */
 export async function walkCashRule(env, { id, answer, note, session }, now = Date.now()) {
   const rule = CASH_RULES.find((r) => r.id === id);
@@ -852,9 +884,27 @@ export async function walkCashRule(env, { id, answer, note, session }, now = Dat
   if (answer === 'change' && !words) return false;
   const db = dbOf(env);
   await ensureSchema(db);
-  await setSetting(db, `cash_rule:${id}`, { v: rule.v, ok: answer === 'right', note: answer === 'change' ? words : '', at: now });
-  await logAction(db, { at: now, owner: session.ownerId, sample: false, action: `cash_rule:${id}`, outcome: 'saved', detail: answer === 'right' ? 'right' : `change|${words}` });
-  return answer;
+  const sent = answer === 'change' ? await sendRuleChange(env, ruleChangeEmail(rule, words, now)) : null;
+  await setSetting(db, `cash_rule:${id}`, { v: rule.v, ok: answer === 'right', note: answer === 'change' ? words : '', at: now, ...(sent ? { sent, sent_at: sent === 'ok' ? now : null } : {}) });
+  await logAction(db, { at: now, owner: session.ownerId, sample: false, action: `cash_rule:${id}`, outcome: answer === 'right' || sent === 'ok' ? 'saved' : 'saved_unsent', detail: answer === 'right' ? 'right' : `change|${words}` });
+  return answer === 'right' ? 'right' : sent === 'ok' ? 'change' : 'change_unsent';
+}
+
+/** The cron's retry: every current rule change that has not reached the OS inbox yet is sent again. */
+export async function resendRuleChanges(env, now = Date.now()) {
+  const db = dbOf(env);
+  await ensureSchema(db);
+  const rows = (await db.prepare("SELECT key, value FROM setting WHERE key LIKE 'cash_rule:%'").all()).results || [];
+  let sentNow = 0;
+  for (const row of rows) {
+    const s = JSON.parse(row.value);
+    const rule = CASH_RULES.find((r) => `cash_rule:${r.id}` === row.key);
+    if (!rule || s.ok || s.v !== rule.v || !s.note || s.sent === 'ok') continue;
+    const sent = await sendRuleChange(env, ruleChangeEmail(rule, s.note, s.at || now));
+    if (sent === 'ok') sentNow++;
+    await setSetting(db, row.key, { ...s, sent, sent_at: sent === 'ok' ? now : null });
+  }
+  return sentNow;
 }
 
 /* ------------------------------------------------------------------ find a document */

@@ -503,7 +503,29 @@ const realFetch = globalThis.fetch;
   // "Not right" needs words; with words it is kept, persists, and the figures stay held.
   const noWords = await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'settled', answer: 'change', note: '' } });
   check('rules walk: a change with no words saves nothing', /m=rule_no_words/.test(noWords.location || '') && !(await db.prepare("SELECT key FROM setting WHERE key = 'cash_rule:settled'").first()));
-  await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'settled', answer: 'change', note: 'Count it once the bank feed shows it.' } });
+  // A change reaches the OS inbox on its own, once, with the rule id, version and his words: he never says it twice.
+  const sentBefore = env.sent.length;
+  const changed = await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'settled', answer: 'change', note: 'Count it once the bank feed shows it.' } });
+  const ruleMail = env.sent.slice(sentBefore);
+  check('rules walk: a change is sent to the OS inbox on its own, once, with the rule, its version and his words',
+    ruleMail.length === 1 && ruleMail[0].to === 'os@joinwestpeek.com' && /cash rule 1 \(settled, v1\)/.test(ruleMail[0].subject) && /Count it once the bank feed shows it\./.test(ruleMail[0].text) && /m=rule_change(#|$)/.test(changed.location || ''), JSON.stringify(ruleMail));
+  check('rules walk: the rule shows the change was sent to Porter, and the flash never asks him to send it again',
+    ((t) => />sent to Porter</.test(t) && /Sent to Porter on [^<]*, waiting on the new wording/.test(t) && !/Send the same words/.test(t))((await call(env, '/dashboard/money?m=rule_change', { cookie: s.cookie })).text));
+  // A send that fails is kept, said honestly, and retried by the cron without him doing anything.
+  {
+    const mailer = env.FORMS_MAILER;
+    env.FORMS_MAILER = { fetch: async () => new Response('down', { status: 500 }) };
+    const failed = await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'apart', answer: 'change', note: 'Show them together as well.' } });
+    const kept = await money();
+    check('rules walk: a change that could not be sent is kept and says it is still being sent', /m=rule_change_unsent/.test(failed.location || '') && /still being sent to Porter/.test(kept.text) && /You said: Show them together as well\./.test(kept.text));
+    env.FORMS_MAILER = mailer;
+    const { resendRuleChanges } = await import('../functions/_lib/pd/data.mjs');
+    const n0 = env.sent.length;
+    const resent = await resendRuleChanges(env, NOW);
+    const again2 = await resendRuleChanges(env, NOW);
+    check('rules walk: the cron sends an unsent change once, and never resends one that arrived', resent === 1 && again2 === 0 && env.sent.length === n0 + 1 && /apart, v1/.test(env.sent[n0].subject) && /Show them together as well\./.test(env.sent[n0].text));
+  }
+  check('Today: until the walk is done, it says the two things to do first, in order', ((t) => /Start here/.test(t) && t.indexOf('Walk the cash rules on Money') < t.indexOf('name your first real deal'))((await today()).text));
   for (const r of CASH_RULES.slice(1)) await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: r.id, answer: 'right' } });
   const partway = await money();
   check('rules walk: a rule he asked to change keeps his words and holds every figure, after a reload', /You said: Count it once the bank feed shows it\./.test(partway.text) && /4 of 5 marked right/.test(partway.text) && !/75%|4,321/.test(partway.text));
@@ -514,6 +536,7 @@ const realFetch = globalThis.fetch;
   const m = await call(env, '/dashboard/money', { cookie: second.cookie });
   check('rules walk: once every rule is marked right the figures show, on a second device too', m.status === 200 && /You walked every rule/.test(m.text) && /75%/.test(m.text) && /4,321/.test(m.text));
   check('a margin with costs not all entered shows no percentage', m.status === 200 && !/60%/.test(m.text));
+  check('rules walk: once all are right the walk folds shut, and Today drops Start here', /<summary><span>Cash rules · all 5 marked right/.test(m.text) && !/Start here/.test((await today()).text));
   // A rule whose words change asks him again.
   CASH_RULES[0].v += 1;
   const again = await money();
@@ -523,6 +546,8 @@ const realFetch = globalThis.fetch;
   await db.prepare("UPDATE connection SET scopes = ? WHERE provider = 'google'").bind('openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send').run();
   const wide = await money();
   check('money: while Google holds the wider grant, no money figure shows', /Google still holds the wider access/.test(wide.text) && !/4,321|75%/.test(wide.text));
+  const wideToday = await today();
+  check('money: while Google holds the wider grant, Today shows no money figure either, even with the walk done', wideToday.status === 200 && !/4,321/.test(wideToday.text) && /held until/.test(wideToday.text));
 }
 
 // The cron door.

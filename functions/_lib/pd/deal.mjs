@@ -440,7 +440,7 @@ export function rulesWalk(settings = {}) {
   const rules = CASH_RULES.map((r) => {
     const s = settings[`cash_rule:${r.id}`];
     const current = s && s.v === r.v ? s : null;
-    return { ...r, state: current ? (current.ok ? 'right' : 'change') : 'open', note: current?.note || '', at: current?.at || null };
+    return { ...r, state: current ? (current.ok ? 'right' : 'change') : 'open', note: current?.note || '', at: current?.at || null, sent: current?.sent || null, sentAt: current?.sent_at || null };
   });
   const right = rules.filter((r) => r.state === 'right').length;
   return { rules, right, all: right === rules.length, lastAt: Math.max(0, ...rules.map((r) => r.at || 0)) || null };
