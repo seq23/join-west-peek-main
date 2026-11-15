@@ -159,12 +159,44 @@ try {
     check('dedupe: again after an hour', later.alarms.length === 1);
   }
 
-  // 4. Ventures with no Turnstile keys: refused, and the alarm fires.
+  // 4. The bot check never blocks a real inquiry (owner, 15 Nov 2026). Keys unset, siteverify
+  //    down, or no token: the lead is delivered like any other and bot_check is recorded; the two
+  //    broken-check states still alarm. Only a definitive siteverify "no" drops it.
   {
+    const ventures = { email: 'f@example.test', lead_type: 'founder_apply' };
+    const keys = { TURNSTILE_SITE_KEY: 'site', TURNSTILE_SECRET_KEY: 'sec' };
+
     const w = world();
-    const r = await submit(w, { host: 'westpeek.ventures', body: { email: 'f@example.test', lead_type: 'founder_apply' } });
-    check('bot check not configured: refused', r.status === 503 && r.body.error === 'bot_check_not_configured', JSON.stringify(r.body));
+    const r = await submit(w, { host: 'westpeek.ventures', body: ventures });
+    check('bot check not configured: delivered', r.status === 200 && r.body.ok === true && r.body.bot_check === 'not_configured', JSON.stringify(r.body));
+    check('bot check not configured: lead reached the inbox', leadsIn(w.sent.cloudflare).length === 1, `${leadsIn(w.sent.cloudflare).length}`);
     check('bot check not configured: alarm sent', alarmsIn(w.sent.cloudflare).some((m) => /bot_check_not_configured/.test(m.subject)));
+
+    const down = world({ pages: keys });
+    const stub = down.fetchStub;
+    down.fetchStub = async (url, init) => {
+      if (String(url).startsWith('https://challenges.cloudflare.com/')) throw new TypeError('fetch failed');
+      return stub(url, init);
+    };
+    const d = await submit(down, { host: 'westpeek.ventures', body: { ...ventures, 'cf-turnstile-response': 'tok' } });
+    check('siteverify unreachable: delivered', d.status === 200 && d.body.ok === true && d.body.bot_check === 'unavailable', JSON.stringify(d.body));
+    check('siteverify unreachable: lead reached the inbox', leadsIn(down.sent.cloudflare).length === 1);
+    check('siteverify unreachable: alarm sent', alarmsIn(down.sent.cloudflare).some((m) => /bot_check_unavailable/.test(m.subject)));
+
+    const nt = world({ pages: keys });
+    const n = await submit(nt, { host: 'westpeek.ventures', body: { ...ventures, 'cf-turnstile-response': '' } });
+    check('empty token: delivered', n.status === 200 && n.body.ok === true && n.body.bot_check === 'no_token', JSON.stringify(n.body));
+    check('empty token: lead reached the inbox', leadsIn(nt.sent.cloudflare).length === 1);
+
+    const bad = world({ pages: keys });
+    const bstub = bad.fetchStub;
+    bad.fetchStub = async (url, init) => {
+      if (String(url).startsWith('https://challenges.cloudflare.com/')) return Response.json({ success: false, 'error-codes': ['invalid-input-response'] });
+      return bstub(url, init);
+    };
+    const b = await submit(bad, { host: 'westpeek.ventures', body: { ...ventures, 'cf-turnstile-response': 'forged' } });
+    check('invalid token: dropped', b.status === 400 && b.body.ok === false && b.body.error === 'bot_check_failed', JSON.stringify(b.body));
+    check('invalid token: nothing sent', bad.sent.cloudflare.length === 0 && bad.sent.resend.length === 0);
   }
 
   // 5. The probe: a wrong, stale or missing-secret signature is refused and sends nothing; a right

@@ -35,9 +35,12 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   navigation. Guard: `npm run validate:ventures-isolation`.
 - **Ventures forms are bot-checked on the server** (Scooter, 8 Oct 2026: spam posted straight to
   `/api/lead`). On ventures hosts only, `functions/api/lead.js` drops a POST with a missing or foreign
-  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and it requires a valid Cloudflare Turnstile token (400
-  `bot_check_failed`; siteverify unreachable → 503). The hidden `website` honeypot stays. Every drop is
-  logged with its reason; responses carry `bot_check`. Every ventures form carries
+  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and drops one whose Turnstile token
+  Cloudflare siteverify definitively rejects (400 `bot_check_failed`). **The bot check never blocks a
+  real inquiry** (owner, 15 Nov 2026, reversing the 3 Nov fail-closed rule): keys unset, siteverify
+  unreachable/slow/erroring, or no token (widget blocked) → delivered as normal, with `bot_check`
+  `not_configured` / `unavailable` / `no_token` in the logs and the outcome report. The hidden
+  `website` honeypot stays. Every drop is logged with its reason; responses carry `bot_check`. Every ventures form carries
   `data-bot-check="turnstile"`; `forms.js` renders an interaction-only widget when `GET /api/lead` returns
   a site key. Guard: rule FORM-13 in `npm run validate:forms`.
 - **Every site's `/api/lead` is limited per IP** (security sweep, 3 Nov 2026): 5 POSTs an hour per
@@ -190,4 +193,4 @@ Per Pages project; set through `pages_env`, never by hand.
   binding `FORMS_MAILER` → `west-peek-forms-mailer`, `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`,
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
-- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
+- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, ventures POSTs are still delivered, recorded `bot_check: "not_configured"`, and the `bot_check_not_configured` alarm fires (owner, 15 Nov 2026; the 3 Nov fail-closed 503 is gone).
