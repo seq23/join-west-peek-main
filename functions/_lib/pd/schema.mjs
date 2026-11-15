@@ -88,7 +88,7 @@ export const TABLE_WORDS = {
   row_cache: 'A copy of the rows read from those sheets, replaced at every sync (every 15 minutes). While Money is on, it includes your money rows',
   sync_state: 'When each part last synced, and how many rows (counts only)',
   action_log: 'What you pressed here and what your sheet showed back',
-  tick: 'The Today items you ticked off',
+  tick: 'The fault rows you hid on the Pipeline',
   choice: 'Your choices on Connections',
   setting: 'Small settings: the last sync, signature statuses, cash now from an accounting tool, and the column names of your tracker',
   sample_sheet: 'Made-up rows for the preview\'s sample mode (never real)',

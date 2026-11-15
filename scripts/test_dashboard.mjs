@@ -312,18 +312,20 @@ const realFetch = globalThis.fetch;
   check('naming the sheet syncs its rows onto Work', work.text.includes(MARK));
   check('every block names its source and sync time', /From: Work test sheet · Projects, synced/.test(work.text));
   const today = await call(env, '/dashboard', { cookie: s.cookie });
-  check('a client item 17 days old is red on Today, with Mark received', /d-dot red/.test(today.text) && /Logo files/.test(today.text) && /value="received"/.test(today.text));
+  // The first screen is the pipeline, never a triage list (Scooter, 15 Nov 2026); a client item lives on its client page.
+  const p1 = await call(env, '/dashboard/work/P1', { cookie: s.cookie });
+  check('a client item 17 days old is red on its client page, with Mark received, and never on the first screen', /d-dot red/.test(p1.text) && /Logo files/.test(p1.text) && /value="received"/.test(p1.text) && today.status === 200 && !/Logo files/.test(today.text));
   const stale = await call(env, '/dashboard/work', { cookie: s.cookie, now: NOW + 3 * 3600000 });
   check('older than 2 hours: "may be out of date"', /may be out of date/.test(stale.text));
 
   // move a row: the action must still find W1 by ID
   const tab = g.sheets.WORKSHEETID00000000000000001.tabs['Waiting on client'];
   tab.splice(1, 0, ['W0', 'P1', 'Inserted row', '2026-11-12', 'Waiting', '']);
-  const r1 = await call(env, '/dashboard/act', { method: 'POST', cookie: s.cookie, form: { action: 'received', row: 'W1', back: '/dashboard' } });
+  const r1 = await call(env, '/dashboard/act', { method: 'POST', cookie: s.cookie, form: { action: 'received', row: 'W1', back: '/dashboard/work/P1' } });
   const shown = await call(env, r1.location, { cookie: s.cookie });
   check('Mark received writes the source row found by ID and is confirmed', tab[2][4] === 'Received' && /Saved and checked/.test(shown.text));
   check('…the row above it is untouched', tab[1][4] === 'Waiting');
-  check('…and it survives a reload', !(await call(env, '/dashboard', { cookie: s.cookie })).text.includes('Logo files'));
+  check('…and it survives a reload', !(await call(env, '/dashboard/work/P1', { cookie: s.cookie })).text.includes('Logo files'));
 
   g.dropWrites = true;
   const r2 = await call(env, '/dashboard/act', { method: 'POST', cookie: s.cookie, form: { action: 'stage', row: 'D1', back: '/dashboard/deals' } });
@@ -345,14 +347,16 @@ const realFetch = globalThis.fetch;
   const clientPage = await call(env, '/dashboard/work/P1', { cookie: s.cookie });
   check('a reminder is a link that opens his own Gmail, written', /href="https:\/\/mail\.google\.com\/mail\/\?view=cm&amp;fs=1&amp;to=client-a%40example\.test/.test(clientPage.text) && !/value="remind"/.test(clientPage.text));
 
-  await call(env, '/dashboard/tick', { method: 'POST', cookie: s.cookie, form: { item: 'draft:A1' } });
-  check('a ticked Today item stays hidden after a reload', !(await call(env, '/dashboard', { cookie: s.cookie })).text.includes('Update draft'));
+  check('a draft to approve is on Agents, never on the first screen', /Update draft/.test((await call(env, '/dashboard/agents', { cookie: s.cookie })).text) && !(await call(env, '/dashboard', { cookie: s.cookie })).text.includes('Update draft'));
 
   // a failed sync and a broken connection show on Today
   delete g.sheets.WORKSHEETID00000000000000001;
   await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
   const red = await call(env, '/dashboard', { cookie: s.cookie });
-  check('a failed sync is a red row on Today with Reconnect', /Could not read your work sheet/.test(red.text) && /href="\/dashboard\/connections">Reconnect/.test(red.text));
+  check('a failed sync is a red row above the pipeline with Reconnect', /Could not read your work sheet/.test(red.text) && /href="\/dashboard\/connections">Reconnect/.test(red.text));
+  const faultKeys = [...red.text.matchAll(/name="item" value="(sync:[^"]+)"/g)].map((x) => x[1].replace(/&amp;/g, '&'));
+  for (const item of faultKeys) await call(env, '/dashboard/tick', { method: 'POST', cookie: s.cookie, form: { item } });
+  check('hidden fault rows stay hidden after a reload', faultKeys.length > 0 && !/Could not read your work sheet/.test((await call(env, '/dashboard', { cookie: s.cookie })).text));
   await env.PRODUCTIONS_DB.prepare("UPDATE connection SET status = 'broken' WHERE provider = 'google'").run();
   check('a broken connection shows on Today', /Google stopped syncing/.test((await call(env, '/dashboard', { cookie: s.cookie })).text));
 
@@ -360,7 +364,7 @@ const realFetch = globalThis.fetch;
   check('Disconnect revokes at Google and deletes the token', g.revoked.includes('REFRESH-TOKEN-PLAIN') && dis.location === '/dashboard/connections?m=disconnected' && !(await env.PRODUCTIONS_DB.prepare("SELECT * FROM connection WHERE provider = 'google'").first()));
   const off = (await call(env, '/dashboard', { cookie: s.cookie })).text;
   check('a disconnected account shows on Today with Connect', /Google is disconnected/.test(off) && /href="\/dashboard\/connections">Connect</.test(off));
-  check('…and Today\'s folds say "not connected yet", never a zero count', /Money · not connected yet/.test(off) && !/· 0 (milestones|invoices|drafts)/.test(off));
+  check('…and the pipeline says it is not connected, never a zero count', /appear here once Google is connected/.test(off) && !/· 0\b/.test(off));
 
   // Google sign-in: only the owner's account opens it
   const gs = await call(env, '/dashboard/google', { method: 'POST', form: { remember: '1' } });
@@ -402,7 +406,8 @@ const realFetch = globalThis.fetch;
     const snapshot = JSON.stringify(pipeline);
     const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
     check('tracker: a tab found by its columns, under a title line, with no ID column, is read', /Deals · 2/.test(deals.text) && /Org B/.test(deals.text) && /Org C/.test(deals.text) && !/Org A/.test(deals.text), (deals.text.match(/Deals · \d+/) || [''])[0]);
-    check('tracker: the page says how it is read, column by column', /How your tracker is read/.test(deals.text) && /2026 Pipeline, column names on row 3/.test(deals.text) && /<span>Company<\/span><span>organization<\/span>/.test(deals.text));
+    const connT = (await call(env, '/dashboard/connections', { cookie: s.cookie })).text;
+    check('tracker: Connections says how it is read, column by column; the pipeline carries no explanation', /How your tracker is read/.test(connT) && /2026 Pipeline, column names on row 3/.test(connT) && /<span>Company<\/span><span>organization<\/span>/.test(connT) && !/How your tracker is read/.test(deals.text));
     check('tracker: reading it changes nothing in it', JSON.stringify(pipeline) === snapshot && !g.appended);
 
     const before = g.cellsWritten || 0;
@@ -420,7 +425,7 @@ const realFetch = globalThis.fetch;
     check('tracker: the change shows on a second device', /Signed agreement/.test((await call(env, '/dashboard/deals', { cookie: second.cookie })).text));
 
     const flow = await call(env, '/dashboard/flow', { cookie: s.cookie });
-    check('lead to cash: one line per organization, the inquiry joined to its deal', /href="\/dashboard\/flow\/org-b">Org B ›/.test(flow.text) && /Org Z ›/.test(flow.text) && /New inquiry/.test(flow.text) && (flow.text.match(/Org B ›/g) || []).length === 1);
+    check('pipeline: one line per organization, each deal listed under the stage it sits in, new inquiries first', /<h2 id="stage-\d+-h">Signed agreement · 1<\/h2><ul class="d-list"><li class="d-row" data-stage="Signed agreement"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-b">Org B ›/.test(flow.text) && /New inquiries · 1<\/h2><ul class="d-list"><li class="d-row"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-z">Org Z ›/.test(flow.text) && (flow.text.match(/Org B ›/g) || []).length === 1 && flow.text.indexOf('New inquiries ·') < flow.text.indexOf('Signed agreement ·'));
     const recB = await call(env, '/dashboard/flow/org-b', { cookie: s.cookie });
     check('lead to cash: the record carries the inquiry, the deal form and the notes', /Person B/.test(recB.text) && /action="\/dashboard\/deal"/.test(recB.text) && /action="\/dashboard\/note"/.test(recB.text) && /Signed/.test(recB.text));
 
@@ -443,7 +448,7 @@ const realFetch = globalThis.fetch;
     pipeline.find((r) => r[0] === 'Org B')[4] = 'Edited in the sheet';
     await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
     check('notes: a note he edits in his tracker is what the record shows', /<textarea id="nt"[^>]*>Edited in the sheet</.test((await call(env, '/dashboard/flow/org-b', { cookie: s.cookie })).text));
-    check('notes: Lead to cash shows the note line from his tracker', /Note: Edited in the sheet/.test((await call(env, '/dashboard/flow', { cookie: s.cookie })).text));
+    check('notes: the pipeline lists stay short (no note text on a row)', !/Edited in the sheet/.test((await call(env, '/dashboard', { cookie: s.cookie })).text));
 
     // Access: what Google allows, who can open each sheet, what is kept.
     await env.PRODUCTIONS_DB.prepare("UPDATE connection SET scopes = ? WHERE provider = 'google'").bind('openid https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/calendar.readonly').run();
@@ -470,7 +475,7 @@ const realFetch = globalThis.fetch;
     // Stop using the tracker: deals fall back to the Work sheet's Deals tab; nothing of the tracker is kept.
     await call(env, '/dashboard/source/remove', { method: 'POST', cookie: s.cookie, form: { group: 'tracker' } });
     const fb = await call(env, '/dashboard/deals', { cookie: s.cookie });
-    check('sources: Stop using a sheet forgets its rows; deals come from the Work sheet again', /Org A/.test(fb.text) && !/Org Z/.test(fb.text));
+    check('sources: Stop using a sheet forgets its rows; deals come from the Work sheet again', /Org A/.test(fb.text) && !/data-stage="[^"]*"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-z"/.test(fb.text));
 
     // A tracker whose columns cannot be read says so, naming the columns it saw.
     g.sheets[TRACKER].tabs = { Sheet1: [['Foo', 'Bar'], ['x', 'y']] };
@@ -500,7 +505,7 @@ const realFetch = globalThis.fetch;
   const before = await money();
   const beforeToday = await today();
   check('rules walk: before it, Money shows every rule and no figure', before.status === 200 && CASH_RULES.every((r) => before.text.includes(`id="rule-${r.id}"`)) && !/75%|4,321|Friday review/.test(before.text) && /0 of 5 marked right/.test(before.text));
-  check('rules walk: before it, Today shows no money figure', beforeToday.status === 200 && !/4,321/.test(beforeToday.text) && /held until the cash rules are walked/.test(beforeToday.text));
+  check('rules walk: before it, the first screen shows no money figure', beforeToday.status === 200 && !/4,321|\$\d/.test(beforeToday.text));
   // "Not right" needs words; with words it is kept, persists, and the figures stay held.
   const noWords = await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: 'settled', answer: 'change', note: '' } });
   check('rules walk: a change with no words saves nothing', /m=rule_no_words/.test(noWords.location || '') && !(await db.prepare("SELECT key FROM setting WHERE key = 'cash_rule:settled'").first()));
@@ -526,7 +531,7 @@ const realFetch = globalThis.fetch;
     const again2 = await resendRuleChanges(env, NOW);
     check('rules walk: the cron sends an unsent change once, and never resends one that arrived', resent === 1 && again2 === 0 && env.sent.length === n0 + 1 && /apart, v1/.test(env.sent[n0].subject) && /Show them together as well\./.test(env.sent[n0].text));
   }
-  check('Today: until the walk is done, it says the two things to do first, in order', ((t) => /Start here/.test(t) && t.indexOf('Walk the cash rules on Money') < t.indexOf('name your first real deal'))((await today()).text));
+  check('until the walk is done, Money opens on it and the first screen carries no instructions', !/Start here/.test((await today()).text) && /The cash rules, walked first/.test((await money()).text));
   for (const r of CASH_RULES.slice(1)) await call(env, '/dashboard/cash-rule', { method: 'POST', cookie: s.cookie, form: { id: r.id, answer: 'right' } });
   const partway = await money();
   check('rules walk: a rule he asked to change keeps his words and holds every figure, after a reload', /You said: Count it once the bank feed shows it\./.test(partway.text) && /4 of 5 marked right/.test(partway.text) && !/75%|4,321/.test(partway.text));
@@ -548,7 +553,7 @@ const realFetch = globalThis.fetch;
   const wide = await money();
   check('money: while Google holds the wider grant, no money figure shows', /Google still holds the wider access/.test(wide.text) && !/4,321|75%/.test(wide.text));
   const wideToday = await today();
-  check('money: while Google holds the wider grant, Today shows no money figure either, even with the walk done', wideToday.status === 200 && !/4,321/.test(wideToday.text) && /held until/.test(wideToday.text));
+  check('money: while Google holds the wider grant, the first screen shows no money figure either, even with the walk done', wideToday.status === 200 && !/4,321|\$\d/.test(wideToday.text));
 }
 
 // The cron door.
@@ -879,8 +884,9 @@ const realFetch = globalThis.fetch;
     await call(env, `/dashboard/oauth/callback?state=${new URL(start.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
     await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${PIPE}/edit` } });
     const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
-    check('row 11: the table under his summary block is read, not the summary', /Deals · 2/.test(deals.text) && /Org K/.test(deals.text) && /Org L/.test(deals.text) && /Pipeline, column names on row 11/.test(deals.text), (deals.text.match(/Deals · \d+|column names on row \d+/g) || []).join(' '));
-    check('row 11: Opportunity through Flag are each understood', ['Opportunity', 'Organization', 'Service', 'Buyer type', 'Probability', 'Expected close', 'Notes', 'Flag'].every((h) => new RegExp(`<span>${h}</span><span>`).test(deals.text)));
+    const conn11 = (await call(env, '/dashboard/connections', { cookie: s.cookie })).text;
+    check('row 11: the table under his summary block is read, not the summary', /Deals · 2/.test(deals.text) && /Org K/.test(deals.text) && /Org L/.test(deals.text) && /Pipeline, column names on row 11/.test(conn11), (deals.text.match(/Deals · \d+/g) || []).concat(conn11.match(/column names on row \d+/g) || []).join(' '));
+    check('row 11: Opportunity through Flag are each understood', ['Opportunity', 'Organization', 'Service', 'Buyer type', 'Probability', 'Expected close', 'Notes', 'Flag'].every((h) => new RegExp(`<span>${h}</span><span>`).test(conn11)));
     const snap = JSON.stringify(pipeline);
     await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-k', stage: 'Solution and budget', back: '/dashboard/flow/org-k' } });
     check('row 11: a stage change writes row 12 only, in the Stage column', pipeline[11][5] === 'Solution and budget' && JSON.stringify(pipeline.slice(0, 11)) === JSON.stringify(JSON.parse(snap).slice(0, 11)) && pipeline[12][5] === 'Proposal' && pipeline.length === 13);
@@ -961,7 +967,7 @@ const realFetch = globalThis.fetch;
     await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'save', status: 'sent', text: `${text.replace(/&amp;/g, '&')}\nEdited by hand.`, back: '/dashboard/flow/org-k/proposal' } });
     const pp2 = await call(env, '/dashboard/flow/org-k/proposal', { cookie: second.cookie });
     check('proposal: his edit and its Sent status persist on a second device', /Edited by hand\./.test(pp2.text) && /Sent to the client · version 2/.test(pp2.text));
-    check('proposal: the deal record carries discovery, quote, proposal, documents and emails in one place', ((t) => /Discovery ›/.test(t) && /Sent to the client/.test(t) && /Documents named for Org K/.test(t) && /mail\.google\.com\/mail\/u\/0\/#search/.test(t))((await call(env, '/dashboard/flow/org-k', { cookie: s.cookie })).text));
+    check('proposal: the deal record carries discovery, quote, proposal, documents and emails in one place', ((t) => /Discovery ›/.test(t) && /Sent to the client/.test(t) && /href="\/dashboard\/find\?q=Org%20K">Documents</.test(t) && /mail\.google\.com\/mail\/u\/0\/#search/.test(t))((await call(env, '/dashboard/flow/org-k', { cookie: s.cookie })).text));
 
     // Accepted: the deal moves to his signed stage in his tracker, and the work side starts.
     const acc = await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'accept', team: 'Owner A: account lead', back: '/dashboard/flow/org-k/proposal' } });
@@ -1072,7 +1078,7 @@ const realFetch = globalThis.fetch;
     await call(env, `/dashboard/oauth/callback?state=${new URL(start.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
     await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${PIPE}/edit` } });
     const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
-    check('his tracker on Deals: two deals, read from row 11, the summary line never shown as a deal', /Deals · 2/.test(deals.text) && /Org P/.test(deals.text) && /Org Q/.test(deals.text) && !/Org Z/.test(deals.text) && /Pipeline, column names on row 11/.test(deals.text));
+    check('his tracker on Deals: two deals, read from row 11, the summary line never shown as a deal', /Deals · 2/.test(deals.text) && /Org P/.test(deals.text) && /Org Q/.test(deals.text) && !/Org Z/.test(deals.text) && /Pipeline, column names on row 11/.test((await call(env, '/dashboard/connections', { cookie: s.cookie })).text));
     const before = JSON.parse(JSON.stringify(pipeline));
     await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-p', text: 'Edited on the dashboard', back: '/dashboard/flow/org-p' } });
     await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-p', stage: 'Proposal', back: '/dashboard/flow/org-p' } });

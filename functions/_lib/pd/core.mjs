@@ -127,10 +127,6 @@ export function usTime(v, now = Date.now()) {
   const time = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(d);
   return sameDay ? time : `${usDay(t)}, ${time}`;
 }
-/** Line 1 of Today: "Fri Nov 14". */
-export function todayLabel(now = Date.now()) {
-  return usDay(now).replace(',', '');
-}
 export function isoDay(now = Date.now()) {
   const p = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
   return p; // 2026-11-14

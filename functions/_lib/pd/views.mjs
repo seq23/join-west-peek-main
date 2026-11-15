@@ -3,13 +3,13 @@
  * script (the CSP allows none), every action a plain form so it works on any phone.
  * Words are outcome words: never "store", "Agent Log", "Phase 2" or "firm email".
  */
-import { ageWords, daysSince, esc, httpsOnly, isoDay, money, num, todayLabel, toTime, usDay, usTime } from './core.mjs';
-import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, GROUPS, JOURNEY_FILTERS, JOURNEY_STEPS, KINDS, NOTE_MAX, STALE_MS, composeLink, groupFor, orgKey, projectName, sheetUrl, stageOptions } from './data.mjs';
+import { ageWords, daysSince, esc, httpsOnly, isoDay, money, num, toTime, usDay, usTime } from './core.mjs';
+import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, GROUPS, KINDS, NOTE_MAX, STALE_MS, composeLink, groupFor, orgKey, projectName, sheetUrl, stageOptions } from './data.mjs';
 import { GOOGLE_SCOPE_WORDS, KEY_FIELDS, PROVIDERS, RETIRED_GOOGLE_SCOPES, wideGoogleScopes } from './providers.mjs';
 import { BACKUP_TABLES, TABLE_WORDS } from './schema.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
 import { cashPicture } from './deal.mjs';
-import { cashRulesSection, rulesWalkSection, dealSections, inquiriesBody, intakeSection } from './views-deal.mjs';
+import { cashRulesSection, rulesWalkSection, dealSections, inquiriesBody } from './views-deal.mjs';
 
 const HELP = '/dashboard/help';
 export const providerName = (p) => ({ google: 'Google', dropbox: 'Dropbox', docusign: 'DocuSign', quickbooks: 'QuickBooks', xero: 'Xero' }[p] || p);
@@ -125,6 +125,9 @@ details.d-fold[open] summary::after{content:'⌄'}
 .d-kv li{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--ink-3)}
 .d-kv li span:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .d-big{font-size:30px;font-weight:700;margin:2px 0;font-variant-numeric:tabular-nums}
+.d-count{margin:2px 0 6px;color:var(--copy);font-size:15px}
+.d-sec--none{padding:10px 0}
+.d-sec--none h2{color:var(--copy);font-weight:500;margin:0}
 .d-funnel{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:4px}
 .d-funnel li{display:grid;grid-template-columns:2.2rem 1fr;padding:7px 10px;background:var(--ink-2);border-radius:10px;font-size:15px}
 .d-funnel b{font-variant-numeric:tabular-nums}
@@ -167,11 +170,12 @@ code{overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 `;
 
+const TABS = [['pipeline', '/dashboard', 'Pipeline'], ['inquiries', '/dashboard/inquiries', 'Inquiries'], ['work', '/dashboard/work', 'Clients'], ['money', '/dashboard/money', 'Money'], ['agents', '/dashboard/agents', 'Agents']];
 export function page(title, body, { tab = null, counts = null, sample = false, signedIn = false, head = '' } = {}) {
-  const tabs = signedIn ? `<nav class="d-tabs" aria-label="Dashboard">${[['today', '/dashboard', 'Today'], ['work', '/dashboard/flow', 'Work'], ['money', '/dashboard/money', 'Money'], ['agents', '/dashboard/agents', 'Agents']].map(([k, h, l]) => {
-    const n = counts?.[k] ?? 0;
-    return `<a href="${h}"${tab === k ? ' aria-current="page"' : ''}>${l}<b class="${n ? '' : 'zero'}" aria-label="${n} to look at">${n}</b></a>`;
-  }).join('')}</nav>` : '';
+  // Plain labelled tabs, no "to look at" counts (Scooter, 15 Nov 2026: "I don't need it to figure out
+  // what needs my attention ... Less on the screen, clear labels").
+  void counts;
+  const tabs = signedIn ? `<nav class="d-tabs" aria-label="Dashboard">${TABS.map(([k, h, l]) => `<a href="${h}"${tab === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>` : '';
   const top = signedIn ? `<header class="d-head"><p class="d-brand">West Peek Productions</p><nav class="d-headlinks" aria-label="Settings"><a href="/dashboard/connections"${tab === 'connections' ? ' aria-current="page"' : ''}>Connections</a><a href="${HELP}"${tab === 'help' ? ' aria-current="page"' : ''}>Help</a></nav></header>${sample ? '<p class="d-sample">Sample mode (preview only): every row here is made up. Nothing is real and nothing reaches a client.</p>' : ''}` : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0b0c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="WPP Dashboard"><meta name="apple-mobile-web-app-status-bar-style" content="black"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/img/dashboard-icon-180.png"><title>${esc(title)} · West Peek Productions</title><style>${CSS}</style>${head}</head><body><main>${top}${body}</main>${tabs}</body></html>`;
 }
@@ -214,7 +218,7 @@ export function renderSignIn({ googleReady, message = '', email = '', preview = 
     : `<div class="d-emptybox"><p><strong>Google sign-in is not set up yet.</strong> It needs a small Google app in your Productions Workspace; the steps take about ten minutes.</p><a class="d-btn" href="${HELP}#google-app">Show me the steps</a></div><p class="d-sub">Until then, sign in with your email below. A one-time code reaches your work email from "Forgot it?".</p>`;
   return page('Sign in', `<div class="d-login">
     <p class="d-brand">West Peek Productions</p><h1>Your dashboard</h1>
-    <p class="d-sub">Today's priorities, your projects, money and agents, from your own Google files.</p>
+    <p class="d-sub">Your pipeline, clients, money and agents, from your own Google files.</p>
     ${message ? `<p class="d-flash d-flash--bad" role="alert">${esc(message)}</p>` : ''}
     ${google}
     <p class="d-or">or with your email</p>
@@ -258,35 +262,46 @@ export function renderForgot({ sent = false, message = '' } = {}) {
     <p><a class="d-help" href="/dashboard">← Back to sign in</a></p></form>`);
 }
 
-/* ------------------------------------------------------------------ Today */
+/* ------------------------------------------------------------------ Pipeline (the first screen) */
 
-export function renderToday(view, ctx) {
-  const { now, items } = ctx;
-  const n = items.length;
-  const line1 = `${todayLabel(now)} · ${n ? `${n} need${n === 1 ? 's' : ''} you` : 'nothing needs you'}`;
-  const list = items.length
-    ? `<ul class="d-list">${items.map((i) => `<li class="d-row d-row--today"><span class="d-dot ${i.tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.title)}</span><span class="d-row__sub ${i.tone === 'plain' ? '' : i.tone}">${esc(i.sub)}</span></div><div class="d-row__act">${todayAction(i)}<form method="post" action="/dashboard/tick" class="d-inline"><input type="hidden" name="item" value="${esc(i.key)}"><button type="submit" class="d-tick" aria-label="Done: hide ${esc(i.title)}" title="Done">✓</button></form></div></li>`).join('')}</ul>`
-    : (ctx.sample || ctx.googleConnected ? empty('Nothing is overdue or waiting on you. New items show here as soon as your sheets say so.', '/dashboard/work', 'See your projects') : notConnected(ctx, 'Overdue invoices, waiting items, proposals and drafts'));
-
-  const week = view.rows.projects.filter((p) => { const d = daysSince(p.milestone_date, now); return d !== null && d <= 0 && d > -8; });
-  const fourWeeks = view.rows.invoices.filter((i) => !/paid/i.test(i.status || '') && (daysSince(i.due, now) ?? -99) > -8);
-  const drafts = view.rows.drafts.filter((a) => /^(|waiting|new|to approve)$/i.test(String(a.status || '').trim()));
-  // Before Google is connected the folds say so and lead to Connections, never a zero that reads as real.
-  const offLine = (what) => `<details class="d-fold"><summary><span>${what} · not connected yet</span></summary><p class="d-sub">This fills in once your Google account is connected.</p><a class="d-help" href="/dashboard/connections">Connect Google ›</a> · <a class="d-help" href="/dashboard/help">What this shows</a></details>`;
-  const folds = !ctx.sample && !ctx.googleConnected ? `
-    ${offLine('This week')}
-    ${offLine('Money')}
-    ${offLine('Agents')}` : `
-    <details class="d-fold"><summary><span>This week · ${week.length} milestone${week.length === 1 ? '' : 's'}</span></summary>${week.length ? `<ul class="d-list">${week.map((p) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/work/${encodeURIComponent(p._id)}">${esc(p.milestone || 'Milestone')} · ${esc(p.name || p.client || '')}</a><span class="d-row__sub">${dayOr(p.milestone_date)}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No milestones in the next seven days.</p>'}</details>
-    ${ctx.moneyHidden && ctx.rulesDone ? '<details class="d-fold"><summary><span>Money · held until Google\'s wider access is narrowed</span></summary><p class="d-sub">Google still holds the wider access from before. No money figure shows until it is narrowed: the next sync withdraws it, or press Narrow now.</p><a class="d-help" href="/dashboard/access#limit">Who can see what ›</a></details>' : ctx.moneyHidden ? '<details class="d-fold"><summary><span>Money · held until the cash rules are walked</span></summary><p class="d-sub">Your money figures show once you have read the cash rules and marked each one right.</p><a class="d-help" href="/dashboard/money">Walk the cash rules ›</a></details>' : `<details class="d-fold"><summary><span>Money · ${fourWeeks.length} invoice${fourWeeks.length === 1 ? '' : 's'} due or late this week</span></summary><p class="d-sub">${fourWeeks.length ? fourWeeks.map((i) => `${esc(i.client || '')} ${esc(money(num(i.amount)))} · ${esc(usDay(i.due))}`).join('<br>') : 'Nothing due this week.'}</p><a class="d-help" href="/dashboard/money">Friday money review ›</a></details>`}
-    <details class="d-fold"><summary><span>Agents · ${drafts.length} draft${drafts.length === 1 ? '' : 's'} to approve · cold email off</span></summary><a class="d-help" href="/dashboard/agents">Open Agents ›</a></details>`;
-  const body = `<h1>${esc(line1)}</h1>${source(view, ['invoices', 'waiting', 'deals', 'drafts'], now)}${ctx.flash || ''}
-    ${!ctx.rulesDone && !ctx.sample ? sec('start', 'Start here', '<ol class="d-sub"><li><a href="/dashboard/money">Walk the cash rules on Money</a>: read each rule and mark it right, or say how it should work (your words go to Porter on their own).</li><li>Then name your first real deal to run all the way through: inquiry, discovery, priced proposal, accepted deal, client portal. Email its name to os@joinwestpeek.com, or open it on <a href="/dashboard/deals">Deals</a>.</li></ol>') : ''}
-    ${findBox()}
-    ${sec('needs', 'Needs you', list)}
-    <section class="d-sec" aria-label="This week, money and agents">${folds}</section>
-    ${refreshButton(ctx)}`;
-  return page('Today', body, { tab: 'today', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+/**
+ * The sales funnel as labelled lists: new inquiries not yet in his tracker, then one list per stage of
+ * his tracker in its own order, each deal under the stage it sits in (Scooter, 15 Nov 2026: "organized,
+ * clearly labeled lists of what's in the sales funnel and where each deal sits"). No triage and no
+ * "needs you" list; only a sync or connection fault shows above it, because then the lists are wrong.
+ */
+export function renderPipeline(view, ctx, list) {
+  const { now } = ctx;
+  const deals = view.rows.deals;
+  const layout = ctx.sample ? null : ctx.settings['layout:deals'];
+  const opts = stageOptions(deals, layout?.stages);
+  const lower = opts.stages.map((x) => x.toLowerCase());
+  const keyOf = (d) => encodeURIComponent(orgKey(d.org));
+  const faults = (ctx.items || []).filter((i) => i.kind === 'connection' || i.kind === 'sync');
+  const faultList = faults.length ? `<ul class="d-list d-faults">${faults.map((i) => `<li class="d-row d-row--today"><span class="d-dot ${i.tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.title)}</span><span class="d-row__sub ${i.tone === 'plain' ? '' : i.tone}">${esc(i.sub)}</span></div><div class="d-row__act">${todayAction(i)}<form method="post" action="/dashboard/tick" class="d-inline"><input type="hidden" name="item" value="${esc(i.key)}"><button type="submit" class="d-tick" aria-label="Hide ${esc(i.title)}" title="Hide">✓</button></form></div></li>`).join('')}</ul>` : '';
+  const dealRow = (d) => {
+    const i = lower.indexOf(String(d.stage || '').toLowerCase());
+    const canMove = opts.ordered && i > -1 && i < opts.stages.length - 1;
+    const bits = [d.owner ? esc(d.owner) : '', d.proposal_sent && toTime(d.proposal_sent) !== null ? `Proposal sent ${esc(usDay(d.proposal_sent))}` : '', d.next_action ? `${esc(d.next_action)}${toTime(d.next_date) !== null ? ` · ${esc(usDay(d.next_date))}` : ''}` : ''].filter(Boolean).join(' · ');
+    return `<li class="d-row" data-stage="${esc(d.stage || '')}"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${keyOf(d)}">${esc(d.org || 'Deal')} ›</a>${bits ? `<span class="d-row__sub">${bits}</span>` : ''}</div><div class="d-row__act">${canMove ? act('stage', d._id, 'Next stage', '/dashboard') : ''}</div></li>`;
+  };
+  const fresh = list.filter((j) => !j.deal && j.inquiries.length && !j.lost);
+  const stageSecs = opts.stages.map((st, n) => {
+    const here = deals.filter((d) => String(d.stage || '').toLowerCase() === st.toLowerCase());
+    return here.length
+      ? sec(`stage-${n + 1}`, `${st} · ${here.length}`, `<ul class="d-list">${here.map(dealRow).join('')}</ul>`)
+      : `<section class="d-sec d-sec--none" id="stage-${n + 1}"><h2>${esc(st)} · 0</h2></section>`;
+  }).join('');
+  const other = deals.filter((d) => !lower.includes(String(d.stage || '').toLowerCase()));
+  const otherSec = other.length ? sec('stage-other', `No stage set · ${other.length}`, `<ul class="d-list">${other.map(dealRow).join('')}</ul>`) : '';
+  const freshSec = sec('new', `New inquiries · ${fresh.length}`, fresh.length
+    ? `<ul class="d-list">${fresh.map((j) => { const q = j.inquiries.at(-1) || {}; return `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${[q.name ? esc(q.name) : '', toTime(q.at) !== null ? esc(usDay(q.at)) : ''].filter(Boolean).join(' · ') || 'Inquiry'}</span></div></li>`; }).join('')}</ul>`
+    : '<p class="d-sub">None.</p>');
+  const unread = layout && !layout.recognised ? layoutBox(layout) : '';
+  const off = notConnected(ctx, 'Your pipeline') || (!ctx.sample && !ctx.sources.work && !ctx.sources.tracker ? empty('Name your deal tracker and every deal shows here under its stage.', '/dashboard/connections#sheets', 'Name your tracker', 'deals') : '');
+  const lists = off || unread ? '' : `${freshSec}${stageSecs}${otherSec}`;
+  const body = `<h1>Pipeline</h1>${lists ? `<p class="d-count">Deals · ${deals.length} · New inquiries · ${fresh.length}</p>` : ''}${faultList}${ctx.flash || ''}${unread}${off}${lists}${source(view, ['deals', 'inquiries'].filter((k) => view.sync[k]), now)}${refreshButton(ctx)}`;
+  return page('Pipeline', body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 function todayAction(i) {
   if (i.action === 'reconnect') return `<a class="d-btn d-primary" href="/dashboard/connections">${String(i.key).startsWith('off:') ? 'Connect' : 'Reconnect'}</a>`;
@@ -301,21 +316,18 @@ function findBox(value = '') {
 }
 function refreshButton(ctx) {
   if (ctx.sample) return '';
-  return `<form method="post" action="/dashboard/refresh" class="d-sec"><input type="hidden" name="back" value="/dashboard"><button type="submit">Refresh now</button><p class="d-sub">Syncs on its own every 15 minutes.</p></form>`;
+  return `<form method="post" action="/dashboard/refresh" class="d-sec"><input type="hidden" name="back" value="/dashboard"><button type="submit">Refresh now</button></form>`;
 }
 
 /* ------------------------------------------------------------------ Work, client page, deals */
 
-function seg(active) {
-  return `<nav class="d-seg" aria-label="Work">${[['flow', '/dashboard/flow', 'Lead to cash'], ['projects', '/dashboard/work', 'Projects'], ['deals', '/dashboard/deals', 'Deals'], ['inquiries', '/dashboard/inquiries', 'Inquiries']].map(([k, h, l]) => `<a href="${h}"${active === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
-}
 export function renderWork(view, ctx) {
   const { now } = ctx;
   const projects = view.rows.projects.filter((p) => !/closed|done|complete/i.test(p.status || ''));
   const list = projects.length
     ? `<ul class="d-list">${projects.map((p) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/work/${encodeURIComponent(p._id)}">${esc(p.client || p.name || 'Project')}${p.name && p.client ? ` · ${esc(p.name)}` : ''} ›</a><span class="d-row__sub">${p.milestone ? `${esc(p.milestone)} · ${dayOr(p.milestone_date)}` : 'No next milestone entered'}</span></div></li>`).join('')}</ul>`
     : notConnected(ctx, 'Your projects') || noSource(ctx, 'work', 'Your projects') || empty('No active projects in the Projects tab yet. Add a row with an ID and it shows here on the next sync.', ctx.sources.work ? sheetUrl(ctx.sources.work.spreadsheet_id) : '/dashboard/connections', 'Open the Work sheet', 'projects');
-  return page('Work', `<h1>Work</h1>${seg('projects')}${ctx.flash || ''}${findBox()}${sec('projects', `Projects · ${projects.length}`, list, source(view, ['projects'], now))}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+  return page('Clients', `<h1>Clients</h1>${ctx.flash || ''}${findBox()}${sec('projects', `Active projects · ${projects.length}`, list, source(view, ['projects'], now))}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
 export function renderClient(view, p, ctx) {
@@ -327,7 +339,7 @@ export function renderClient(view, p, ctx) {
   const meeting = ctx.meeting;
   const meetingText = !ctx.googleConnected && !ctx.sample ? gap('connect Google to see it') : !meeting || meeting.none ? 'No meeting with them on your calendar.' : meeting.failed ? '<span class="d-red">Your calendar did not answer just now.</span>' : `${esc(meeting.title)} · ${esc(usTime(meeting.at, now))} ${link(meeting.link, 'Open')}`;
   const deliverables = String(p.deliverables || '').split(/[\s,]+/).map(httpsOnly).filter(Boolean);
-  const body = `<p><a class="d-help" href="/dashboard/work">← Work</a></p><h1>${esc(p.client || p.name)}</h1><p class="d-sub">${esc(p.name || '')}${p.status ? ` · ${esc(p.status)}` : ''}</p>${ctx.flash || ''}
+  const body = `<p><a class="d-help" href="/dashboard/work">← Clients</a></p><h1>${esc(p.client || p.name)}</h1><p class="d-sub">${esc(p.name || '')}${p.status ? ` · ${esc(p.status)}` : ''}</p>${ctx.flash || ''}
   ${sec('docs', 'Documents', `<ul class="d-kv"><li><span>Binder</span><span>${link(p.binder, 'Open') || gap()}</span></li><li><span>Drive folder</span><span>${link(p.folder, 'Open') || gap()}</span></li><li><span>SOW signature</span><span>${sow}</span></li></ul>${deliverables.length ? `<h3>Deliverables</h3><ul class="d-list">${deliverables.map((d, i) => `<li class="d-row">${link(d, `Deliverable ${i + 1}`)}</li>`).join('')}</ul>` : ''}`)}
   ${sec('people', 'People', `<ul class="d-kv"><li><span>Contacts</span><span>${val(p.contacts)}</span></li><li><span>Approval owners</span><span>${val(p.approvers)}</span></li><li><span>Next meeting</span><span>${meetingText}</span></li><li><span>Next milestone</span><span>${val(p.milestone)} · ${dayOr(p.milestone_date)}</span></li></ul>`)}
   ${sec('waiting', `Waiting on them · ${waiting.length}`, waiting.length ? `<ul class="d-list">${waiting.map((w) => { const d = daysSince(w.since, now); const tone = d >= 14 ? 'red' : d >= 7 ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(w.item)}</span><span class="d-row__sub ${tone}">${d === null ? 'No date entered' : `Waiting ${esc(ageWords(d))}`}</span></div><div class="d-row__act">${act('received', w._id, 'Mark received', back, { primary: true })}${w.email ? `<a class="d-btn" href="${esc(composeLink('waiting', w))}" target="_blank" rel="noopener noreferrer">Write a reminder in Gmail ↗</a>` : ''}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">Nothing is waiting on them.</p>', source(view, ['projects', 'waiting'], now))}`;
@@ -345,105 +357,83 @@ function layoutBox(layout) {
   return `<details class="d-fold"><summary><span>How your tracker is read</span></summary><p class="d-sub">${esc(layout.title ? `${layout.title} · ` : '')}${esc(layout.tab)}, column names on row ${esc(layout.headerRow)}. ${layout.keyed ? 'It has no ID column, so each row is found again by its organization name.' : 'Each row is found again by its ID.'} Nothing is ever added to it: no column, no second pipeline. A change writes only the cells you change, then reads them back.</p><ul class="d-kv">${cols}</ul>${layout.stages ? '<p class="d-sub">The stages come from the Stage column\'s own dropdown.</p>' : ''}</details>`;
 }
 
-export function renderDeals(view, ctx) {
-  const { now } = ctx;
-  const deals = view.rows.deals;
-  const layout = ctx.sample ? null : ctx.settings['layout:deals'];
-  const opts = stageOptions(deals, layout?.stages);
-  const lower = opts.stages.map((x) => x.toLowerCase());
-  const other = deals.filter((d) => !lower.includes(String(d.stage || '').toLowerCase())).length;
-  const funnel = `<ol class="d-funnel">${opts.stages.map((st) => { const n = deals.filter((d) => String(d.stage || '').toLowerCase() === st.toLowerCase()).length; return `<li><b>${n}</b><span>${esc(st)}</span></li>`; }).join('')}${other ? `<li><b>${other}</b><span>Other or no stage</span></li>` : ''}</ol>`;
-  const back = '/dashboard/deals';
-  const list = deals.length
-    ? `<ul class="d-list">${deals.map((d) => { const i = lower.indexOf(String(d.stage || '').toLowerCase()); const canMove = opts.ordered && i > -1 && i < opts.stages.length - 1; return `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(orgKey(d.org))}">${esc(d.org || 'Deal')} ›</a><span class="d-row__sub">${val(d.stage)} · ${val(d.owner)}</span><span class="d-row__sub">${d.next_action ? `${esc(d.next_action)} · ${dayOr(d.next_date)}` : 'No next action entered'}</span></div><div class="d-row__act">${canMove ? act('stage', d._id, 'Move to next stage', back) : ''}</div></li>`; }).join('')}</ul>`
-    : notConnected(ctx, 'Your deals') || (layout && !layout.recognised ? '' : (!ctx.sample && !ctx.sources.work && !ctx.sources.tracker ? empty('Your deals come from your own tracker. Paste its link on Connections; it is read as it is, with no new columns.', '/dashboard/connections#sheets', 'Name your tracker', 'deals') : empty(ctx.sources.tracker ? 'Your tracker has no deal rows yet. Each row with an organization shows here on the next sync.' : 'No deal rows were found in your Work sheet. If your tracker is its own Google Sheet, paste its link under Your deal tracker; it is read as it is, with no new columns.', '/dashboard/connections#sheets', ctx.sources.tracker ? 'Check your tracker' : 'Name your tracker', 'deals')));
-  const out = deals.filter((d) => d.proposal_sent && !/signed|deposit|handoff/i.test(d.stage || ''));
-  const proposals = out.length ? `<ul class="d-list">${out.map((d) => { const late = daysSince(d.follow_up, now) > 0; return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(d.org)}</span><span class="d-row__sub ${late ? 'red' : ''}">Sent ${esc(usDay(d.proposal_sent))} · follow up ${dayOr(d.follow_up)}</span></div><div class="d-row__act">${late ? mailLink('deals', d, 'Chase in Gmail') : ''}</div></li>`; }).join('')}</ul>` : '<p class="d-sub">No proposals out.</p>';
-  return page('Deals', `<h1>Deals</h1>${seg('deals')}${ctx.flash || ''}${layoutBox(layout)}${sec('funnel', 'Stages', funnel, source(view, ['deals'], now))}${sec('deals', `Deals · ${deals.length}`, list)}${sec('proposals', `Proposals out · ${out.length}`, proposals)}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
-}
-
 /* ------------------------------------------------------------------ lead to client to cash */
 
-export function renderFlow(view, ctx, list, show) {
-  const { now } = ctx;
-  const f = JOURNEY_FILTERS[show] ? show : 'all';
-  const rows = list.filter(JOURNEY_FILTERS[f].test);
-  const filters = `<nav class="d-seg" aria-label="Show">${Object.entries(JOURNEY_FILTERS).map(([k, F]) => `<a href="/dashboard/flow${k === 'all' ? '' : `?show=${k}`}"${k === f ? ' aria-current="page"' : ''}>${esc(F.label)} · ${list.filter(F.test).length}</a>`).join('')}</nav>`;
-  const items = rows.length ? `<ul class="d-list">${rows.map((j) => { const tone = j.overdue.length ? 'red' : j.next?.tone === 'gold' ? 'gold' : ''; return `<li class="d-row"><span class="d-dot ${tone}" aria-hidden="true"></span><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${esc(j.where)}${j.invoiced && !ctx.moneyHidden ? ` · ${esc(money(j.paid))} of ${esc(money(j.invoiced))} paid` : ''}</span>${j.next ? `<span class="d-row__sub ${j.next.tone}">Next: ${esc(j.next.text)}${toTime(j.next.date) !== null ? ` · ${esc(usDay(j.next.date))}` : ''}</span>` : ''}${j.note ? `<span class="d-row__sub">Note: ${esc(j.note.text.split('\n')[0].slice(0, 90))}${j.note.text.length > 90 ? '…' : ''}</span>` : ''}</div></li>`; }).join('')}</ul>`
-    : list.length ? '<p class="d-sub">None in this list right now.</p>'
-      : notConnected(ctx, 'Your leads and clients') || empty('Nothing here yet. Leads come from your inquiry form and your tracker, clients from your Projects tab, and money from your invoices. Name those sheets and they meet here, one line per organization.', '/dashboard/connections#sheets', 'Name your sheets', 'flow');
-  const body = `<h1>Lead to cash</h1>${seg('flow')}<p class="d-sub">Every lead and client on one line, from the first inquiry to the last payment. Tap one to move the deal in your tracker and keep your notes.</p>${ctx.flash || ''}${filters}${sec('records', `${JOURNEY_FILTERS[f].label} · ${rows.length}`, items, source(view, ['inquiries', 'deals', 'projects', 'invoices'].filter((k) => view.sync[k]), now))}`;
-  return page('Lead to cash', body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
-}
-
+/**
+ * One deal: everything he does on it, on one screen, and back out (Scooter, 15 Nov 2026: "When I click
+ * into a deal, I want to do what I need right there and get out - no extra explanations, no side
+ * links"). Stage, owner, next action and date in one form that writes his tracker; notes; contact;
+ * discovery → quote → proposal → delivery; the agreement and invoices only once they exist.
+ */
 export function renderFlowRecord(view, j, ctx) {
   const { now } = ctx;
   const back = `/dashboard/flow/${encodeURIComponent(j.key)}`;
-  const steps = `<ol class="d-steps" aria-label="Where it is">${JOURNEY_STEPS.map((x, i) => `<li class="${i < j.step ? 'on' : ''}">${esc(x)}${i < j.step ? '<span class="d-vh" style="position:absolute;left:-9999px"> (reached)</span>' : ''}</li>`).join('')}</ol>`;
   const layout = ctx.sample ? { recognised: true } : ctx.settings['layout:deals'];
   const opts = stageOptions(view.rows.deals, layout?.stages);
+  const d = j.deal;
   let deal;
-  if (j.deal) {
-    const d = j.deal;
+  if (d) {
     const stages = opts.stages.includes(d.stage) || !d.stage ? opts.stages : [d.stage, ...opts.stages];
     const dateVal = toTime(d.next_date) === null ? '' : new Date(toTime(d.next_date)).toISOString().slice(0, 10);
-    deal = `<ul class="d-kv"><li><span>Stage</span><span>${val(d.stage)}</span></li><li><span>Owner</span><span>${val(d.owner)}</span></li>${d.contact ? `<li><span>Contact</span><span>${esc(d.contact)}</span></li>` : ''}${d.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${d.source ? `<li><span>Source</span><span>${esc(d.source)}</span></li>` : ''}${d.notes ? `<li><span>Notes in your tracker</span><span>${esc(d.notes)}</span></li>` : ''}</ul>
-      <form class="d-form" method="post" action="/dashboard/deal"><input type="hidden" name="row" value="${esc(d._id)}"><input type="hidden" name="back" value="${esc(back)}">
+    deal = `<form class="d-form" method="post" action="/dashboard/deal"><input type="hidden" name="row" value="${esc(d._id)}"><input type="hidden" name="back" value="${esc(back)}">
         <div class="d-grid2"><div><label for="dl-stage">Stage</label><select id="dl-stage" name="stage">${stages.map((x) => `<option${x === d.stage ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
-        <div><label for="dl-date">Next date</label><input id="dl-date" name="next_date" type="date" value="${esc(dateVal)}"></div></div>
+        <div><label for="dl-owner">Owner</label><input id="dl-owner" name="owner" type="text" maxlength="120" value="${esc(d.owner || '')}"></div></div>
         <label for="dl-act">Next action</label><input id="dl-act" name="next_action" type="text" maxlength="300" value="${esc(d.next_action || '')}">
-        <p><button type="submit" class="d-primary">Save to my tracker</button></p>
-        <p class="d-sub">Writes only the cells you change, on this row of ${esc(d._origin || 'your tracker')}, then reads them back. Nothing else in your tracker changes.</p></form>${j.deals.length > 1 ? `<p class="d-sub">Your tracker has ${j.deals.length} rows for them; this is the first.</p>` : ''}`;
+        <label for="dl-date">Next date</label><input id="dl-date" name="next_date" type="date" value="${esc(dateVal)}">
+        <p><button type="submit" class="d-primary">Save to my tracker</button></p></form>`;
   } else if (j.inquiries.length) {
+    const saved = ctx.intake?.[j.key] || {};
+    const inq = j.inquiries.at(-1) || {};
     deal = !ctx.sample && !layout?.recognised
-      ? empty('Not in your tracker yet. Name your tracker on Connections and it can be added from here.', '/dashboard/connections#sheets', 'Name your tracker', 'deals')
-      : `<p class="d-sub">Not in your tracker yet.</p><form method="post" action="/dashboard/deal/add"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><button type="submit" class="d-primary">Add them to my tracker</button></form><p class="d-sub">Adds one new row at the bottom of ${esc(layout?.tab || 'your tracker')} with their organization, contact and first stage. No existing row changes.</p>`;
-  } else deal = '<p class="d-sub">No row for them in your tracker.</p>';
+      ? empty('Name your tracker to add them to it.', '/dashboard/connections#sheets', 'Name your tracker', 'deals')
+      : `<form method="post" action="/dashboard/deal/add"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><button type="submit" class="d-primary">Add to my tracker</button></form>
+        <form class="d-form" method="post" action="/dashboard/intake"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}">
+        <label for="in-owner">Owner</label><input id="in-owner" name="owner" maxlength="120" value="${esc(saved.owner || '')}">
+        <label for="in-need">What they need</label><textarea id="in-need" name="need" maxlength="1000">${esc(saved.need || inq.initiative || '')}</textarea>
+        <p><button type="submit">Save</button></p></form>`;
+  } else deal = '<p class="d-sub">Not in your tracker.</p>';
 
   // His notes live in his tracker's Notes cell where his tracker has one (Scooter, 14 Nov 2026: "they
   // need to live where I can see and edit them"); every save is also kept here as a version.
-  const inTracker = Boolean(j.deal) && (ctx.sample || layout?.columns?.notes !== undefined);
-  const current = inTracker ? { text: String(j.deal.notes || ''), at: null } : j.note;
+  const inTracker = Boolean(d) && (ctx.sample || layout?.columns?.notes !== undefined);
+  const current = inTracker ? { text: String(d.notes || ''), at: null } : j.note;
   const history = (ctx.history || []).slice(inTracker ? 0 : 1);
-  const where = inTracker ? `Saved into the ${esc(ctx.sample ? 'Notes' : layout.columns.notes)} cell on their row of your tracker (only that cell), then read back. Edit it there too; the dashboard shows what your tracker says.`
-    : j.deal ? 'Your tracker has no Notes column, so notes are kept here. Nothing is ever added to your tracker; add a Notes column there and they move into it.'
-      : 'Kept with this inquiry, and written into your tracker\'s Notes when you add them.';
-  const notes = `${current?.text ? `<p class="d-note">${esc(current.text)}</p>${current.at ? `<p class="d-src">Saved ${esc(usTime(current.at, now))}</p>` : '<p class="d-src">From your tracker</p>'}` : '<p class="d-sub">No note yet. What you write here stays on this record, on every device.</p>'}
-    <form class="d-form" method="post" action="/dashboard/note"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><label for="nt">${current?.text ? 'Update the note' : 'Write a note'}</label><textarea id="nt" name="text" maxlength="${NOTE_MAX}">${esc(current?.text || '')}</textarea><p><button type="submit" class="d-primary">${inTracker ? 'Save note to my tracker' : 'Save note'}</button></p></form>
-    ${history.length ? `<details class="d-fold"><summary><span>Earlier versions · ${history.length}</span></summary>${history.map((h) => `<p class="d-src">${esc(usTime(h.at, now))}</p><p class="d-note">${h.text ? esc(h.text) : '<span class="d-gap">cleared</span>'}</p>`).join('')}</details>` : ''}
-    <p class="d-sub">${where}</p>`;
+  const notes = `<form class="d-form" method="post" action="/dashboard/note"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><label class="d-vh" style="position:absolute;left:-9999px" for="nt">Notes</label><textarea id="nt" name="text" maxlength="${NOTE_MAX}">${esc(current?.text || '')}</textarea><p><button type="submit" class="d-primary">Save note</button></p></form>
+    ${d && !inTracker ? '<p class="d-src">Kept here: your tracker has no Notes column.</p>' : ''}
+    ${history.length ? `<details class="d-fold"><summary><span>Earlier versions · ${history.length}</span></summary>${history.map((h) => `<p class="d-src">${esc(usTime(h.at, now))}</p><p class="d-note">${h.text ? esc(h.text) : '<span class="d-gap">cleared</span>'}</p>`).join('')}</details>` : ''}`;
 
-  const inquiry = j.inquiries.length ? `<ul class="d-list">${j.inquiries.map((i) => `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(i.name || i.org || 'Inquiry')}${i.initiative ? ` · ${esc(i.initiative)}` : ''}</span><span class="d-row__sub">${dayOr(i.at)}${i.email ? ` · ${esc(i.email)}` : ''}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No inquiry from your form for them.</p>';
+  const inq = j.inquiries.at(-1) || {};
+  const saved = ctx.intake?.[j.key] || {};
+  const need = d?.notes && /^Need: /m.test(d.notes) ? d.notes.match(/^Need: (.*)$/m)[1] : saved.need || inq.initiative || '';
+  const person = inq.name || d?.contact || '';
+  const email = inq.email || d?.email || '';
+  const contact = `<ul class="d-kv">${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${email ? `<li><span>Email</span><span><a href="mailto:${esc(email)}">${esc(email)}</a></span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${d?.source ? `<li><span>Source</span><span>${esc(d.source)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Inquiry</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}</ul>`;
 
   const envs = ctx.settings.envelopes || {};
   const sowWords = { completed: 'Signed', sent: 'Sent, not signed yet', delivered: 'Opened, not signed yet', declined: 'Declined', voided: 'Voided', created: 'Not sent yet' };
-  const work = `<p class="d-sub">${j.signedBy === 'DocuSign' ? 'Agreement signed in DocuSign.' : j.signedBy === 'tracker' ? 'Your tracker marks the agreement signed.' : 'No signed agreement yet.'}</p>${j.projects.length ? `<ul class="d-list">${j.projects.map((p) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/work/${encodeURIComponent(p._id)}">${esc(p.name || p.client || 'Project')} ›</a><span class="d-row__sub">${val(p.status)} · SOW ${p.sow_envelope ? esc(sowWords[envs[p.sow_envelope]?.status] || envs[p.sow_envelope]?.status || 'not synced yet') : gap('no envelope named')}</span></div></li>`).join('')}</ul>` : '<p class="d-sub">No project for them in your Projects tab yet.</p>'}`;
+  const work = j.signedBy || j.projects.length ? sec('work', 'Agreement and work', `<ul class="d-kv"><li><span>Agreement</span><span>${j.signedBy === 'DocuSign' ? 'Signed in DocuSign' : j.signedBy === 'tracker' ? 'Signed (your tracker)' : 'Not signed yet'}</span></li>${j.projects.map((p) => `<li><span>${esc(p.name || p.client || 'Project')}</span><span>${val(p.status)} · SOW ${p.sow_envelope ? esc(sowWords[envs[p.sow_envelope]?.status] || envs[p.sow_envelope]?.status || 'not synced yet') : gap('no envelope named')}</span></li>`).join('')}</ul>`) : '';
 
   const moneyOff = !ctx.sample && ctx.choices.money?.value === 'off';
-  const money_ = moneyOff ? '<p class="d-sub">Money is kept out of the dashboard for now (Who can see what).</p>'
-    : ctx.moneyHidden ? '<p class="d-sub">Invoice figures show here once you have walked the cash rules. <a href="/dashboard/money">Walk them on Money ›</a></p>'
-    : `<ul class="d-kv"><li><span>Invoiced</span><span>${esc(money(j.invoiced)) || '$0'}</span></li><li><span>Paid</span><span>${esc(money(j.paid)) || '$0'}</span></li><li><span>Still open</span><span class="${j.overdue.length ? 'd-red' : ''}">${esc(money(j.open)) || '$0'}</span></li></ul>
-      ${j.openRows.length ? `<ul class="d-list">${j.openRows.map((i) => { const late = daysSince(i.due, now); return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${i.id ? `${esc(i.id)} · ` : ''}${num(i.amount) === null ? gap('amount not entered') : esc(money(num(i.amount)))}</span><span class="d-row__sub ${late > 0 ? 'red' : ''}">due ${dayOr(i.due)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}</span></div><div class="d-row__act">${act('paid', i._id, 'Mark paid', back, { primary: true })}${late > 0 && i.email ? mailLink('invoices', i, 'Reminder in Gmail') : ''}</div></li>`; }).join('')}</ul>` : ''}
-      ${j.receipts.length ? `<p class="d-sub">Expected: ${j.receipts.map((x) => `${esc(money(num(x.amount)))} ${dayOr(x.date)}`).join(', ')}. A promised payment is not collected cash.</p>` : ''}
-      <p class="d-sub">A paid invoice is money that reached you. Cash now and the next four weeks are on <a href="/dashboard/money">Money</a>.</p>`;
+  const cash = moneyOff || ctx.moneyHidden || !j.invoices.length ? ''
+    : sec('cash', 'Invoices and cash', `<ul class="d-kv"><li><span>Invoiced</span><span>${esc(money(j.invoiced)) || '$0'}</span></li><li><span>Paid</span><span>${esc(money(j.paid)) || '$0'}</span></li><li><span>Still open</span><span class="${j.overdue.length ? 'd-red' : ''}">${esc(money(j.open)) || '$0'}</span></li></ul>
+      ${j.openRows.length ? `<ul class="d-list">${j.openRows.map((i) => { const late = daysSince(i.due, now); return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${i.id ? `${esc(i.id)} · ` : ''}${num(i.amount) === null ? gap('amount not entered') : esc(money(num(i.amount)))}</span><span class="d-row__sub ${late > 0 ? 'red' : ''}">due ${dayOr(i.due)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}</span></div><div class="d-row__act">${act('paid', i._id, 'Mark paid', back, { primary: true })}${late > 0 && i.email ? mailLink('invoices', i, 'Reminder in Gmail') : ''}</div></li>`; }).join('')}</ul>` : ''}`);
 
-  const nextLine = j.next ? `<p class="d-row__sub ${j.next.tone}">Next: ${esc(j.next.text)}${toTime(j.next.date) !== null ? ` · ${esc(usDay(j.next.date))}` : ''}</p>` : '';
-  const body = `<p><a class="d-help" href="/dashboard/flow">← Lead to cash</a></p><h1>${esc(j.name)}</h1><p class="d-sub">${esc(j.where)}</p>${nextLine}${steps}${ctx.flash || ''}
-    ${intakeSection(j, ctx)}
-    ${sec('deal', 'Deal, in your tracker', deal, source(view, ['deals'], now))}
-    ${sec('notes', 'Your notes', notes)}
+  const where = d ? [d.stage || 'No stage set', d.owner].filter(Boolean).join(' · ') : j.inquiries.length ? 'New inquiry' : j.where;
+  const body = `<p><a class="d-help" href="/dashboard">← Pipeline</a></p><h1>${esc(j.name)}</h1><p class="d-count">${esc(where)}</p>${ctx.flash || ''}
+    ${sec('deal', 'Deal', deal)}
+    ${sec('notes', 'Notes', notes)}
+    ${sec('contact', 'Contact', contact)}
     ${dealSections(j, ctx)}
-    ${sec('inquiry', `Inquiry · ${j.inquiries.length}`, inquiry, source(view, ['inquiries'], now))}
-    ${sec('work', 'Agreement and work', work, source(view, ['projects'], now))}
-    ${sec('cash', 'Invoices and cash', money_, moneyOff || ctx.moneyHidden ? '' : source(view, ['invoices'], now))}`;
-  return page(j.name, body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+    ${work}
+    ${cash}`;
+  return page(j.name, body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
 export function renderInquiries(view, ctx, journeysByKey = {}) {
   const { list: rows, add } = inquiriesBody(view, ctx, journeysByKey);
   const list = rows
     || notConnected(ctx, 'Inquiries') || (ctx.sample || ctx.sources.inquiries ? '<p class="d-sub">No inquiries yet. The Start a project form on your site and your form\'s response sheet both land here.</p>' : empty('Inquiries from the Start a project form on your site land here by themselves. To add your Google Form too, name its response sheet. Neither ever goes into any West Peek network sheet.', '/dashboard/connections#sheets', 'Name the response sheet', 'sheets'));
-  return page('Inquiries', `<h1>Inquiries</h1>${seg('inquiries')}<p class="d-sub">Every inquiry: the person, the organization, what they need and who owns it. Tap one to set its owner, keep notes and move it into your tracker.</p>${ctx.flash || ''}${sec('inq', `Newest first · ${view.rows.inquiries.length}`, list, source(view, ['inquiries'], ctx.now))}${sec('researched', 'Researched leads', add)}`, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+  return page('Inquiries', `<h1>Inquiries</h1>${ctx.flash || ''}${sec('inq', `Newest first · ${view.rows.inquiries.length}`, list, source(view, ['inquiries'], ctx.now))}${sec('researched', 'Researched leads', add)}`, { tab: 'inquiries', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
 export function renderFind(found, term, ctx) {
@@ -586,7 +576,7 @@ export function renderConnections(ctx) {
   const body = `<h1>Connections</h1><p class="d-sub">Each account is connected through its own sign-in screen. The dashboard never sees or keeps your passwords, and never a bank login. <a href="/dashboard/access">Who can see what ›</a></p>${ctx.flash || ''}${ctx.tokenKeyMissing ? errorBox('Connections cannot be saved safely right now.', 'Nothing is connected or stored until the site\'s encryption key is in place. Your sheets are untouched.', `${HELP}#help-email`, 'Get help') : ''}
     ${sec('accounts', 'Accounts', rows + acctRow)}
     ${sec('keys', 'Paste your app keys', keyRows, '<p class="d-sub">Each service gives you its keys when you make its small app (Help has the steps). Paste them here; they are kept encrypted on this site and never shown again, not even in part. Never email a key.</p>')}
-    ${sec('sheets', 'Your sheets', sheetRows, '<p class="d-sub">Your sheets are the source of truth. The dashboard reads them and writes quick actions back to the row.</p>')}
+    ${sec('sheets', 'Your sheets', sheetRows + (sample ? '' : layoutBox(ctx.settings?.['layout:deals'])), '<p class="d-sub">Your sheets are the source of truth. The dashboard reads them and writes quick actions back to the row.</p>')}
     ${sample ? '' : `<form method="post" action="/dashboard/refresh" class="d-sec"><input type="hidden" name="back" value="/dashboard/connections"><button type="submit">Refresh now</button> <a class="d-help" href="/dashboard/check">Check my numbers ›</a></form>`}
     ${sec('choices', 'Your choices', choiceRows, '<p class="d-sub">Open decisions that are yours. Each one changes only when you press a button.</p>')}
     ${sec('account', 'You', `<div class="d-acts"><a class="d-btn" href="/dashboard/password">Change password</a><form method="post" action="/dashboard/logout"><button type="submit">Sign out</button></form></div><p class="d-sub">Sign out ends this session for good. Your redirect address for app setup is <code>${esc(origin)}/dashboard/oauth/callback</code>.</p>`)}`;
@@ -690,11 +680,10 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
 
   <h2 id="sections">What each section shows, and where it comes from</h2>
   <ul>
-   <li id="flow"><strong>Work → Lead to cash</strong>: one line per organization, from the first inquiry (your form) through the deal (your tracker), the signed agreement (DocuSign or your tracker's stage), the project (Projects tab) and its invoices, to payment. Tap one to move the deal, add an inquiry to your tracker, or keep a note.</li>
-   <li><strong>Today</strong>: overdue invoices, client items waiting too long (gold at 7 days, red at 14), proposals past their follow-up date, drafts to approve and any account that stopped syncing. Tick ✓ hides an item; it comes back if it changes.</li>
-   <li id="projects"><strong>Work → Projects</strong>: the Projects tab of your Work sheet. Tap a project for its binder, Drive folder, contacts, approval owners, next meeting (your Google Calendar), what the client owes you (the Waiting on client tab), deliverables and SOW signature (DocuSign).</li>
-   <li id="deals"><strong>Work → Deals</strong>: your own deal tracker, read as it is laid out (Connections → Your deal tracker; until it is named, the Work sheet's Deals tab). The tab is found by its columns, so it needs one for the organization and one for the stage; a title line above the column names is fine, and no ID column is needed. Stages are your tracker's own. Proposals out are deals with a Proposal sent date.</li>
-   <li><strong>Work → Inquiries</strong>: your inquiry form's response sheet, read only.</li>
+   <li id="flow"><strong>Pipeline</strong>: the first screen. New inquiries not yet in your tracker, then one list per stage of your tracker, in its order, each deal under the stage it sits in. Tap a deal to change its stage, owner, next action and date, keep a note, and run discovery, the quote, the proposal and delivery, all on that deal. A red row above the lists means a sheet or account stopped syncing; ✓ hides it.</li>
+   <li id="projects"><strong>Clients</strong>: the Projects tab of your Work sheet. Tap a project for its binder, Drive folder, contacts, approval owners, next meeting (your Google Calendar), what the client owes you (the Waiting on client tab), deliverables and SOW signature (DocuSign).</li>
+   <li id="deals"><strong>How your tracker is read</strong>: your own deal tracker, read as it is laid out (Connections → Your deal tracker; until it is named, the Work sheet's Deals tab). The tab is found by its columns, so it needs one for the organization and one for the stage; a title line above the column names is fine, and no ID column is needed. Stages are your tracker's own. A deal with a Proposal sent date shows it on its Pipeline row.</li>
+   <li><strong>Inquiries</strong>: your inquiry form's response sheet, read only.</li>
    <li><strong>Money</strong>: the Money sheet's tabs (Invoices, Expected receipts, Vendor obligations, Project margin, Cash, Tracker) plus the same-named Finance tabs of each project binder linked in the Projects tab. Cash now can come from QuickBooks or Xero instead (Your choices).</li>
    <li id="agents-src"><strong>Agents</strong>: the Agent drafts, Agent activity and Cold email log tabs of your Work sheet.</li>
    <li>Everything syncs every 15 minutes and when you press <strong>Refresh now</strong>. Each block says when it last synced.</li>

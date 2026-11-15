@@ -1048,7 +1048,6 @@ export function projectName(view, idOrName) {
 
 /* ------------------------------------------------------------------ lead to client to cash */
 
-export const JOURNEY_STEPS = ['Inquiry', 'Deal', 'Signed', 'Client', 'Invoiced', 'Paid'];
 const SIGNED = /signed|deposit|handoff|won|closed won|contract/i;
 const LOST = /lost|dead|declined|no go|not a fit|closed lost/i;
 
@@ -1107,14 +1106,6 @@ export function journeys(view, { notes = {}, now = Date.now() } = {}) {
   const rank = (j) => (j.overdue.length ? 0 : j.next?.tone === 'gold' ? 1 : j.lost ? 3 : 2);
   return list.sort((a, b) => rank(a) - rank(b) || b.when - a.when || a.name.localeCompare(b.name));
 }
-/** Which list a record belongs to on the Lead to cash screen. */
-export const JOURNEY_FILTERS = {
-  all: { label: 'All', test: () => true },
-  leads: { label: 'Leads', test: (j) => j.step <= 2 && !j.lost },
-  clients: { label: 'Clients', test: (j) => j.step >= 3 },
-  owed: { label: 'Owed', test: (j) => j.openRows.length > 0 }
-};
-
 /* ------------------------------------------------------------------ who can open what, and what is kept */
 
 /**

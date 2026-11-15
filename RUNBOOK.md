@@ -149,14 +149,25 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     Pipeline tab has its column names on row 11, Opportunity through Flag, A to N), and a tracker with no ID column is keyed by organization (`keyFrom`,
     `k:<orgKey>`). Stages are his dropdown's, else his rows' words. A change writes only the cells
     that differ on that one row and re-reads them; "Add them to my tracker" appends ONE row; nothing
-    ever adds a column. The Deals page shows "How your tracker is read" (column names only, setting
-    `layout:deals`), or the columns it saw when the layout is not recognised.
-  - **Lead to cash** (`/dashboard/flow`, the Work tab): one record per organization joining inquiry →
-    tracker deal → signed (DocuSign or a signed stage) → project → invoices → paid (`journeys`).
-    Each record has Intake (person, organization, need, owner), the deal form (stage, next action,
-    next date → his tracker) and his NOTES, written into his tracker's Notes cell on that row (only
+    ever adds a column. Connections → Your sheets shows "How your tracker is read" (column names only,
+    setting `layout:deals`); the Pipeline shows the columns it saw only when the layout is not recognised.
+  - **Pipeline is the first screen** (`/dashboard`, `renderPipeline`; `/dashboard/deals` and
+    `/dashboard/flow` show the same; Scooter, 15 Nov 2026: "I don't need it to figure out what needs my
+    attention. I need organized, clearly labeled lists of what's in the sales funnel and where each deal
+    sits ... Less on the screen, clear labels, quick to click in and out"). New inquiries not yet in his
+    tracker, then one labelled list per stage in his tracker's order (`Stage · n`, empty stages one
+    line), each row the organization, owner and next action with a Next stage button. No triage list,
+    no tab counts; only sync or connection faults show above the lists. Tabs: Pipeline, Inquiries,
+    Clients (Projects), Money, Agents. Waiting-on-client items live on each client page; drafts on Agents.
+  - **A deal record** (`/dashboard/flow/<key>`, `renderFlowRecord`): one record per organization joining
+    inquiry → tracker deal → signed (DocuSign or a signed stage) → project → invoices → paid
+    (`journeys`). One screen, no explanations or help links, "← Pipeline" back: Deal (stage, owner,
+    next action, next date in ONE form → his tracker; or Add to my tracker + owner/need for a new
+    inquiry), his NOTES, written into his tracker's Notes cell on that row (only
     that cell, read back; Scooter, 14 Nov 2026: "they need to live where I can see and edit them");
     D1 table `note` keeps every version. No Notes column → kept in D1 and said so; never a new column.
+    Then Contact (person, email, need, timing, inquiry dates), Discovery to delivery (the four steps
+    plus Documents and Emails in Gmail), and Agreement and work / Invoices and cash only once they exist.
   - **Lead to delivery** (`functions/_lib/pd/deal.mjs`, `views-deal.mjs`; Scooter, 14 Nov 2026, "the whole
     vision"): the Start a project form (`/api/lead`, productions hosts) also lands in D1 `web_inquiry` and
     shows on Inquiries (email to Scooter unchanged; never a network sheet); "Add a researched lead"
@@ -179,7 +190,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     it decides (counts only); he presses That's right, or writes how it should work (`POST
     /dashboard/cash-rule` → setting `cash_rule:<id>` with the rule's `v`, plus the action log; refused in
     sample mode). Until every rule is marked right (`ctx.moneyHidden`), no money figure shows anywhere:
-    Money shows only the walk, Today's money fold and invoice rows are held, Work shows no invoiced/paid
+    Money shows only the walk, invoice rows are held, a deal record shows no invoiced/paid
     sums. Rewording a rule = bump its `v`, which asks him again. While Google still holds the wider grant,
     no money figure shows anywhere either (`moneyHidden` covers both).
   - **A rule change reaches Porter on its own** (review, 14 Nov 2026: he must never say it twice): a
@@ -189,14 +200,13 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     Porter · waiting on the new wording", or "change kept · sending to Porter" when the send failed, and
     the 15-minute cron (`resendRuleChanges`) sends every unsent current change again, never one that
     arrived. Porter's follow-up: reword that rule in `CASH_RULES` and bump its `v`. Once all rules are
-    right the walk folds into one closed line on Money; until then Today opens with "Start here" (walk
-    the rules, then name the first real deal).
+    right the walk folds into one closed line on Money; until then Money opens on the walk.
   - **Who can see what** (`/dashboard/access`): the Google scopes in words (`GOOGLE_SCOPE_WORDS`:
     openid, email, spreadsheets, drive.metadata.readonly, calendar.events.readonly — no Gmail, no
     Drive contents; the first sync that sees a connection still holding a wider grant revokes it at
-    Google and Today asks for a narrow reconnect, setting `google_narrowed`), live sharing of every connected sheet and binder, every D1 table in words with
+    Google and the Pipeline asks for a narrow reconnect, setting `google_narrowed`), live sharing of every connected sheet and binder, every D1 table in words with
     counts (`TABLE_WORDS`, one per `BACKUP_TABLES` entry), and the limits: "Narrow Google's access"
-    (`POST /dashboard/google/narrow` revokes the older wider grant, then reconnects narrow; Today shows a
+    (`POST /dashboard/google/narrow` revokes the older wider grant, then reconnects narrow; the Pipeline shows a
     gold row while a connection still holds a retired scope), "Keep money out" (choice `money`; deletes
     the money copy at once and sync skips it), "Stop using this sheet" (`/dashboard/source/remove`).
   - **Own storage per environment**: D1 `west-peek-productions-dashboard-<env>` bound as
@@ -230,7 +240,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   - **Sync**: the Worker `west-peek-productions-dashboard-<env>` (`workers/productions-dashboard/`)
     calls `POST /dashboard/cron/sync` every 15 minutes (secret checked against a hash in D1) and
     "Refresh now" does the same; blocks older than 2 hours say "may be out of date"; a failed sync
-    or a broken connection is a red row on Today. Nightly (08:30 UTC) it exports every table to the
+    or a broken connection is a red row above the Pipeline. Nightly (08:30 UTC) it exports every table to the
     private R2 bucket `west-peek-productions-dashboard-backups-<env>`, keeps 30 days, and logs the
     real-data check (counts only).
   - **Preview sample mode**: on a preview host only, `sample@preview.invalid` /
@@ -294,7 +304,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
 | `scripts/validate_dashboard_privacy.mjs` | no owners file or dashboard loader input in the repo; sample rows are all "Sample …" with example.test addresses; no address (beyond the OS inbox and test domains) or dollar figure in dashboard code; no private package document; with `DASHBOARD_PRIVATE_NAMES_FILE`, none of those names anywhere |
-| `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout (a locked password never blocks a fresh emailed code); sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are Gmail compose links and no Gmail scope is asked; his tracker read under a title line with no ID column, only changed cells written, a moved row found by organization, an inquiry appended once, unrecognised columns named; Lead to cash joins inquiry and deal; notes go into his tracker's Notes cell only and persist on a second device; his Pipeline tab read from row 11 under a summary block; site inquiries, intake owner/need, researched lead appended once; discovery shaped per deal; quote floor/unknowns/price/margin/terms/timing, encrypted; proposal never shows costs; accept moves his tracker and starts delivery; portal isolation, revoke and new link; money hold; wide grant withdrawn by sync; delete synced copies; the cash rules; Who can see what names wider grants, sharing and every table; Narrow revokes then reconnects; Keep money out deletes the money copy; ticks persist; failed sync, broken connection and a disconnected account on Today; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
+| `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout (a locked password never blocks a fresh emailed code); sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are Gmail compose links and no Gmail scope is asked; his tracker read under a title line with no ID column, only changed cells written, a moved row found by organization, an inquiry appended once, unrecognised columns named; Lead to cash joins inquiry and deal; notes go into his tracker's Notes cell only and persist on a second device; his Pipeline tab read from row 11 under a summary block; site inquiries, intake owner/need, researched lead appended once; discovery shaped per deal; quote floor/unknowns/price/margin/terms/timing, encrypted; proposal never shows costs; accept moves his tracker and starts delivery; portal isolation, revoke and new link; money hold; wide grant withdrawn by sync; delete synced copies; the cash rules; Who can see what names wider grants, sharing and every table; Narrow revokes then reconnects; Keep money out deletes the money copy; ticks persist; the Pipeline lists each deal under its stage with no triage; failed sync, broken connection and a disconnected account above the Pipeline; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
@@ -324,7 +334,7 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   2. LAND merges and deploys.
   3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
 - `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
-- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab, moves one deal a stage (confirmed), reloads, sees it on a second device, opens Lead to cash and saves a note that persists on reload and the second device, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
+- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
 - `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
 
 ## Secrets

@@ -8,7 +8,7 @@ import { FUNNEL_STAGES, stageOptions } from './data.mjs';
 import { CASH_RULES, rulesWalk, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, discoveryQuestions, quoteMath } from './deal.mjs';
 import { act, dayOr, empty, errorBox, gap, page, sec, val } from './views.mjs';
 
-const shell = (title, body, ctx) => page(title, body, { tab: 'work', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+const shell = (title, body, ctx) => page(title, body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 const backTo = (j) => `<p><a class="d-help" href="/dashboard/flow/${encodeURIComponent(j.key)}">← ${esc(j.name)}</a></p>`;
 const hidden = (name, value) => `<input type="hidden" name="${esc(name)}" value="${esc(value)}">`;
 const m$ = (n) => (n === null || n === undefined ? gap('unknown') : esc(money(n)) || '$0');
@@ -24,22 +24,6 @@ const holdBox = (why) => errorBox(why, 'Nothing about money was saved.', '/dashb
 
 /* ------------------------------------------------------------------ the record's deal sections */
 
-export function intakeSection(j, ctx) {
-  const back = `/dashboard/flow/${encodeURIComponent(j.key)}`;
-  const inq = j.inquiries.at(-1) || {};
-  const saved = ctx.intake?.[j.key] || {};
-  const d = j.deal;
-  const need = d?.notes && /^Need: /m.test(d.notes) ? d.notes.match(/^Need: (.*)$/m)[1] : saved.need || inq.initiative || '';
-  const person = inq.name || d?.contact || '';
-  const kv = `<ul class="d-kv"><li><span>Person</span><span>${val(person)}${inq.email || d?.email ? ` · ${esc(inq.email || d.email)}` : ''}</span></li><li><span>Organization</span><span>${esc(j.name)}</span></li><li><span>What they need</span><span>${val(need)}</span></li>${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}<li><span>Owner</span><span>${val(d ? d.owner : saved.owner)}</span></li></ul>`;
-  const form = `<form class="d-form" method="post" action="/dashboard/intake">${hidden('key', j.key)}${hidden('back', back)}
-    <label for="in-owner">Owner</label><input id="in-owner" name="owner" maxlength="120" value="${esc(d ? d.owner || '' : saved.owner || '')}" placeholder="Who answers them">
-    ${d ? '' : `<label for="in-need">What they need</label><textarea id="in-need" name="need" maxlength="1000">${esc(saved.need || inq.initiative || '')}</textarea>`}
-    <p><button type="submit" class="d-primary">${d ? 'Save owner to my tracker' : 'Save'}</button></p>
-    <p class="d-sub">${d ? 'Writes the Owner cell on their row of your tracker, then reads it back.' : 'Kept with this inquiry, and carried into your tracker when you add them.'}</p></form>`;
-  return sec('intake', 'Intake', kv + form);
-}
-
 export function dealSections(j, ctx) {
   const k = encodeURIComponent(j.key);
   const disc = ctx.discovery;
@@ -49,9 +33,9 @@ export function dealSections(j, ctx) {
   const discLine = disc?.at ? `${Object.keys(disc.answers || {}).length} of ${discoveryQuestions(disc.profile).length} answered · saved ${esc(usTime(disc.at, ctx.now))}` : 'Not started';
   const hold = moneyHold(ctx);
   const qm = q && !q.unreadable ? quoteMath(q) : null;
-  const quoteLine = hold ? 'Held: see Who can see what' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Floor ${m$(qm.floor)}${qm.unknown.length ? ` + ${qm.unknown.length} unknown` : ''} · your price ${qm.price === null ? gap('not set') : m$(qm.price)}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
+  const quoteLine = hold ? 'Held' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Floor ${m$(qm.floor)}${qm.unknown.length ? ` + ${qm.unknown.length} unknown` : ''} · your price ${qm.price === null ? gap('not set') : m$(qm.price)}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
   const propLine = !p ? 'No proposal yet' : `${esc(PROPOSAL_STATUS[p.status] || p.status)} · version ${p.versions} · ${esc(usTime(p.at, ctx.now))}`;
-  const delLine = del ? `${del.tasks.filter((t) => !t.done).length} open tasks · portal ${del.portalSince ? 'on' : 'off'}` : 'Starts when the proposal is accepted';
+  const delLine = del ? `${del.tasks.filter((t) => !t.done).length} open tasks · portal ${del.portalSince ? 'on' : 'off'}` : 'Starts once accepted';
   const gmail = `https://mail.google.com/mail/u/0/#search/${encodeURIComponent((j.deal?.email || j.inquiries.at(-1)?.email) ? `"${j.deal?.email || j.inquiries.at(-1)?.email}"` : `"${j.name}"`)}`;
   const rows = [
     ['Discovery', `/dashboard/flow/${k}/discovery`, discLine],
@@ -59,9 +43,11 @@ export function dealSections(j, ctx) {
     ['Proposal', `/dashboard/flow/${k}/proposal`, propLine],
     ['Delivery and client portal', `/dashboard/flow/${k}/delivery`, delLine]
   ];
-  const steps = `<ul class="d-list">${rows.map(([t, h, s]) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="${h}">${esc(t)} ›</a><span class="d-row__sub">${s}</span></div></li>`).join('')}</ul>`;
-  const files = `<ul class="d-list"><li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/find?q=${encodeURIComponent(j.name)}">Documents named for ${esc(j.name)} ›</a><span class="d-row__sub">Searches your Drive and Dropbox file names</span></div></li><li class="d-row"><div class="d-row__main"><a class="d-row__title" href="${esc(gmail)}" target="_blank" rel="noopener noreferrer">Emails with them, in your Gmail ↗</a><span class="d-row__sub">Opens a search in your own Gmail. The dashboard has no Gmail access and reads no email.</span></div></li></ul>`;
-  return sec('scope', 'From discovery to delivery', steps) + sec('files', 'Documents and emails', files);
+  const steps = `<ul class="d-list">${rows.map(([t, h, sub]) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="${h}">${esc(t)} ›</a><span class="d-row__sub">${sub}</span></div></li>`).join('')}</ul>`;
+  // The deal's own documents and emails stay on the deal (Scooter, 14 Nov 2026: "Each deal carries its
+  // notes, documents, and related emails in one place"); two buttons, no explanation.
+  const files = `<p class="d-row__act d-files"><a class="d-btn" href="/dashboard/find?q=${encodeURIComponent(j.name)}">Documents</a><a class="d-btn" href="${esc(gmail)}" target="_blank" rel="noopener noreferrer">Emails in Gmail ↗</a></p>`;
+  return sec('scope', 'Discovery to delivery', steps + files);
 }
 
 /* ------------------------------------------------------------------ inquiries, with a researched lead */
@@ -156,11 +142,11 @@ export function renderQuote(j, ctx) {
 
 export function renderCatalog(ctx) {
   const hold = moneyHold(ctx);
-  if (hold) return shell('Catalog', `<p><a class="d-help" href="/dashboard/flow">← Lead to cash</a></p><h1>Service catalog</h1>${ctx.flash || ''}${holdBox(hold)}`, ctx);
+  if (hold) return shell('Catalog', `<p><a class="d-help" href="/dashboard">← Pipeline</a></p><h1>Service catalog</h1>${ctx.flash || ''}${holdBox(hold)}`, ctx);
   const lines = ctx.catalog || CATALOG_STRUCTURE;
   const row = (l, i) => `<li class="d-row"><div class="d-row__main">${hidden(`id_${i}`, l.id)}<div class="d-grid2"><div><label for="cl-l${i}">Line</label><input id="cl-l${i}" name="line_${i}" maxlength="120" value="${esc(l.line)}"></div><div><label for="cl-s${i}">Service</label><select id="cl-s${i}" name="service_${i}">${Object.entries(SERVICE_NAMES).map(([v, n]) => `<option value="${v}"${l.service === v ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div><div class="d-grid2"><div><label for="cl-u${i}">Unit</label><input id="cl-u${i}" name="unit_${i}" maxlength="30" value="${esc(l.unit)}"></div><div><label for="cl-c${i}">Your cost rate</label><input id="cl-c${i}" name="cost_${i}" inputmode="decimal" value="${esc(l.cost ?? '')}" placeholder="unknown"></div></div></div></li>`;
   const n = lines.length;
-  const body = `<p><a class="d-help" href="/dashboard/flow">← Lead to cash</a></p><h1>Service catalog</h1><p class="d-sub">Your service lines, their units and what each costs you. These are private: only you see them, they are kept encrypted, and a client never sees a rate.</p>${ctx.flash || ''}
+  const body = `<p><a class="d-help" href="/dashboard">← Pipeline</a></p><h1>Service catalog</h1><p class="d-sub">Your service lines, their units and what each costs you. These are private: only you see them, they are kept encrypted, and a client never sees a rate.</p>${ctx.flash || ''}
     ${sec('import', 'Read it from your rate card', `<form class="d-form" method="post" action="/dashboard/catalog/import">${hidden('back', '/dashboard/catalog')}<label for="rc-link">Link to your rate card sheet</label><input id="rc-link" name="link" inputmode="url" placeholder="https://docs.google.com/spreadsheets/d/…"><p><button type="submit">Read its lines</button></p><p class="d-sub">Reads columns like Service, Item, Unit and Rate (or Cost), once. Your sheet is not changed and is not kept as a source.</p></form>`)}
     <form class="d-form" method="post" action="/dashboard/catalog">${hidden('back', '/dashboard/catalog')}${hidden('n', n + 1)}
     ${sec('lines', `Lines · ${n}`, `<ul class="d-list">${lines.map(row).join('')}${row({ id: '', line: '', service: 'team', unit: '', cost: null }, n)}</ul><p class="d-sub">The last row adds a line. Clear a line's name to remove it. A blank rate is unknown, never zero.</p>`)}

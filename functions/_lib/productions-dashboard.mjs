@@ -9,7 +9,7 @@
  * Scooter's existing sign-in across (auth.mjs).
  *
  * Routes (all under /dashboard; Productions hosts and their previews only, 404 elsewhere):
- *   GET  /                Today          GET /flow, /flow/<key> (lead to client to cash, with notes)
+ *   GET  /                Pipeline         GET /flow, /flow/<key> (lead to client to cash, with notes)
  *   GET  /work, /work/<id>, /deals, /inquiries, /find, /access (who can open what, what is kept)
  *   GET  /money           (Scooter only)  GET /agents, /connections, /check, /help (public, no data)
  *   POST /login /forgot /password /logout /google /google/narrow /connect /disconnect /act /deal
@@ -110,7 +110,7 @@ async function context(env, session, url, now) {
   const actionRow = await readAction(env, url.searchParams.get('a'));
   const flash = actionRow && (actionRow.sample === 1) === session.sample ? V.flashBox(actionRow) : '';
   const notes = await latestNotes(env, session.sample);
-  const words = { source_removed: 'Stopped. That sheet is no longer read, and the copy of its rows here is deleted.', narrowed_failed: 'Google did not take the narrower access. Nothing changed; try again.', declined: 'You cancelled on the sign-in screen. Nothing was connected.', exchange_failed: 'The service did not finish connecting. Nothing was stored; try Connect again.', expired: 'That took too long. Try Connect again.', not_set_up: 'That account is not set up yet. See Help for the steps.', no_token_key: 'Connections cannot be saved safely right now. Nothing was stored.', provider_error: 'The service reported a problem. Nothing was connected.', not_a_sheet_link: 'That is not a Google Sheets link. Copy the address of the sheet itself.', cannot_open_sheet: 'That sheet could not be opened with your Google account. Check it is shared with you.', needs_google: 'Connect Google first.', connected: 'Connected. The first sync has run.', disconnected: 'Disconnected, and its access withdrawn.', disconnected_local: 'Disconnected and its key deleted here. Also remove the app in that service\'s settings.', source_saved: 'Sheet saved, and read.', created: 'Sheet created in your Google Drive and read.', refreshed: 'Refreshed.', refresh_failed: 'Refresh finished with problems; see the red rows on Today.', choice_saved: 'Saved. You can change it any time.' };
+  const words = { source_removed: 'Stopped. That sheet is no longer read, and the copy of its rows here is deleted.', narrowed_failed: 'Google did not take the narrower access. Nothing changed; try again.', declined: 'You cancelled on the sign-in screen. Nothing was connected.', exchange_failed: 'The service did not finish connecting. Nothing was stored; try Connect again.', expired: 'That took too long. Try Connect again.', not_set_up: 'That account is not set up yet. See Help for the steps.', no_token_key: 'Connections cannot be saved safely right now. Nothing was stored.', provider_error: 'The service reported a problem. Nothing was connected.', not_a_sheet_link: 'That is not a Google Sheets link. Copy the address of the sheet itself.', cannot_open_sheet: 'That sheet could not be opened with your Google account. Check it is shared with you.', needs_google: 'Connect Google first.', connected: 'Connected. The first sync has run.', disconnected: 'Disconnected, and its access withdrawn.', disconnected_local: 'Disconnected and its key deleted here. Also remove the app in that service\'s settings.', source_saved: 'Sheet saved, and read.', created: 'Sheet created in your Google Drive and read.', refreshed: 'Refreshed.', refresh_failed: 'Refresh finished with problems; see the red rows on the Pipeline.', choice_saved: 'Saved. You can change it any time.' };
   Object.assign(words, { keys_sample: 'App keys cannot be saved in sample mode. Nothing was stored.', keys_incomplete: 'Paste every key for that app, then press Save. Nothing was stored.', keys_too_long: 'That does not look like an app key (it is too long). Nothing was stored.', keys_foreign: 'That came from another page and was refused. Nothing was stored.' });
   const keyFor = url.searchParams.get('p');
   if (PROVIDERS[keyFor]) words.keys_saved = `Saved. You can connect ${V.providerName(keyFor)} now.`;
@@ -306,7 +306,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     }
     if (path === '/dashboard/deal') {
       const fields = {};
-      for (const k of ['stage', 'next_action', 'next_date']) if (form.has(k)) fields[k] = field(form, k);
+      for (const k of ['stage', 'owner', 'next_action', 'next_date']) if (form.has(k)) fields[k] = field(form, k);
       const r = await updateDeal(env, { rowId: field(form, 'row'), fields, session }, now);
       return redirect(withA(r.id));
     }
@@ -412,7 +412,9 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
 
   if (request.method !== 'GET' && request.method !== 'HEAD') return html('', 405, { allow: 'GET, POST' });
   const ctx = await context(env, session, url, now);
-  if (path === '/dashboard') return html(V.renderToday(ctx.view, ctx));
+  // Pipeline is the first screen; /dashboard/deals and /dashboard/flow (the old Deals and Lead to cash
+  // lists) show the same lists, so an old bookmark or a quick action's back link still lands on it.
+  if (path === '/dashboard' || path === '/dashboard/deals' || path === '/dashboard/flow') return html(V.renderPipeline(ctx.view, ctx, journeys(ctx.view, { notes: ctx.notes, now })));
   if (path === '/dashboard/work') return html(V.renderWork(ctx.view, ctx));
   if (path.startsWith('/dashboard/work/')) {
     const id = decodeURIComponent(path.slice('/dashboard/work/'.length));
@@ -421,11 +423,10 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     ctx.meeting = session.sample ? { none: true } : await nextMeeting(env, p.client, now);
     return html(V.renderClient(ctx.view, p, ctx));
   }
-  if (path === '/dashboard/flow') return html(V.renderFlow(ctx.view, ctx, journeys(ctx.view, { notes: ctx.notes, now }), url.searchParams.get('show') || 'all'));
   if (path.startsWith('/dashboard/flow/')) {
     const [key, part = ''] = decodeURIComponent(path.slice('/dashboard/flow/'.length)).split('/');
     const j = journeys(ctx.view, { notes: ctx.notes, now }).find((x) => x.key === key);
-    if (!j) return redirect('/dashboard/flow');
+    if (!j) return redirect('/dashboard');
     const s = session.sample;
     const deal = { ...ctx, discovery: await latestDiscovery(env, key, s), quote: await latestQuote(env, key, s), proposal: await latestProposal(env, key, s), delivery: await deliveryOf(env, key, s) };
     if (part === 'discovery') {
@@ -444,7 +445,6 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   if (path === '/dashboard/access') {
     return html(V.renderAccess({ ...ctx, access: await fileAccess(env, ctx.view, { sample: session.sample }), counts_stored: session.sample ? null : await storedCounts(env) }));
   }
-  if (path === '/dashboard/deals') return html(V.renderDeals(ctx.view, ctx));
   if (path === '/dashboard/inquiries') return html(V.renderInquiries(ctx.view, ctx, Object.fromEntries(journeys(ctx.view, { notes: ctx.notes, now }).map((j) => [j.key, j]))));
   if (path === '/dashboard/find') {
     const term = url.searchParams.get('q') || '';
@@ -476,7 +476,7 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
   const key = field(form, 'key');
   const go = (m, to = back) => redirect(`${to.split('?')[0]}?m=${m}`);
   const needsKey = ['/dashboard/intake', '/dashboard/discovery', '/dashboard/quote', '/dashboard/proposal', '/dashboard/delivery/team', '/dashboard/delivery/task', '/dashboard/delivery/task/set', '/dashboard/delivery/asset', '/dashboard/delivery/portal'];
-  if (needsKey.includes(path) && !validKey(key)) return redirect('/dashboard/flow');
+  if (needsKey.includes(path) && !validKey(key)) return redirect('/dashboard');
   // Money inputs (rates, quotes, prices, proposals) wait for the narrow Google grant and Money on.
   const moneyPaths = ['/dashboard/quote', '/dashboard/catalog', '/dashboard/catalog/import', '/dashboard/proposal'];
   if (moneyPaths.includes(path)) {
@@ -492,7 +492,7 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
 
   if (path === '/dashboard/intake') {
     const { j } = await record();
-    if (!j) return redirect('/dashboard/flow');
+    if (!j) return redirect('/dashboard');
     if (j.deal) {
       const r = await updateDeal(env, { rowId: j.deal._id, fields: { owner: field(form, 'owner') }, session }, now);
       return redirect(withA(r.id));

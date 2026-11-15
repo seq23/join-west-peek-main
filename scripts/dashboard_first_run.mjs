@@ -8,11 +8,11 @@
  * Dashboard, signed out: no data, the sign-in screen, Help reachable (and asking for no key by email).
  * App keys: in sample mode the Paste your app keys section shows no box and a save is refused.
  * Preview only (the test identity does not exist on production): signs in with the sample
- * identity, sees real-looking (synthetic, non-empty) rows on Today, Work, Money and Agents, moves one
- * deal to its next stage (written to the sample sheet and read back), reloads and sees it, signs in
+ * identity, sees real-looking (synthetic, non-empty) rows on Pipeline (each deal under its stage),
+ * Clients, Inquiries, Money and Agents, moves one deal to its next stage (written to the sample sheet and read back), reloads and sees it, signs in
  * as a second device and sees it there too, signs the first device out and proves that session is
- * dead while the second still opens. Lead to cash: records show, a note saved on one persists after a
- * reload and on the second device, and Who can see what opens. One deal all the way through:
+ * dead while the second still opens. A deal record: one screen with the tracker form, notes and the
+ * discovery-to-delivery steps; a note saved on it persists after a reload and on the second device, and Who can see what opens. One deal all the way through:
  * discovery, a priced quote, a proposal, accepted, delivery, and a client portal with no money.
  * Exits non-zero on any failure; prints one line starting "FIRST_RUN OK" when every step passed.
  */
@@ -105,13 +105,13 @@ const A = await signIn();
 ok('signed in with the preview test identity, remembered for 30 days');
 
 // 4. Real (synthetic, non-empty) rows on every tab.
-for (const [p, want] of [['/dashboard', /need/], ['/dashboard/work', /Sample Org/], ['/dashboard/money', /Invoices due/], ['/dashboard/agents', /Drafts waiting/], ['/dashboard/connections', /Your choices/]]) {
+for (const [p, want] of [['/dashboard', /<h2 id="stage-\d+-h">[^<]+ · [1-9]/], ['/dashboard/inquiries', /Sample/], ['/dashboard/work', /Sample Org/], ['/dashboard/money', /Invoices due/], ['/dashboard/agents', /Drafts waiting/], ['/dashboard/connections', /Your choices/]]) {
   const r = await get(p, A);
   if (r.status !== 200) fail(`open ${p}`, `answered ${r.status}`);
   if (!want.test(r.text) || !/class="d-row__title|class="d-conn"/.test(r.text)) fail(`open ${p}`, 'no rows shown');
   if (PLACEHOLDER.test(r.text)) fail(`open ${p}`, 'placeholder text');
 }
-ok('Today, Work, Money, Agents and Connections show rows');
+ok('Pipeline (deals listed under their stages), Inquiries, Clients, Money, Agents and Connections show rows');
 {
   const m = await get('/dashboard/money', A);
   if (!/The cash rules, walked first/.test(m.text) || (m.text.match(/id="rule-[a-z]+"/g) || []).length < 5) fail('cash rules', 'Money does not show the five cash rules to walk');
@@ -129,19 +129,19 @@ ok('sample mode refuses to save app keys and says so');
 
 // 5. One quick action, written and read back.
 function dealRows(text) {
-  return text.split('<li class="d-row">').slice(1).map((li) => ({
+  return text.split('<li class="d-row" data-stage="').slice(1).map((li) => ({
     row: (li.match(/name="action" value="stage"><input type="hidden" name="row" value="([^"]+)"/) || [])[1],
-    stage: ((li.match(/<span class="d-row__sub">([^<·]+)·/) || [])[1] || '').trim()
+    stage: (li.match(/^([^"]*)"/) || [])[1].replace(/&amp;/g, '&').trim()
   })).filter((d) => d.row);
 }
-let deals = dealRows((await get('/dashboard/deals', A)).text);
+let deals = dealRows((await get('/dashboard', A)).text);
 if (!deals.length) {
   await post('/dashboard/sample/reset', {}, A);
-  deals = dealRows((await get('/dashboard/deals', A)).text);
+  deals = dealRows((await get('/dashboard', A)).text);
 }
 if (!deals.length) fail('quick action', 'no deal can move to a next stage');
 const pick = deals[0];
-const act = await post('/dashboard/act', { action: 'stage', row: pick.row, back: '/dashboard/deals' }, A);
+const act = await post('/dashboard/act', { action: 'stage', row: pick.row, back: '/dashboard' }, A);
 if (act.status !== 303 || !/a=\d+/.test(act.location || '')) fail('quick action', `expected a 303 to the outcome, got ${act.status}`);
 const shown = await get(act.location, A);
 if (!/Saved and checked/.test(shown.text)) fail('quick action', 'the dashboard did not confirm the write');
@@ -152,21 +152,22 @@ if (!after || (moved ? moved.stage !== after : !shown.text.includes(after))) fai
 ok(`moved deal ${pick.row}: ${pick.stage} → ${after}, confirmed`);
 
 // 6. Reload, and a second device.
-const reload = await get('/dashboard/deals', A);
+const reload = await get('/dashboard', A);
 if (!reload.text.includes(after)) fail('reload', 'the change is gone after a reload');
 const B = await signIn();
-const second = await get('/dashboard/deals', B);
+const second = await get('/dashboard', B);
 if (!second.text.includes(after)) fail('second device', 'the change does not show on a second device');
 ok('the change persists after a reload and on a second device');
 
-// 6b. Lead to cash: one line per organization; a note saved on a record persists across a reload
-// and on the second device; Who can see what opens.
-const flow = await get('/dashboard/flow', A);
-const recLink = (flow.text.match(/href="(\/dashboard\/flow\/[a-z0-9~-]+)"/) || [])[1];
-if (flow.status !== 200 || !/Lead to cash/.test(flow.text) || !/Sample Org/.test(flow.text) || !recLink) fail('lead to cash', `no records shown (${flow.status})`);
-if (PLACEHOLDER.test(flow.text)) fail('lead to cash', 'placeholder text');
+// 6b. A deal record from the pipeline: one screen to act on (tracker form, notes, the steps) and a
+// way back; a note saved on it persists across a reload and on the second device; Who can see what opens.
+const flow = await get('/dashboard', A);
+const recLink = (flow.text.match(/data-stage="[^"]*"><div class="d-row__main"><a class="d-row__title" href="(\/dashboard\/flow\/[a-z0-9~-]+)"/) || [])[1];
+if (flow.status !== 200 || !/Sample Org/.test(flow.text) || !recLink) fail('pipeline', `no deal rows shown (${flow.status})`);
+if (PLACEHOLDER.test(flow.text)) fail('pipeline', 'placeholder text');
 const rec = await get(recLink, A);
-if (rec.status !== 200 || !/action="\/dashboard\/note"/.test(rec.text) || !/Invoices and cash/.test(rec.text)) fail('lead to cash', 'the record has no notes form or no money section');
+if (rec.status !== 200 || !/action="\/dashboard\/note"/.test(rec.text) || !/action="\/dashboard\/deal"/.test(rec.text) || !/Discovery ›/.test(rec.text) || !/href="\/dashboard">← Pipeline/.test(rec.text)) fail('deal record', 'the record lacks the tracker form, the notes form, the steps or the way back');
+if (PLACEHOLDER.test(rec.text)) fail('deal record', 'placeholder text');
 const key = recLink.split('/').pop();
 const noteText = `First-run note ${Date.now()}`;
 const saved = await post('/dashboard/note', { key, text: noteText, back: recLink }, A);
@@ -175,7 +176,7 @@ if (!(await get(recLink, A)).text.includes(noteText)) fail('notes', 'the note is
 if (!(await get(recLink, B)).text.includes(noteText)) fail('notes', 'the note does not show on a second device');
 const access = await get('/dashboard/access', A);
 if (access.status !== 200 || !/Who can open the dashboard/.test(access.text) || !/What the dashboard keeps/.test(access.text) || /gmail\.compose/.test(access.text)) fail('access', `Who can see what did not load as expected (${access.status})`);
-ok('Lead to cash shows records; a note persists after a reload and on a second device; Who can see what opens');
+ok('a deal opens on one screen to act on; a note persists after a reload and on a second device; Who can see what opens');
 
 // 6c. One deal all the way through: discovery, a priced quote, a proposal, accepted, delivery and a
 // client portal that shows the client's tasks and no money (Scooter, 14 Nov 2026: "First test: one
