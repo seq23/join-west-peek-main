@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { SERVICES } from "../functions/_lib/services.mjs";
 
 const target = process.argv[2];
 if (!target) {
@@ -22,6 +23,26 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 
 copyRecursive(src, out);
+
+// West Peek Productions' six services come from ONE list (functions/_lib/services.mjs), shared with
+// the dashboard (Scooter, 15 Nov 2026: "same list on the site and the dashboard picker"). Pages carry
+// markers; the build writes the list in, so the site can never drift from the dashboard.
+if (target === "productions") {
+  const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const grid = SERVICES.map((s) => `<li id="${s.id}"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-${s.id}">${s.icon}<span>${esc(s.name)}</span></button><p id="cap-${s.id}" class="wpp-capgrid__desc">${esc(s.line)}</p></li>`).join("\n        ");
+  const options = SERVICES.map((s) => `<option value="${esc(s.name)}"${s.events ? " data-events" : ""}>${esc(s.name)}</option>`).join("\n            ");
+  let marked = 0;
+  for (const name of fs.readdirSync(out)) {
+    if (!name.endsWith(".html")) continue;
+    const abs = path.join(out, name);
+    const html = fs.readFileSync(abs, "utf8");
+    if (!html.includes("<!--SERVICES:")) continue;
+    fs.writeFileSync(abs, html.replaceAll("<!--SERVICES:grid-->", grid).replaceAll("<!--SERVICES:options-->", options));
+    marked += 1;
+  }
+  if (!marked) fail("productions: no page carries a <!--SERVICES:…--> marker; the six services would be missing from the site");
+  console.log(`services: wrote the ${SERVICES.length} services into ${marked} page(s)`);
+}
 
 // Per-episode pages for community: one template + episodes.json, not one
 // hand-written file per guest, so a new episode is a JSON row rather than a

@@ -1,6 +1,6 @@
 /* West Peek Productions — small site script (Nov 2026 rebuild).
  *
- * 1. Source tracking for the Start a project form. The brief: "track which
+ * 1. Source tracking for the Get in touch form. The brief: "track which
  *    source each inquiry came from, without exposing client data". The first
  *    page a visitor lands on, its utm_* tags and the referring site's HOST
  *    (never the full referring URL) are kept in sessionStorage for this tab
@@ -8,8 +8,9 @@
  *    hidden fields, so they travel in Scooter's email and nowhere else.
  * 2. A gentle reveal on scroll, off under prefers-reduced-motion and for
  *    anyone without IntersectionObserver.
- * 3. The moving "We make people …" line, the capability icons, the form's
- *    "Something else" box (14 Nov 2026 edits).
+ * 3. The moving "We make people …" line (typed like the community site's
+ *    hero), the service icons, and the Get in touch form's event dates
+ *    (15 Nov 2026 edits).
  * 4. The footer year.
  */
 (function () {
@@ -82,35 +83,41 @@
 
   document.documentElement.classList.add('wpp-ui');
 
-  // The moving line (Scooter, 14 Nov 2026: "We make people care" in orange, moving, in the hero and
-  // the footer). The element's own text ("care.") is what ships, what screen readers hear and what a
-  // reduced-motion visitor sees; the typed copy beside it is aria-hidden decoration.
+  // The moving line, "We make people care." (hero and footer). It works exactly like the community
+  // site's live hero (joinwestpeek.com, community.js heroTyping; Scooter, 15 Nov 2026: "make the 'We
+  // make people care' animation work like the community site's"): "We make people" stays fixed, each
+  // word types out, holds, backspaces and the next one types in, at the same speeds, with a caret. The
+  // element's own text ("care.") ships in the HTML and is what screen readers, no-JS and reduced-motion
+  // visitors get; the typed copy is aria-hidden decoration. The slot is as wide as the longest word, so
+  // nothing around it moves while it types.
   Array.prototype.forEach.call(document.querySelectorAll('[data-rotate]'), function (el) {
     if (reduce) return;
     var words;
     try { words = JSON.parse(el.getAttribute('data-rotate') || '[]'); } catch (e) { words = []; }
     words = words.filter(function (w) { return typeof w === 'string' && w.length; });
-    if (words.length < 2) return;
+    if (!words.length) return;
+    var TYPE_MS = 55, ERASE_MS = 26, HOLD_MS = 2000, GAP_MS = 350; // community.js heroTyping
     var real = el.textContent;
     el.textContent = '';
     var sr = document.createElement('span'); sr.className = 'wpp-sr'; sr.textContent = real;
-    var live = document.createElement('span'); live.className = 'wpp-rotate__live'; live.setAttribute('aria-hidden', 'true'); live.textContent = words[0];
+    var live = document.createElement('span'); live.className = 'wpp-rotate__live'; live.setAttribute('aria-hidden', 'true');
     el.appendChild(sr); el.appendChild(live);
-    var i = 0, pos = words[0].length, erasing = true;
+    el.setAttribute('data-typing', '');
+    var i = 0, pos = 0, erasing = false;
     function tick() {
-      if (document.hidden) { setTimeout(tick, 500); return; }
+      if (document.hidden) { setTimeout(tick, 500); return; } // idle in a background tab
       var w = words[i];
-      if (erasing) {
-        pos -= 1; live.textContent = w.slice(0, pos);
-        if (pos <= 0) { erasing = false; i = (i + 1) % words.length; setTimeout(tick, 300); return; }
-        setTimeout(tick, 32);
+      if (!erasing) {
+        pos += 1; live.textContent = w.slice(0, pos);
+        if (pos >= w.length) { erasing = true; setTimeout(tick, HOLD_MS); return; }
+        setTimeout(tick, TYPE_MS);
       } else {
-        pos += 1; live.textContent = words[i].slice(0, pos);
-        if (pos >= words[i].length) { erasing = true; setTimeout(tick, 2200); return; }
-        setTimeout(tick, 70);
+        pos -= 1; live.textContent = w.slice(0, pos);
+        if (pos <= 0) { erasing = false; i = (i + 1) % words.length; setTimeout(tick, GAP_MS); return; }
+        setTimeout(tick, ERASE_MS);
       }
     }
-    setTimeout(tick, 2600);
+    tick();
   });
 
   // Capabilities: a tap opens what each one is (hover does the same on a laptop).
@@ -122,18 +129,19 @@
     });
   });
 
-  // Start a project: "Something else" asks for a few words, and only then.
+  // Get in touch: choosing Virtual / hybrid event production asks for the event dates, and only then
+  // (Scooter, 15 Nov 2026). Without JS the date fields simply show, optional.
   if (form) {
-    var other = form.querySelector('[data-other-field]');
-    var otherInput = other && other.querySelector('input');
-    var sync = function () {
-      var picked = form.querySelector('input[name="need_type"]:checked');
-      var on = Boolean(picked && picked.hasAttribute('data-other'));
-      if (other) other.classList.toggle('is-on', on);
-      if (otherInput) otherInput.required = on;
+    var dates = form.querySelector('[data-event-dates]');
+    var service = form.querySelector('select[name="service"]');
+    var syncDates = function () {
+      var opt = service && service.options[service.selectedIndex];
+      var on = Boolean(opt && opt.hasAttribute('data-events'));
+      if (dates) dates.classList.toggle('is-on', on);
+      Array.prototype.forEach.call(dates ? dates.querySelectorAll('input') : [], function (i) { i.required = on; });
     };
-    Array.prototype.forEach.call(form.querySelectorAll('input[name="need_type"]'), function (r) { r.addEventListener('change', sync); });
-    sync();
+    if (service) service.addEventListener('change', syncDates);
+    syncDates();
   }
 
   var y = document.getElementById('y');

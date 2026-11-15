@@ -286,6 +286,17 @@ try {
     const c = world({ cloudflare: 'down' });
     await submit(c);
     check('inquiry: other sites keep their own email', leadsIn(c.sent.resend).length === 1 && !c.sent.resend.some((x) => /New inquiry/.test(x.subject)));
+
+    // The Get in touch form (Scooter, 15 Nov 2026): first and last name, title, the service, and for
+    // Virtual / hybrid event production the event dates, in his email in that order.
+    const g = world({ cloudflare: 'down' });
+    const gt = await submit(g, { host: 'westpeekproductions.com', body: { lead_type: 'productions_start_a_project', site: 'westpeekproductions.com', source_page: '/get-in-touch', first_name: 'Dana', last_name: 'Reyes', job_title: 'Director of Programs', organization: 'Harbor Fund', email: 'dana@harborfund.org', initiative: 'A two-day member summit.', service: 'Virtual / hybrid event production', event_start: '2027-04-08', event_end: '2027-04-09', heard_about: 'Search', website: '' } });
+    const gm = g.sent.resend.find((x) => /New inquiry/.test(x.subject)) || {};
+    check('get in touch: first and last name make one name in the subject', gt.status === 200 && gm.subject === 'New inquiry: Harbor Fund - Dana Reyes', gm.subject);
+    const gOrder = ['Name: Dana Reyes', 'Email: dana@harborfund.org', 'Organization: Harbor Fund', 'Title: Director of Programs', 'Service: Virtual / hybrid event production', 'Event dates: Thu, Apr 8, 2027 to Fri, Apr 9, 2027', 'Needs: A two-day member summit.', 'Heard about us: Search', 'Submitted: '];
+    const gAt = gOrder.map((l) => (gm.text || '').indexOf(l));
+    check('get in touch: title, service and event dates in his order', gAt.every((i, n) => i >= 0 && (n === 0 || i > gAt[n - 1])), JSON.stringify(gAt) + (gm.text || ''));
+    check('get in touch: no raw field names in his email', !/first_name|last_name|job_title|event_start|event_end/.test(`${gm.text}${gm.html}`));
   }
 } finally {
   console.error = quiet;

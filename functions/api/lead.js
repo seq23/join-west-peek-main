@@ -414,6 +414,11 @@ export async function onRequestPost({ request, env, waitUntil }) {
     }
   }
 
+  // The Get in touch form asks first and last name apart (Scooter, 15 Nov 2026); everything
+  // downstream (his email, the dashboard, the test flag) reads one name.
+  if (!clean(fields.name) && (clean(fields.first_name) || clean(fields.last_name))) {
+    fields.name = [clean(fields.first_name), clean(fields.last_name)].filter(Boolean).join(' ');
+  }
   const email = clean(fields.email);
   for (const key of REQUIRED) {
     if (!clean(fields[key])) return json({ ok: false, error: `missing_${key}` }, 400);
@@ -521,11 +526,26 @@ export function easternTime(date = new Date()) {
 }
 
 /**
- * Scooter's inquiry email (15 Nov 2026), in his order: Name, Email (a link), Organization, Needs
+ * Scooter's inquiry email (15 Nov 2026), in his order: Name, Email (a link), Organization, Title,
+ * Service, Event dates (virtual / hybrid only), Needs
  * (the choice and their own words), Timing, Heard about us, Submitted (Eastern), then Open in the
  * dashboard (Inquiries on the same site the form was sent from). Empty fields and the hidden
  * tracking fields are left out; a test submission says TEST in the subject.
  */
+/**
+ * Event dates from the Get in touch form, asked only when Virtual / hybrid event production is the
+ * service (Scooter, 15 Nov 2026: "ask for event start and end dates and carry them into the deal").
+ * Plain YYYY-MM-DD only; an end before the start is kept as typed but never reordered.
+ */
+export function eventDatesFrom(fields) {
+  const day = (k) => (/^\d{4}-\d{2}-\d{2}$/.test(clean(fields[k])) ? clean(fields[k]) : '');
+  const start = day('event_start');
+  const end = day('event_end');
+  if (!start && !end) return null;
+  const say = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  return { start, end, words: start && end && start !== end ? `${say(start)} to ${say(end)}` : say(start || end) };
+}
+
 export function productionsInquiryMail(fields, requestUrl, now = new Date()) {
   const v = (k) => clean(fields[k]);
   const name = v('name');
@@ -536,8 +556,10 @@ export function productionsInquiryMail(fields, requestUrl, now = new Date()) {
   const heard = [v('heard_about'), v('heard_about_detail')].filter(Boolean).join(' · ');
   const dashboard = `${new URL(requestUrl).origin}/dashboard/inquiries`;
   const test = isTestInquiry(fields, requestUrl);
+  const events = eventDatesFrom(fields);
   const rows = [
-    ['Name', name], ['Email', email], ['Organization', org], ['Needs', needs],
+    ['Name', name], ['Email', email], ['Organization', org], ['Title', v('job_title')], ['Service', v('service')],
+    ['Event dates', events ? events.words : ''], ['Needs', needs],
     ['Timing', v('timing')], ['Heard about us', heard], ['Submitted', easternTime(now)]
   ].filter(([, val]) => val);
   const who = [org, name].filter(Boolean).join(' - ') || email;

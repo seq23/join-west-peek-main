@@ -44,7 +44,7 @@ h1, h2, h3 { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margi
 .wpp-header { position: sticky; top: 0; z-index: 50; background: rgba(11, 11, 12, .88); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
 .wpp-header__inner { max-width: var(--max); margin: 0 auto; padding: 14px var(--gutter); display: flex; align-items: center; gap: 28px; }
 .wpp-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
-.wpp-brand img { width: 40px; height: 40px; filter: invert(1); mix-blend-mode: screen; }
+.wpp-brand img { width: auto; height: 40px; }
 .wpp-brand span { font-size: 15px; }
 .wpp-nav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .wpp-nav a { text-decoration: none; color: var(--copy); font-weight: 500; font-size: 15px; padding: 8px 12px; border-radius: 999px; transition: color .15s ease, background .15s ease; }
@@ -269,7 +269,7 @@ table.data tr:last-child td { border-bottom: 0; }
 .wpp-footer { border-top: 1px solid var(--line); padding: 56px 0 40px; color: var(--copy); }
 .wpp-footer__grid { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
 .wpp-footer__brand { display: flex; align-items: center; gap: 12px; font-weight: 700; color: var(--white); margin-bottom: 14px; }
-.wpp-footer__brand img { width: 44px; height: 44px; filter: invert(1); mix-blend-mode: screen; }
+.wpp-footer__brand img { width: auto; height: 44px; }
 .wpp-footer__tag { font-size: 22px; font-weight: 700; color: var(--white); letter-spacing: -0.01em; max-width: 18ch; line-height: 1.2; }
 .wpp-footer h2 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; font-weight: 700; }
 .wpp-footer ul { list-style: none; margin: 0; padding: 0; }
@@ -284,7 +284,8 @@ table.data tr:last-child td { border-bottom: 0; }
 /* The moving line: the real word stays for screen readers; the typed copy is decoration. */
 .wpp-rotate__live::after { content: ""; display: inline-block; width: .06em; height: .8em; margin-left: .06em; background: currentColor; vertical-align: -.05em; animation: wpp-caret 1s steps(1) infinite; }
 @keyframes wpp-caret { 50% { opacity: 0; } }
-.wpp-footer__tag .wpp-rotate { display: inline-block; min-width: 6ch; white-space: nowrap; }
+/* The footer word sits on its own line, like the hero, so the line never reflows while it types. */
+.wpp-footer__tag .wpp-rotate { display: block; min-height: 1.2em; white-space: nowrap; }
 
 /* Placeholder label: clearly marked, never invented content. */
 .wpp-tag-placeholder { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); border: 1.5px dashed currentColor; padding: 4px 10px; border-radius: 999px; margin: 0; }
@@ -297,7 +298,8 @@ table.data tr:last-child td { border-bottom: 0; }
 .wpp-logos__track:hover .wpp-logos__row { animation-play-state: paused; }
 .wpp-logos__row { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: clamp(40px, 6vw, 80px); padding-right: clamp(40px, 6vw, 80px); animation: wpp-slide 36s linear infinite; }
 .wpp-logos__row li { font-size: clamp(18px, 2vw, 24px); font-weight: 700; letter-spacing: -0.01em; color: var(--muted); opacity: .7; white-space: nowrap; }
-.wpp-logos__row img { height: 36px; width: auto; filter: grayscale(1) invert(1); opacity: .55; }
+/* The logo files are white marks on transparent (made from his originals); grey and faded here. */
+.wpp-logos__row img { height: 36px; width: auto; max-width: none; opacity: .5; }
 .wpp-logos .wpp-tag-placeholder { margin-top: 20px; }
 @keyframes wpp-slide { to { transform: translateX(-100%); } }
 
@@ -321,7 +323,7 @@ table.data tr:last-child td { border-bottom: 0; }
 @media (max-width: 700px) { .wpp-who-tiles { grid-template-columns: 1fr; } .wpp-who-tiles li { min-height: 0; } }
 
 /* Capabilities as icons: hover or tap tells what each is. Without JS every line shows. */
-.wpp-capgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.wpp-capgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .wpp-capgrid li { border: 1px solid var(--line); border-radius: var(--radius); background: var(--ink-2); scroll-margin-top: 110px; transition: border-color .2s ease; }
 .wpp-capgrid__btn { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 16px; width: 100%; padding: 24px 22px 10px; min-height: 44px; }
 .wpp-capgrid__btn:focus-visible { outline: 3px solid var(--orange); outline-offset: -3px; border-radius: var(--radius); }
@@ -396,6 +398,46 @@ table.data tr:last-child td { border-bottom: 0; }
 .wpp-choices .wpp-field { margin: 8px 0 0; }
 .wpp-ui .wpp-other { display: none; }
 .wpp-ui .wpp-other.is-on { display: block; }
+
+
+/* ------------------------------------------------------------ 15 Nov 2026 edits (Scooter's two emails) */
+/* About opens with his face, then the founding story beside it on a laptop (under it on a phone). */
+.wpp-about .wpp-founder { align-items: center; }
+.wpp-about h1 { font-size: clamp(40px, 6vw, 76px); max-width: none; margin-bottom: 24px; }
+.wpp-about .wpp-founder__copy p:not(.wpp-eyebrow) { font-size: clamp(18px, 1.6vw, 21px); line-height: 1.6; color: var(--copy); font-weight: 400; }
+.wpp-bio .wpp-lead { max-width: 70ch; }
+
+/* Get in touch */
+.wpp-free { color: var(--orange); font-weight: 700; font-size: 18px; margin-top: 4px; }
+.wpp-ui .wpp-eventdates { display: none; }
+.wpp-ui .wpp-eventdates.is-on { display: grid; }
+
+/* Case studies: one accordion each. Client and project on top; the problem, What we did (opens),
+   Results, Highlighted work (opens). Works without JS (details/summary). */
+.wpp-cases-acc { padding-top: 0; border-top: 0; }
+.wpp-acc { border-top: 1px solid var(--line); scroll-margin-top: 90px; }
+.wpp-acc:last-child { border-bottom: 1px solid var(--line); }
+.wpp-acc > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; padding: 28px 0; min-height: 44px; }
+.wpp-acc > summary::-webkit-details-marker { display: none; }
+.wpp-acc > summary::after { content: "+"; grid-column: 2; grid-row: 1 / span 3; align-self: center; font-size: 32px; font-weight: 500; color: var(--orange); line-height: 1; }
+.wpp-acc[open] > summary::after { content: "\2212"; }
+.wpp-acc > summary:focus-visible { outline: 3px solid var(--orange); outline-offset: 4px; }
+.wpp-acc__client { color: var(--orange); font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.wpp-acc__project { color: var(--copy); font-size: 15px; font-weight: 500; }
+.wpp-acc__frame { font-size: clamp(24px, 3.2vw, 40px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.wpp-acc__body { padding: 0 0 36px; max-width: 760px; }
+.wpp-acc__body > p { font-size: 19px; color: var(--copy); }
+.wpp-acc__body .wpp-case__h { margin-top: 28px; }
+.wpp-acc__sub { border: 1px solid var(--line); border-radius: var(--radius); padding: 0 20px; margin: 24px 0 0; background: var(--ink-2); }
+.wpp-acc__sub > summary { cursor: pointer; font-weight: 700; padding: 16px 0; min-height: 44px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.wpp-acc__sub > summary::-webkit-details-marker { display: none; }
+.wpp-acc__sub > summary::after { content: "Show \25BE"; color: var(--orange); font-size: 14px; }
+.wpp-acc__sub[open] > summary::after { content: "Hide \25B4"; }
+.wpp-acc__sub[open] { padding-bottom: 20px; }
+.wpp-acc__sub .wpp-case__did { margin-bottom: 16px; }
+.wpp-acc__media { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.wpp-acc__media .wpp-case__media { margin-top: 0; }
+@media (max-width: 600px) { .wpp-acc__media { grid-template-columns: 1fr; } }
 
 /* ------------------------------------------------------------ Reveal on scroll (JS adds .wpp-in) */
 .wpp-js [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
