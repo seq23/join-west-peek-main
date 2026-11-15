@@ -4,7 +4,7 @@
  * Words are outcome words: never "store", "Agent Log", "Phase 2" or "firm email".
  */
 import { ageWords, daysSince, esc, httpsOnly, isoDay, money, num, toTime, usDay, usTime } from './core.mjs';
-import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, GROUPS, KINDS, NOTE_MAX, STALE_MS, composeLink, groupFor, orgKey, projectName, sheetUrl, stageOptions } from './data.mjs';
+import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, GROUPS, KINDS, NOTE_MAX, STALE_MS, composeLink, groupFor, orgKey, projectName, sheetUrl, stageOptions, stageKey, groupByStage } from './data.mjs';
 import { GOOGLE_SCOPE_WORDS, KEY_FIELDS, PROVIDERS, RETIRED_GOOGLE_SCOPES, wideGoogleScopes } from './providers.mjs';
 import { BACKUP_TABLES, TABLE_WORDS } from './schema.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
@@ -276,25 +276,23 @@ export function renderPipeline(view, ctx, list) {
   const deals = view.rows.deals;
   const layout = ctx.sample ? null : ctx.settings['layout:deals'];
   const opts = stageOptions(deals, layout?.stages);
-  const lower = opts.stages.map((x) => x.toLowerCase());
+  const lower = opts.stages.map(stageKey);
   const keyOf = (d) => encodeURIComponent(orgKey(d.org));
   const faults = (ctx.items || []).filter((i) => i.kind === 'connection' || i.kind === 'sync');
   const faultList = faults.length ? `<ul class="d-list d-faults">${faults.map((i) => `<li class="d-row d-row--today"><span class="d-dot ${i.tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.title)}</span><span class="d-row__sub ${i.tone === 'plain' ? '' : i.tone}">${esc(i.sub)}</span></div><div class="d-row__act">${todayAction(i)}<form method="post" action="/dashboard/tick" class="d-inline"><input type="hidden" name="item" value="${esc(i.key)}"><button type="submit" class="d-tick" aria-label="Hide ${esc(i.title)}" title="Hide">✓</button></form></div></li>`).join('')}</ul>` : '';
   const dealRow = (d) => {
-    const i = lower.indexOf(String(d.stage || '').toLowerCase());
+    const i = lower.indexOf(stageKey(d.stage));
     const canMove = opts.ordered && i > -1 && i < opts.stages.length - 1;
     const bits = [d.owner ? esc(d.owner) : '', d.proposal_sent && toTime(d.proposal_sent) !== null ? `Proposal sent ${esc(usDay(d.proposal_sent))}` : '', d.next_action ? `${esc(d.next_action)}${toTime(d.next_date) !== null ? ` · ${esc(usDay(d.next_date))}` : ''}` : ''].filter(Boolean).join(' · ');
     return `<li class="d-row" data-stage="${esc(d.stage || '')}"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${keyOf(d)}">${esc(d.org || 'Deal')} ›</a>${bits ? `<span class="d-row__sub">${bits}</span>` : ''}</div><div class="d-row__act">${canMove ? act('stage', d._id, 'Next stage', '/dashboard') : ''}</div></li>`;
   };
   const fresh = list.filter((j) => !j.deal && j.inquiries.length && !j.lost);
-  const stageSecs = opts.stages.map((st, n) => {
-    const here = deals.filter((d) => String(d.stage || '').toLowerCase() === st.toLowerCase());
-    return here.length
-      ? sec(`stage-${n + 1}`, `${st} · ${here.length}`, `<ul class="d-list">${here.map(dealRow).join('')}</ul>`)
-      : `<section class="d-sec d-sec--none" id="stage-${n + 1}"><h2>${esc(st)} · 0</h2></section>`;
-  }).join('');
-  const other = deals.filter((d) => !lower.includes(String(d.stage || '').toLowerCase()));
-  const otherSec = other.length ? sec('stage-other', `No stage set · ${other.length}`, `<ul class="d-list">${other.map(dealRow).join('')}</ul>`) : '';
+  const groups = groupByStage(deals, opts.stages);
+  const stageSecs = groups.listed.map((g, n) => g.deals.length
+    ? sec(`stage-${n + 1}`, `${g.label} · ${g.deals.length}`, `<ul class="d-list">${g.deals.map(dealRow).join('')}</ul>`)
+    : `<section class="d-sec d-sec--none" id="stage-${n + 1}"><h2>${esc(g.label)} · 0</h2></section>`).join('');
+  const otherSec = [...groups.extra.map((g, n) => sec(`stage-x${n + 1}`, `${g.label} · ${g.deals.length}`, `<ul class="d-list">${g.deals.map(dealRow).join('')}</ul>`)),
+    groups.blank.length ? sec('stage-other', `No stage set · ${groups.blank.length}`, `<ul class="d-list">${groups.blank.map(dealRow).join('')}</ul>`) : ''].join('');
   const freshSec = sec('new', `New inquiries · ${fresh.length}`, fresh.length
     ? `<ul class="d-list">${fresh.map((j) => { const q = j.inquiries.at(-1) || {}; return `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${[q.name ? esc(q.name) : '', toTime(q.at) !== null ? esc(usDay(q.at)) : ''].filter(Boolean).join(' · ') || 'Inquiry'}</span></div></li>`; }).join('')}</ul>`
     : '<p class="d-sub">None.</p>');

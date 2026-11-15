@@ -224,11 +224,33 @@ async function stageListFromSheet(env, spreadsheetId, tab, col, headerRow) {
  * funnel stages when every stage his rows use is one of them; otherwise his own stage words, in the
  * order they first appear. `ordered` says whether "next stage" means anything.
  */
+/** A stage as typed in his tracker, compared without case, edge spaces or doubled spaces ("Proposal " is Proposal). */
+export function stageKey(v) { return String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+/**
+ * Deals grouped by where they sit: one list per stage of his list, in its order, then one list per stage
+ * his tracker carries that is not in that list (an old or hand-typed stage keeps its own name), and last
+ * the deals whose Stage cell is blank. Every deal lands in exactly one list.
+ */
+export function groupByStage(deals, stages) {
+  const known = new Map(stages.map((st) => [stageKey(st), { label: st, listed: true, deals: [] }]));
+  const extra = new Map();
+  const blank = [];
+  for (const d of deals) {
+    const k = stageKey(d.stage);
+    if (!k) { blank.push(d); continue; }
+    if (known.has(k)) { known.get(k).deals.push(d); continue; }
+    if (!extra.has(k)) extra.set(k, { label: String(d.stage).replace(/\s+/g, ' ').trim(), listed: false, deals: [] });
+    extra.get(k).deals.push(d);
+  }
+  return { listed: [...known.values()], extra: [...extra.values()], blank };
+}
+
 export function stageOptions(deals, listed = null) {
   if (listed?.length >= 2) return { stages: listed, ordered: true };
-  const seen = [...new Set(deals.map((d) => String(d.stage || '').trim()).filter(Boolean))];
-  const funnel = FUNNEL_STAGES.map((x) => x.toLowerCase());
-  if (seen.every((x) => funnel.includes(x.toLowerCase()))) return { stages: FUNNEL_STAGES, ordered: true };
+  const seen = [...new Map(deals.map((d) => [stageKey(d.stage), String(d.stage || '').replace(/\s+/g, ' ').trim()]).filter(([k]) => k)).values()];
+  const funnel = FUNNEL_STAGES.map(stageKey);
+  if (seen.every((x) => funnel.includes(stageKey(x)))) return { stages: FUNNEL_STAGES, ordered: true };
   return { stages: seen, ordered: false };
 }
 
@@ -591,7 +613,7 @@ export function actionChanges(action, row, now = Date.now(), stages = stageOptio
     case 'skip': return { status: 'Skipped' };
     case 'stage': {
       if (!stages.ordered) return null;
-      const i = stages.stages.findIndex((s) => s.toLowerCase() === String(row.stage || '').toLowerCase());
+      const i = stages.stages.findIndex((s) => stageKey(s) === stageKey(row.stage));
       if (i === -1 || i >= stages.stages.length - 1) return null;
       return { stage: stages.stages[i + 1] };
     }

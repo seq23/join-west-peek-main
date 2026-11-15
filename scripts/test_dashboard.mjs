@@ -1091,6 +1091,20 @@ const realFetch = globalThis.fetch;
   }
 }
 
+// Where each deal sits (review, 15 Nov 2026): a stage typed with stray spaces is that stage, and a stage
+// his tracker carries outside the list keeps its own labelled list; only a blank Stage cell is "No stage set".
+{
+  const { groupByStage, actionChanges, stageOptions } = await import('../functions/_lib/pd/data.mjs');
+  const deals = [{ org: 'A', stage: 'Proposal ' }, { org: 'B', stage: '  discovery' }, { org: 'C', stage: 'On  hold' }, { org: 'D', stage: 'on hold' }, { org: 'E', stage: '' }, { org: 'F', stage: 'Proposal' }];
+  const g = groupByStage(deals, ['Discovery', 'Proposal', 'Won']);
+  const names = (x) => x.deals.map((d) => d.org).join('');
+  check('stages: trailing or doubled spaces still place the deal under its stage', names(g.listed[0]) === 'B' && names(g.listed[1]) === 'AF' && names(g.listed[2]) === '', JSON.stringify(g.listed.map(names)));
+  check('stages: an off-list stage gets its own list under its own name, never "No stage set"', g.extra.length === 1 && g.extra[0].label === 'On hold' && names(g.extra[0]) === 'CD' && g.blank.map((d) => d.org).join('') === 'E', JSON.stringify(g.extra));
+  check('stages: every deal lands in exactly one list', g.listed.concat(g.extra).reduce((n, x) => n + x.deals.length, 0) + g.blank.length === deals.length);
+  check('stages: Next stage moves "Proposal " on to the next stage', actionChanges('stage', { stage: 'Proposal ' }, Date.now(), { stages: ['Discovery', 'Proposal', 'Won'], ordered: true })?.stage === 'Won');
+  check('stages: "Proposal " and "proposal" are one stage when no list is set', stageOptions([{ stage: 'Proposal ' }, { stage: 'proposal' }, { stage: 'Pitch' }]).stages.length === 2);
+}
+
 // The Start a project form's multiple choice reaches the dashboard as what they need (Scooter, 14 Nov 2026).
 {
   const { needFrom } = await import('../functions/_lib/pd/deal.mjs');
