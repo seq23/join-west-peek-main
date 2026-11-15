@@ -46,7 +46,7 @@ export function dealSections(j, ctx) {
   const steps = `<ul class="d-list">${rows.map(([t, h, sub]) => `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="${h}">${esc(t)} ›</a><span class="d-row__sub">${sub}</span></div></li>`).join('')}</ul>`;
   // The deal's own documents and emails stay on the deal (Scooter, 14 Nov 2026: "Each deal carries its
   // notes, documents, and related emails in one place"); two buttons, no explanation.
-  const files = `<p class="d-row__act d-files"><a class="d-btn" href="/dashboard/find?q=${encodeURIComponent(j.name)}">Documents</a><a class="d-btn" href="${esc(gmail)}" target="_blank" rel="noopener noreferrer">Emails in Gmail ↗</a></p>`;
+  const files = `<p class="d-files"><a class="d-btn" href="/dashboard/find?q=${encodeURIComponent(j.name)}">Documents</a><a class="d-btn" href="${esc(gmail)}" target="_blank" rel="noopener noreferrer">Emails in Gmail ↗</a></p>`;
   return sec('scope', 'Discovery to delivery', steps + files);
 }
 

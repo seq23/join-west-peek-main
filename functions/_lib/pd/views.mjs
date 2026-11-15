@@ -126,6 +126,7 @@ details.d-fold[open] summary::after{content:'⌄'}
 .d-kv li span:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .d-big{font-size:30px;font-weight:700;margin:2px 0;font-variant-numeric:tabular-nums}
 .d-count{margin:2px 0 6px;color:var(--copy);font-size:15px}
+.d-files{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
 .d-sec--none{padding:10px 0}
 .d-sec--none h2{color:var(--copy);font-weight:500;margin:0}
 .d-funnel{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:4px}
@@ -407,7 +408,8 @@ export function renderFlowRecord(view, j, ctx) {
   const need = d?.notes && /^Need: /m.test(d.notes) ? d.notes.match(/^Need: (.*)$/m)[1] : saved.need || inq.initiative || '';
   const person = inq.name || d?.contact || '';
   const email = inq.email || d?.email || '';
-  const contact = `<ul class="d-kv">${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${email ? `<li><span>Email</span><span><a href="mailto:${esc(email)}">${esc(email)}</a></span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${d?.source ? `<li><span>Source</span><span>${esc(d.source)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Inquiry</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}</ul>`;
+  const contactKv = `${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${email ? `<li><span>Email</span><span><a href="mailto:${esc(email)}">${esc(email)}</a></span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${d?.source ? `<li><span>Source</span><span>${esc(d.source)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Inquiry</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}`;
+  const contact = contactKv ? sec('contact', 'Contact', `<ul class="d-kv">${contactKv}</ul>`) : '';
 
   const envs = ctx.settings.envelopes || {};
   const sowWords = { completed: 'Signed', sent: 'Sent, not signed yet', delivered: 'Opened, not signed yet', declined: 'Declined', voided: 'Voided', created: 'Not sent yet' };
@@ -422,7 +424,7 @@ export function renderFlowRecord(view, j, ctx) {
   const body = `<p><a class="d-help" href="/dashboard">← Pipeline</a></p><h1>${esc(j.name)}</h1><p class="d-count">${esc(where)}</p>${ctx.flash || ''}
     ${sec('deal', 'Deal', deal)}
     ${sec('notes', 'Notes', notes)}
-    ${sec('contact', 'Contact', contact)}
+    ${contact}
     ${dealSections(j, ctx)}
     ${work}
     ${cash}`;
