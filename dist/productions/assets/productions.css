@@ -50,10 +50,10 @@ h1, h2, h3 { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margi
 .wpp-nav a { text-decoration: none; color: var(--copy); font-weight: 500; font-size: 15px; padding: 8px 12px; border-radius: 999px; transition: color .15s ease, background .15s ease; }
 .wpp-nav a:hover { color: var(--white); background: var(--ink-3); }
 .wpp-nav a[aria-current="page"] { color: var(--white); }
-.wpp-nav a[aria-current="page"]::after { content: ""; display: block; height: 2px; background: var(--orange); margin-top: 2px; border-radius: 2px; }
+.wpp-nav a[aria-current="page"] { text-decoration: underline; text-decoration-color: var(--orange); text-decoration-thickness: 2px; text-underline-offset: 6px; }
 .wpp-nav .wpp-nav__cta { background: var(--orange); color: var(--orange-ink); font-weight: 700; margin-left: 8px; padding: 9px 18px; }
 .wpp-nav .wpp-nav__cta:hover { background: #ff9a2e; color: var(--orange-ink); }
-.wpp-nav .wpp-nav__cta[aria-current="page"]::after { display: none; }
+.wpp-nav .wpp-nav__cta[aria-current="page"] { text-decoration: none; }
 
 @media (max-width: 760px) {
   .wpp-header__inner { flex-wrap: wrap; gap: 8px 12px; padding: 10px var(--gutter) 8px; }
@@ -213,7 +213,8 @@ h2.wpp-eyebrow, .wpp-section h2.wpp-eyebrow { font-size: 13px; line-height: 1.6;
 [data-form-status] { margin-top: 14px; font-size: 15px; }
 [data-form-status][data-state="error"] { color: #ffb4a8; }
 [data-form-status][data-state="error"] a { color: var(--orange); }
-@media (max-width: 900px) { .wpp-start { grid-template-columns: 1fr; } .wpp-start__aside { position: static; } }
+@media (max-width: 900px) { .wpp-start { grid-template-columns: 1fr; } .wpp-start__aside { position: static; order: 2; } }
+.wpp-choices textarea { min-height: 96px; }
 
 .wp-form-thanks { background: var(--ink-2); border: 1px solid var(--line); border-left: 4px solid var(--orange); border-radius: var(--radius); padding: clamp(24px, 4vw, 44px); outline: none; }
 .wp-form-thanks__tag { color: var(--orange); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 10px; }
@@ -310,13 +311,12 @@ table.data tr:last-child td { border-bottom: 0; }
 
 /* Who we work with: four tiles with a hover state. Touch screens show the line always. */
 .wpp-who-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-.wpp-who-tiles li { position: relative; min-height: 190px; border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(22px, 3vw, 34px); background: var(--ink-2); display: flex; flex-direction: column; justify-content: space-between; gap: 18px; transition: background .2s ease, color .2s ease, border-color .2s ease; outline: none; }
+.wpp-who-tiles li { position: relative; min-height: 170px; border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(22px, 3vw, 34px); background: var(--ink-2); display: flex; flex-direction: column; justify-content: space-between; gap: 18px; transition: background .2s ease, color .2s ease, border-color .2s ease; outline: none; }
 .wpp-who-tiles__name { font-size: clamp(24px, 2.8vw, 34px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.08; }
 .wpp-who-tiles__line { color: var(--copy); font-size: 17px; max-width: 36ch; }
 @media (hover: hover) {
-  .wpp-who-tiles__line { opacity: 0; transform: translateY(6px); transition: opacity .2s ease, transform .2s ease; }
   .wpp-who-tiles li:hover, .wpp-who-tiles li:focus-visible { background: var(--orange); border-color: var(--orange); color: var(--orange-ink); }
-  .wpp-who-tiles li:hover .wpp-who-tiles__line, .wpp-who-tiles li:focus-visible .wpp-who-tiles__line { opacity: 1; transform: none; color: var(--orange-ink); }
+  .wpp-who-tiles li:hover .wpp-who-tiles__line, .wpp-who-tiles li:focus-visible .wpp-who-tiles__line { color: var(--orange-ink); }
 }
 @media (max-width: 700px) { .wpp-who-tiles { grid-template-columns: 1fr; } .wpp-who-tiles li { min-height: 0; } }
 
@@ -327,14 +327,18 @@ table.data tr:last-child td { border-bottom: 0; }
 .wpp-capgrid__btn:focus-visible { outline: 3px solid var(--orange); outline-offset: -3px; border-radius: var(--radius); }
 .wpp-capgrid__btn svg { color: var(--orange); width: 40px; height: 40px; }
 .wpp-capgrid__btn span { font-size: 19px; font-weight: 700; line-height: 1.2; }
-.wpp-capgrid__btn span::after { content: " +"; color: var(--orange); }
-.wpp-capgrid__btn[aria-expanded="true"] span::after { content: " \2212"; }
+.wpp-capgrid__btn span::after { content: "\00a0+"; color: var(--orange); }
+.wpp-capgrid__btn[aria-expanded="true"] span::after { content: "\00a0\2212"; }
 .wpp-capgrid__desc { margin: 0; padding: 0 22px 22px; color: var(--copy); font-size: 15px; line-height: 1.5; }
 .wpp-ui .wpp-capgrid__desc { display: none; }
 .wpp-ui .wpp-capgrid li.is-open .wpp-capgrid__desc { display: block; }
 .wpp-capgrid li.is-open { border-color: var(--orange); }
+/* On a laptop the line lays over its own tile, so hovering never moves the grid. */
 @media (hover: hover) {
-  .wpp-ui .wpp-capgrid li:hover .wpp-capgrid__desc { display: block; }
+  .wpp-capgrid li { position: relative; }
+  .wpp-ui .wpp-capgrid__desc { position: absolute; inset: 0; display: flex; align-items: center; padding: 18px 22px; background: var(--ink-3); border-radius: var(--radius); color: var(--white); opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+  .wpp-ui .wpp-capgrid li:hover .wpp-capgrid__desc, .wpp-ui .wpp-capgrid li.is-open .wpp-capgrid__desc { opacity: 1; }
+  .wpp-ui .wpp-capgrid li.is-open .wpp-capgrid__desc { pointer-events: auto; cursor: pointer; }
   .wpp-capgrid li:hover { border-color: var(--orange); }
 }
 @media (max-width: 900px) { .wpp-capgrid { grid-template-columns: repeat(2, 1fr); } }
