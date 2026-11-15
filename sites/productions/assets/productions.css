@@ -406,6 +406,7 @@ table.data tr:last-child td { border-bottom: 0; }
 .wpp-about h1 { font-size: clamp(40px, 6vw, 76px); max-width: none; margin-bottom: 24px; }
 .wpp-about .wpp-founder__copy p:not(.wpp-eyebrow) { font-size: clamp(18px, 1.6vw, 21px); line-height: 1.6; color: var(--copy); font-weight: 400; }
 .wpp-bio .wpp-lead { max-width: 70ch; }
+.wpp-about .wpp-founder__copy .wpp-eyebrow { font-size: 13px; color: var(--orange); }
 
 /* Get in touch */
 .wpp-free { color: var(--orange); font-weight: 700; font-size: 18px; margin-top: 4px; }

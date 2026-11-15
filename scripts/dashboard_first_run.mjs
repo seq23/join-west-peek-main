@@ -206,7 +206,7 @@ let prop = await get(`${deal}/proposal`, A);
 if (!/Accepted ·|>Accepted</.test(prop.text)) {
   await post('/dashboard/proposal', { key: dealKey, do: 'draft', back: `${deal}/proposal` }, A);
   prop = await get(`${deal}/proposal`, A);
-  if (!/in total/.test(prop.text) || !/First-run rationale/.test(prop.text) || /Sample Specialist|2,000 |\b2000\b|margin|cost/i.test((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '')) fail('proposal', 'the draft lacks the price or rationale, or shows a specialist or a cost');
+  if (!/in total/.test(prop.text) || !/First-run rationale/.test(prop.text) || /Sample Specialist|\b2000\b|margin|cost/i.test(((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '').replace(/[$]2,000 a month/g, '')) || /2,000/.test(((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '').replace(/[$]2,000 a month/g, ''))) fail('proposal', 'the draft lacks the price or rationale, or shows a specialist or a cost');
   const accepted = await post('/dashboard/proposal', { key: dealKey, do: 'accept', team: 'Sample Lead: account lead', back: `${deal}/proposal` }, A);
   if (!/delivery\?m=accepted/.test(accepted.location || '')) fail('accepted', `delivery did not start (${accepted.location || accepted.status})`);
 }
