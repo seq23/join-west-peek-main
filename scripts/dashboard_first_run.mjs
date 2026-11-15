@@ -37,7 +37,7 @@ const sessionOf = (res) => (res.cookies.find((c) => /^wpp_s=[^;]+/.test(c) && !/
 
 // 1. Public pages.
 const PLACEHOLDER = /lorem ipsum|\bTODO\b|coming soon|undefined<|\[object Object\]/i;
-for (const p of ['/', '/work', '/what-we-do', '/about', '/start', '/event-production-cost']) {
+for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event-production-cost']) {
   const r = await get(p);
   if (r.status !== 200) fail(`page ${p}`, `answered ${r.status}`);
   if (PLACEHOLDER.test(r.text)) fail(`page ${p}`, `carries placeholder text (${r.text.match(PLACEHOLDER)[0]})`);
@@ -113,6 +113,11 @@ for (const [p, want] of [['/dashboard', /<h2 id="stage-\d+-h">[^<]+ · [1-9]/], 
 }
 ok('Pipeline (deals listed under their stages), Inquiries, Clients, Money, Agents and Connections show rows');
 {
+  const p = (await get('/dashboard', A)).text;
+  if (/Sample Top Barz show/.test(p) || !/Top Barz row(s are| is) not shown here/.test(p) || !/Form requests ·/.test(p) || /New inquiries/.test(p)) fail('pipeline', 'Top Barz work shows, or Form requests is not named');
+  ok('Pipeline is Productions only (the Top Barz sample row is left out and said so) and names Form requests');
+}
+{
   const m = await get('/dashboard/money', A);
   if (!/The cash rules, walked first/.test(m.text) || (m.text.match(/id="rule-[a-z]+"/g) || []).length < 5) fail('cash rules', 'Money does not show the five cash rules to walk');
   ok('Money shows the cash rules to walk');
@@ -184,23 +189,24 @@ ok('a deal opens on one screen to act on; a note persists after a reload and on 
 const dealKey = 'sample-org-d';
 const deal = `/dashboard/flow/${dealKey}`;
 const outcome = `First-run outcome ${Date.now()}`;
+// A clean sample deal each run, so an earlier run's accepted deal never stands in for this one.
+await post('/dashboard/sample/reset', {}, A);
 const disc = await get(`${deal}/discovery`, A);
-if (disc.status !== 200 || !/Questions · \d+/.test(disc.text)) fail('discovery', `no guided questions (${disc.status})`);
-const shaped = await get(`${deal}/discovery?p_service=brand&p_buyer=foundation&p_objective=funding&p_budget=unknown`, A);
-if (!/board or trustees/.test(shaped.text)) fail('discovery', 'a foundation buying brand work did not get its own questions');
-await post('/dashboard/discovery', { key: dealKey, p_service: 'brand', p_buyer: 'foundation', p_objective: 'funding', p_budget: 'unknown', a_outcome: outcome, back: `${deal}/discovery` }, A);
-if (!(await get(`${deal}/discovery`, B)).text.includes(outcome)) fail('discovery', 'answers do not show on a second device');
-ok('discovery: questions shaped by the deal, answers persist on a second device');
-const q = await post('/dashboard/quote', { key: dealKey, qty_L11: '2', qty_L20: '5', price: '5000', term: '3', plan: 'monthly', rationale: 'First-run rationale', back: `${deal}/quote` }, A);
+if (disc.status !== 200 || (disc.text.match(/name="p_services"/g) || []).length !== 6 || !/Organization type/.test(disc.text) || !/Which department are we working with/.test(disc.text)) fail('discovery', `no service picker, Organization type or sales-call notes (${disc.status})`);
+await post('/dashboard/discovery', [['key', dealKey], ['p_services', 'brand-strategy'], ['p_services', 'virtual-hybrid-events'], ['p_buyer', 'foundation'], ['p_objective', 'funding'], ['p_budget', 'unknown'], ['event_start', '2027-03-04'], ['event_end', '2027-03-05'], ['a_outcome', outcome], ['a_call_department', 'First-run department'], ['back', `${deal}/discovery`]], A);
+const discB = (await get(`${deal}/discovery`, B)).text;
+if (!discB.includes(outcome) || !/First-run department/.test(discB) || !/board or trustees/.test(discB) || !/What should attendees do in the week after the event/.test(discB) || !/name="event_start" type="date" value="2027-03-04"/.test(discB)) fail('discovery', 'services, event dates, call notes or answers do not show on a second device');
+ok('discovery: services first, questions shaped by them, event dates and call notes persist on a second device');
+const q = await post('/dashboard/quote', [['key', dealKey], ['svc', 'brand-strategy'], ['svc', 'virtual-hybrid-events'], ['sp_brand-strategy', 'Sample Specialist'], ['cost_brand-strategy', '2000'], ['price_brand-strategy', '5000'], ['price_virtual-hybrid-events', '1000'], ['term', '3'], ['plan', 'monthly'], ['rationale', 'First-run rationale'], ['back', `${deal}/quote`]], A);
 if (!/m=quote_saved/.test(q.location || '')) fail('quote', `not saved (${q.location || q.status})`);
 const qv = await get(`${deal}/quote`, B);
-if (!/a month for 3 months/.test(qv.text) || !/Unknown costs|Cost floor/.test(qv.text) || !/Month 3/.test(qv.text)) fail('quote', 'the floor, the 3-month bundle or the timing is missing');
-ok('quote: floor, his price, the 3-month bundle and payment timing, on a second device');
+if (!/value="Sample Specialist"/.test(qv.text) || !/[$]6,000/.test(qv.text) || !/[$]2,000 a month for 3 months/.test(qv.text) || !/Month 3/.test(qv.text) || /qty_|per day/.test(qv.text)) fail('quote', 'the specialist, his typed price, the 3-month bundle or the timing is missing');
+ok('quote: each service with its specialist and cost, his own client price, the 3-month bundle and timing, on a second device');
 let prop = await get(`${deal}/proposal`, A);
 if (!/Accepted ·|>Accepted</.test(prop.text)) {
   await post('/dashboard/proposal', { key: dealKey, do: 'draft', back: `${deal}/proposal` }, A);
   prop = await get(`${deal}/proposal`, A);
-  if (!/in total/.test(prop.text) || !/First-run rationale/.test(prop.text) || /Cost floor|margin/i.test((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '')) fail('proposal', 'the draft lacks the price or rationale, or shows internal costs');
+  if (!/in total/.test(prop.text) || !/First-run rationale/.test(prop.text) || /Sample Specialist|2,000 |\b2000\b|margin|cost/i.test((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '')) fail('proposal', 'the draft lacks the price or rationale, or shows a specialist or a cost');
   const accepted = await post('/dashboard/proposal', { key: dealKey, do: 'accept', team: 'Sample Lead: account lead', back: `${deal}/proposal` }, A);
   if (!/delivery\?m=accepted/.test(accepted.location || '')) fail('accepted', `delivery did not start (${accepted.location || accepted.status})`);
 }
@@ -209,10 +215,10 @@ const fresh = await post('/dashboard/delivery/portal', { key: dealKey, do: 'new'
 const token = new URL(`${base}${fresh.location || '/'}`).searchParams.get('portal');
 if (!token) fail('portal', 'no portal link was made');
 const dv = await get(`${deal}/delivery`, B);
-if (!/Account team/.test(dv.text) || !/Discovery workshop/.test(dv.text)) fail('delivery', 'no team or scope tasks on the work side');
+if (!/Account team/.test(dv.text) || !/>Brand strategy</.test(dv.text)) fail('delivery', 'no team or a task per service on the work side');
 const portal = await get(`/portal/${token}`);
 const portalText = portal.text.replace(/<style>[\s\S]*?<\/style>/, '');
-if (portal.status !== 200 || !/Discovery workshop/.test(portalText) || /[$]|First-run rationale|First-run note|Sample Org E|margin|floor/i.test(portalText)) fail('portal', `the client page is missing its tasks or shows money or another client (${portal.status})`);
+if (portal.status !== 200 || !/Brand strategy/.test(portalText) || /[$]|Sample Specialist|2000|2,000|First-run rationale|First-run note|Sample Org E|margin|floor|cost/i.test(portalText)) fail('portal', `the client page is missing its tasks or shows money or another client (${portal.status})`);
 await post('/dashboard/delivery/portal', { key: dealKey, do: 'off', back: `${deal}/delivery` }, A);
 if ((await get(`/portal/${token}`)).status !== 404) fail('portal', 'a turned-off portal link still opens');
 ok('delivery: team and tasks; the client portal shows their tasks, no money, and stops when turned off');

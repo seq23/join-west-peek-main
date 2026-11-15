@@ -154,10 +154,13 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   - **Pipeline is the first screen** (`/dashboard`, `renderPipeline`; `/dashboard/deals` and
     `/dashboard/flow` show the same; Scooter, 15 Nov 2026: "I don't need it to figure out what needs my
     attention. I need organized, clearly labeled lists of what's in the sales funnel and where each deal
-    sits ... Less on the screen, clear labels, quick to click in and out"). New inquiries not yet in his
+    sits ... Less on the screen, clear labels, quick to click in and out"). Form requests (people who sent a form; renamed from New inquiries 15 Nov 2026) not yet in his
     tracker, then one labelled list per stage in his tracker's order (`Stage · n`, empty stages one
     line), each row the organization, owner and next action with a Next stage button. No triage list,
-    no tab counts; only sync or connection faults show above the lists. Tabs: Pipeline, Inquiries,
+    no tab counts; only sync or connection faults show above the lists. **Productions only** (Scooter, 15 Nov 2026):
+    Top Barz rows (SoundCloud, Overtime Elite, Sagaboy, Wendy's, Top Barz; `NOT_PRODUCTIONS` / `productionsOnly` in
+    `data.mjs`) are dropped at READ time in `loadView` and refused by `currentRow`, so they are never shown or written;
+    they stay in his tracker and in the synced copy unchanged, and the Pipeline says how many are not shown. Tabs: Pipeline, Inquiries,
     Clients (Projects), Money, Agents. Waiting-on-client items live on each client page; drafts on Agents.
   - **A deal record** (`/dashboard/flow/<key>`, `renderFlowRecord`): one record per organization joining
     inquiry → tracker deal → signed (DocuSign or a signed stage) → project → invoices → paid
@@ -166,15 +169,20 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     inquiry), his NOTES, written into his tracker's Notes cell on that row (only
     that cell, read back; Scooter, 14 Nov 2026: "they need to live where I can see and edit them");
     D1 table `note` keeps every version. No Notes column → kept in D1 and said so; never a new column.
-    Then Contact (person, email, need, timing, inquiry dates), Discovery to delivery (the four steps
+    Then Contact (person, title, email, service, event dates, need, timing, form request dates; no Source, 15 Nov 2026), Discovery to delivery (the four steps
     plus Documents and Emails in Gmail), and Agreement and work / Invoices and cash only once they exist.
   - **Lead to delivery** (`functions/_lib/pd/deal.mjs`, `views-deal.mjs`; Scooter, 14 Nov 2026, "the whole
-    vision"): the Start a project form (`/api/lead`, productions hosts) also lands in D1 `web_inquiry` and
+    vision"): the Get in touch form (`/get-in-touch`, was /start; `/api/lead`, productions hosts) also lands in D1 `web_inquiry` and
     shows on Inquiries (email to Scooter unchanged; never a network sheet); "Add a researched lead"
-    appends ONE row he picks. Per deal: Discovery (questions by service × buyer × objective × scale),
-    Quote (catalog lines × quantity × his private cost rates; cost floor with unknowns named, his
-    price never picked, rationale; margin; 3/6/12-month terms with the monthly bundle; payments in vs
-    costs out by month), Proposal (drafted from quote + discovery, never floor/rate/margin; edit,
+    appends ONE row he picks. **The six services are ONE list** (`functions/_lib/services.mjs`; Scooter,
+    15 Nov 2026): the build writes them into the site (`<!--SERVICES:grid-->` / `<!--SERVICES:options-->`
+    markers in `sites/productions/*.html`), and Discovery, Quote and the form handler read the same list.
+    Per deal: Discovery (services first as the site's icon tiles, several at once; Organization type,
+    objective, scale; his six sales-call notes; guided questions per service; event start/end dates for
+    Virtual / hybrid, carried from the Get in touch form),
+    Quote (one card per Discovery service: specialist name and their cost, his only, and the client price
+    HE types; no catalog, per-day line, markup or formula; what is left; 3/6/12-month terms; payments in vs
+    costs out by month; the old catalog page stays, optional, linked only under Virtual / hybrid), Proposal (drafted from quote + discovery: services and his prices, never a specialist, a cost or what is left; edit,
     draft/sent), Accept → his tracker's signed stage (read back), the work side (team, a task per scope
     line, assets) and a client portal `/portal/<token>` (`functions/portal/[[path]].js`: one client's
     tasks and files marked "client sees"; token stored only as a hash; New link / Turn off). Catalog,

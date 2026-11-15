@@ -316,7 +316,7 @@ export function sampleRows(now = Date.now()) {
     ]
   };
 }
-const SAMPLE_VERSION = 2;
+const SAMPLE_VERSION = 3; // 3: a Top Barz sample row (15 Nov 2026)
 /** Fills the sample sheet once per sample version; rows already there (and moved) are kept. */
 async function ensureSample(db, now) {
   const have = await db.prepare("SELECT value FROM setting WHERE key = 'sample_version'").first();
