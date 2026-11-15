@@ -58,12 +58,12 @@ h1, h2, h3 { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margi
 @media (max-width: 760px) {
   .wpp-header__inner { flex-wrap: wrap; gap: 8px 12px; padding: 10px var(--gutter) 8px; }
   .wpp-brand span { font-size: 14px; }
-  .wpp-nav { order: 3; width: 100%; margin: 0 calc(var(--gutter) * -1); padding: 0 var(--gutter) 2px; overflow-x: auto; scrollbar-width: none; gap: 2px; }
-  .wpp-nav::-webkit-scrollbar { display: none; }
-  .wpp-nav a { padding: 7px 8px; font-size: 14px; white-space: nowrap; flex: 0 0 auto; }
-  .wpp-nav .wpp-nav__cta { margin-left: auto; padding: 7px 14px; }
-  .wpp-nav::after { content: ""; flex: 0 0 var(--gutter); }
+  /* All four fit at 390 px: no sideways scroll, the Start a project button always in view. */
+  .wpp-nav { order: 3; width: 100%; margin: 0; gap: 0; justify-content: space-between; }
+  .wpp-nav a { padding: 10px 6px; font-size: 13.5px; white-space: nowrap; flex: 0 0 auto; }
+  .wpp-nav .wpp-nav__cta { margin-left: 0; padding: 10px 12px; }
 }
+@media (max-width: 340px) { .wpp-nav a { font-size: 12.5px; padding: 10px 4px; } }
 
 /* ------------------------------------------------------------ Buttons and type helpers */
 .wpp-btn { display: inline-flex; align-items: center; gap: 10px; background: var(--orange); color: var(--orange-ink); font-weight: 700; font-size: 17px; text-decoration: none; padding: 16px 26px; border-radius: 999px; border: 0; cursor: pointer; font-family: inherit; transition: transform .15s ease, background .15s ease; }
