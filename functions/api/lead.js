@@ -212,9 +212,19 @@ function turnstileConfigured(env) {
   return Boolean(clean(env.TURNSTILE_SECRET_KEY) && clean(env.TURNSTILE_SITE_KEY));
 }
 
-/** Returns 'ok', 'failed' (bad or missing token) or 'unavailable' (siteverify unreachable). */
+/**
+ * Siteverify error codes that are about OUR side (secret, request, Cloudflare itself), not the
+ * visitor's token. They say nothing about whether a person sent the form, so they never drop it.
+ */
+const TURNSTILE_NOT_A_VERDICT = ['missing-input-secret', 'invalid-input-secret', 'bad-request', 'internal-error'];
+
+/**
+ * Returns 'ok', 'failed' (Cloudflare says this real token is invalid), 'no_token' (the widget
+ * never produced one: blocked script, ad blocker, privacy browser) or 'unavailable' (siteverify
+ * unreachable, slow, non-OK, or an error that is not about the token). Only 'failed' drops.
+ */
 async function verifyTurnstile(token, env, request) {
-  if (!token) return 'failed';
+  if (!token) return 'no_token';
   try {
     const body = new URLSearchParams({ secret: clean(env.TURNSTILE_SECRET_KEY), response: token });
     const ip = request.headers.get('cf-connecting-ip');
@@ -226,7 +236,11 @@ async function verifyTurnstile(token, env, request) {
     });
     if (!res.ok) return 'unavailable';
     const result = await res.json().catch(() => null);
-    if (!result || result.success !== true) return 'failed';
+    if (!result || typeof result.success !== 'boolean') return 'unavailable';
+    if (result.success !== true) {
+      const codes = Array.isArray(result['error-codes']) ? result['error-codes'] : [];
+      return codes.some((c) => TURNSTILE_NOT_A_VERDICT.includes(c)) ? 'unavailable' : 'failed';
+    }
     if (result.hostname && siteForHost(result.hostname) !== 'ventures') return 'failed';
     return 'ok';
   } catch {
@@ -384,32 +398,33 @@ export async function onRequestPost({ request, env, waitUntil }) {
     return json({ ok: true, sheet: 'skipped' }, 200);
   }
 
-  // Bot checks, ventures only, before any email or sheet write. Same-origin
-  // first (free), then Turnstile when both of its keys are set.
+  // Bot checks, ventures only, before any email or sheet write.
+  //
+  // THE RULE (owner, 15 Nov 2026: "I wouldn't have started this bot check if it was going to mess
+  // up the form"): the bot check can never block a real inquiry. A submission is DROPPED only when
+  //   - the honeypot is filled (above), or Origin/Referer is missing or foreign (here), or
+  //   - Cloudflare siteverify definitively rejects a real token (verdict 'failed').
+  // Every other case is DELIVERED exactly like a normal inquiry, with bot_check recorded in the
+  // logs and reportOutcome (never shown to the visitor): keys unset -> 'not_configured', siteverify
+  // down/slow/erroring -> 'unavailable', no token because the widget did not load -> 'no_token'.
+  // 'not_configured' and 'unavailable' still raise the alarm. This replaces the 3 Nov 2026 fail-
+  // closed rule. Pinned by FORM-13 in scripts/validate_forms.mjs and by case 4 in
+  // scripts/test_lead_delivery.mjs.
   let botCheck = 'not_applicable';
   if (botChecksApply(host) && !isProbe) {
     if (!sameOrigin(request, host)) {
       console.error('lead dropped', JSON.stringify({ reason: 'origin', form: formName, host }));
       return json({ ok: true, sheet: 'skipped' }, 200);
     }
-    if (turnstileConfigured(env)) {
-      const verdict = await verifyTurnstile(clean(fields[TURNSTILE_FIELD]), env, request);
-      if (verdict !== 'ok') {
-        console.error('lead dropped', JSON.stringify({ reason: 'turnstile', verdict, form: formName, host }));
-        if (verdict === 'unavailable') later(reportOutcome(env, { host, form: formName, delivered: false, bot_check: 'unavailable', error: 'bot_check_unavailable', detail: 'Turnstile siteverify unreachable or non-OK' }));
-        return verdict === 'unavailable'
-          ? json({ ok: false, error: 'bot_check_unavailable' }, 503)
-          : json({ ok: false, error: 'bot_check_failed' }, 400);
-      }
-      botCheck = 'ok';
-    } else {
-      // FAIL CLOSED (security sweep, 3 Nov 2026). With the keys unset nothing proves a person sent
-      // this, so nothing is delivered or written; the form shows its email fallback on a non-ok
-      // answer. Keys: Pages project west-peek-ventures, production and preview (vault
-      // WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY / _SECRET_KEY).
-      console.error('lead refused', JSON.stringify({ reason: 'bot_check_not_configured', form: formName, host }));
-      later(reportOutcome(env, { host, form: formName, delivered: false, bot_check: 'not_configured', error: 'bot_check_not_configured', detail: 'TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY not set on this Pages project' }));
-      return json({ ok: false, error: 'bot_check_not_configured', bot_check: 'not_configured' }, 503);
+    botCheck = turnstileConfigured(env)
+      ? await verifyTurnstile(clean(fields[TURNSTILE_FIELD]), env, request)
+      : 'not_configured';
+    if (botCheck === 'failed') {
+      console.error('lead dropped', JSON.stringify({ reason: 'turnstile', verdict: botCheck, form: formName, host }));
+      return json({ ok: false, error: 'bot_check_failed' }, 400);
+    }
+    if (botCheck !== 'ok') {
+      console.error('lead bot check skipped, delivering', JSON.stringify({ bot_check: botCheck, form: formName, host }));
     }
   }
 

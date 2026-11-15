@@ -37,8 +37,8 @@ export const INCIDENTS = {
   resend_failed: 'Resend (the backup way form submissions reach you) is failing.',
   delivery_failed: 'BOTH ways of delivering form submissions failed. Visitors saw an error and their submission did not reach you.',
   delivery_not_configured: 'Neither way of delivering form submissions is set up on this site. Visitors saw an error.',
-  bot_check_not_configured: 'The ventures bot check (Turnstile) has no keys, so every ventures form submission is refused.',
-  bot_check_unavailable: 'The ventures bot check (Turnstile) could not be reached, so ventures form submissions were refused.',
+  bot_check_not_configured: 'The ventures bot check (Turnstile) has no keys. Ventures submissions are still delivered, but unchecked.',
+  bot_check_unavailable: 'The ventures bot check (Turnstile) could not be reached. Ventures submissions were still delivered, but unchecked.',
   mailer_unreachable: 'The Cloudflare email Worker could not be reached from the site, so alarms are going out through Resend directly.',
   cloudflare_unverified: 'Cloudflare email (the main way form submissions reach you) is waiting for its address to be verified. Submissions still reach you through Resend. Open the Cloudflare verification email sent to the address under Detail and click the link; nothing else needs changing.'
 };
