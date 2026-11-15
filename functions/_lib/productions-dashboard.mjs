@@ -132,7 +132,7 @@ async function context(env, session, url, now) {
 
 const DEAL_WORDS = {
   intake_saved: 'Saved. It shows on this record on every device.', discovery_saved: 'Answers saved. They show on every device, and the quote starts from them.',
-  quote_saved: 'Quote saved and read back.', catalog_saved: 'Catalog saved and read back, encrypted.', catalog_read: 'Your rate card was read into the catalog. Check the lines, then build a quote.',
+  quote_saved: 'Quote saved and read back. Your costs stay on this page; the client never sees them.', catalog_saved: 'Catalog saved and read back, encrypted.', catalog_read: 'Your rate card was read into the catalog. Check the lines, then build a quote.',
   proposal_saved: 'Proposal saved.', proposal_drafted: 'A first draft was written from your quote. Edit it, then save it.', accepted: 'Accepted. The deal moved in your tracker, and delivery is set up below.',
   accepted_stage_failed: 'Accepted and delivery set up, but your tracker did not show the new stage when read back. Open your tracker to check it.',
   team_saved: 'Team saved.', task_saved: 'Task saved.', asset_saved: 'Asset added.', portal_off: 'The portal is off. No link opens it now.', portal_new: 'A new portal link was made. The old one no longer works.',
@@ -430,12 +430,9 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     const s = session.sample;
     const deal = { ...ctx, discovery: await latestDiscovery(env, key, s), quote: await latestQuote(env, key, s), proposal: await latestProposal(env, key, s), delivery: await deliveryOf(env, key, s) };
     if (part === 'discovery') {
-      // The pickers on the page re-shape the questions without saving (a plain GET form).
-      const p = Object.fromEntries(['service', 'buyer', 'objective', 'budget'].map((k) => [k, url.searchParams.get(`p_${k}`)]).filter(([, v]) => v !== null));
-      if (Object.keys(p).length) deal.discovery = { ...(deal.discovery || { answers: {}, at: null }), profile: { ...(deal.discovery?.profile || {}), ...p } };
       return html(D.renderDiscovery(j, deal));
     }
-    if (part === 'quote') return html(D.renderQuote(j, { ...deal, catalog: moneyHeld(ctx) ? null : await readCatalog(env, s) }));
+    if (part === 'quote') return html(D.renderQuote(j, deal));
     if (part === 'proposal') return html(D.renderProposal(j, deal));
     if (part === 'delivery') return html(D.renderDelivery(j, deal, { origin: url.origin, token: /^[A-Za-z0-9_-]{20,64}$/.test(url.searchParams.get('portal') || '') ? url.searchParams.get('portal') : '' }));
     if (part) return redirect(`/dashboard/flow/${encodeURIComponent(key)}`);
@@ -511,15 +508,17 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
     return redirect(r.outcome === 'saved' ? `${dealBack(k)}?a=${r.id}` : `/dashboard/inquiries?a=${r.id}`);
   }
   if (path === '/dashboard/discovery') {
-    const profile = Object.fromEntries(['service', 'buyer', 'objective', 'budget'].map((k) => [k, field(form, `p_${k}`)]));
+    const profile = { services: form.getAll('p_services').map(String), ...Object.fromEntries(['buyer', 'objective', 'budget'].map((k) => [k, field(form, `p_${k}`)])) };
     const answers = {};
     for (const [k, v] of form.entries()) if (k.startsWith('a_') && typeof v === 'string') answers[k.slice(2)] = v;
-    return go((await saveDiscovery(env, { key, profile, answers, sample: s }, now)) === 'saved' ? 'discovery_saved' : 'deal_failed', dealBack(key, 'discovery'));
+    const event = { start: field(form, 'event_start'), end: field(form, 'event_end') };
+    return go((await saveDiscovery(env, { key, profile, answers, event, sample: s }, now)) === 'saved' ? 'discovery_saved' : 'deal_failed', dealBack(key, 'discovery'));
   }
   if (path === '/dashboard/quote') {
-    const catalog = await readCatalog(env, s);
-    const raw = { price: field(form, 'price'), term: field(form, 'term'), months: field(form, 'months'), plan: field(form, 'plan'), split: field(form, 'split'), rationale: field(form, 'rationale'), title: field(form, 'title'), lines: catalog.map((l) => ({ id: l.id, qty: field(form, `qty_${l.id}`), cost: field(form, `cost_${l.id}`), month: field(form, `month_${l.id}`) })) };
-    const r = await saveQuote(env, { key, quote: cleanQuote(raw, catalog), sample: s }, now);
+    // One entry per service the page carried from Discovery (svc); his typed figures only.
+    const services = form.getAll('svc').map(String).map((id) => ({ id, specialist: field(form, `sp_${id}`), cost: field(form, `cost_${id}`), price: field(form, `price_${id}`), month: field(form, `month_${id}`) }));
+    const raw = { services, term: field(form, 'term'), months: field(form, 'months'), plan: field(form, 'plan'), split: field(form, 'split'), rationale: field(form, 'rationale'), title: field(form, 'title') };
+    const r = await saveQuote(env, { key, quote: cleanQuote(raw), sample: s }, now);
     return go(r.outcome === 'saved' ? 'quote_saved' : r.outcome === 'no_token_key' ? 'no_token_key' : 'deal_failed', dealBack(key, 'quote'));
   }
   if (path === '/dashboard/catalog') {

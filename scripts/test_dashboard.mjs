@@ -276,6 +276,15 @@ const realFetch = globalThis.fetch;
   const a = await call(env, '/dashboard/act', { method: 'POST', host: PREV, cookie: s.cookie, form: { action: 'stage', row: 'SD1', back: '/dashboard/deals' } });
   const after = await call(env, a.location, { cookie: s.cookie, host: PREV });
   check('a sample quick action is written and read back', /Saved and checked/.test(after.text) && /Solution and budget/.test(after.text));
+  // Productions only (Scooter, 15 Nov 2026): Top Barz rows are left out at read time, never changed.
+  const { isTopBarz } = await import('../functions/_lib/pd/data.mjs');
+  check('productions only: SoundCloud, Overtime Elite, Sagaboy, Wendy\'s and Top Barz are recognised; Productions work is not', ['SoundCloud', 'Overtime Elite x Top Barz', 'Sagaboy', "Wendy's", 'TopBarz finals', 'Top Barz'].every((org) => isTopBarz({ org })) && isTopBarz({ org: 'Org Q', opportunity: 'Wendys sponsor night' }) && !['Org K', 'Duke University', 'Mercury', 'Wendell Foundation'].some((org) => isTopBarz({ org })));
+  const tbBefore = (await env.PRODUCTIONS_DB.prepare("SELECT data FROM sample_sheet WHERE kind = 'deals' AND row_id = 'SD5'").first()).data;
+  const pipe = await call(env, '/dashboard', { cookie: s.cookie, host: PREV });
+  check('productions only: the Pipeline leaves the Top Barz deal out and says so in one line', pipe.status === 200 && !/Sample Top Barz show/.test(pipe.text) && /Sample Org D/.test(pipe.text) && /1 Top Barz row is not shown here\. It stays in your tracker, unchanged\./.test(pipe.text));
+  const tbAct = await call(env, '/dashboard/act', { method: 'POST', host: PREV, cookie: s.cookie, form: { action: 'stage', row: 'SD5', back: '/dashboard' } });
+  await call(env, tbAct.location || '/dashboard', { cookie: s.cookie, host: PREV });
+  check('productions only: the Top Barz row is never changed or deleted', (await env.PRODUCTIONS_DB.prepare("SELECT data FROM sample_sheet WHERE kind = 'deals' AND row_id = 'SD5'").first())?.data === tbBefore && !/Sample Top Barz show/.test((await call(env, '/dashboard/inquiries', { cookie: s.cookie, host: PREV })).text));
   const choice = await call(env, '/dashboard/choice', { method: 'POST', host: PREV, cookie: s.cookie, form: { key: 'agent_seat', value: 'yes' } });
   check('a sample session cannot make his choices', choice.status === 303 && !(await env.PRODUCTIONS_DB.prepare('SELECT * FROM choice').first()));
 }
@@ -425,9 +434,19 @@ const realFetch = globalThis.fetch;
     check('tracker: the change shows on a second device', /Signed agreement/.test((await call(env, '/dashboard/deals', { cookie: second.cookie })).text));
 
     const flow = await call(env, '/dashboard/flow', { cookie: s.cookie });
-    check('pipeline: one line per organization, each deal listed under the stage it sits in, new inquiries first', /<h2 id="stage-\d+-h">Signed agreement · 1<\/h2><ul class="d-list"><li class="d-row" data-stage="Signed agreement"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-b">Org B ›/.test(flow.text) && /New inquiries · 1<\/h2><ul class="d-list"><li class="d-row"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-z">Org Z ›/.test(flow.text) && (flow.text.match(/Org B ›/g) || []).length === 1 && flow.text.indexOf('New inquiries ·') < flow.text.indexOf('Signed agreement ·'));
+    check('pipeline: one line per organization, each deal listed under the stage it sits in, form requests first', /<h2 id="stage-\d+-h">Signed agreement · 1<\/h2><ul class="d-list"><li class="d-row" data-stage="Signed agreement"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-b">Org B ›/.test(flow.text) && /Form requests · 1<\/h2><ul class="d-list"><li class="d-row"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-z">Org Z ›/.test(flow.text) && (flow.text.match(/Org B ›/g) || []).length === 1 && flow.text.indexOf('Form requests ·') < flow.text.indexOf('Signed agreement ·') && !/New inquiries/.test(flow.text));
     const recB = await call(env, '/dashboard/flow/org-b', { cookie: s.cookie });
     check('lead to cash: the record carries the inquiry, the deal form and the notes', /Person B/.test(recB.text) && /action="\/dashboard\/deal"/.test(recB.text) && /action="\/dashboard\/note"/.test(recB.text) && /Signed/.test(recB.text));
+
+    // A Top Barz row in his real tracker: synced and kept as it is, never shown, never written.
+    pipeline.push(['SoundCloud', 'Proposal', 'Sponsor deck', '11/30/2026', 'Top Barz night', '']);
+    const tbRow = JSON.stringify(pipeline.at(-1));
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
+    const tbFlow = await call(env, '/dashboard', { cookie: s.cookie });
+    await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:soundcloud', stage: 'Signed agreement', back: '/dashboard' } });
+    check('productions only: a SoundCloud row in his tracker is synced but not listed, and never written', !/SoundCloud/.test(tbFlow.text) && /1 Top Barz row is not shown here/.test(tbFlow.text) && Boolean(await env.PRODUCTIONS_DB.prepare("SELECT row_id FROM row_cache WHERE kind = 'deals' AND data LIKE '%SoundCloud%'").first()) && JSON.stringify(pipeline.find((r) => r[0] === 'SoundCloud')) === tbRow);
+    pipeline.splice(pipeline.findIndex((r) => r[0] === 'SoundCloud'), 1);
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
 
     const rows0 = pipeline.length;
     const add = await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-z', back: '/dashboard/flow/org-z' } });
@@ -911,6 +930,23 @@ const realFetch = globalThis.fetch;
     await call(env, '/dashboard/intake', { method: 'POST', cookie: s.cookie, form: { key: 'org-m', owner: 'Owner B', back: '/dashboard/flow/org-m' } });
     check('intake: once in his tracker, the owner is written to its Owner cell', pipeline.at(-1)[6] === 'Owner B');
 
+    // The Get in touch form (15 Nov 2026): first and last name, title, the service from the six, and
+    // for Virtual / hybrid event production the event dates, carried into the deal and his tracker.
+    const gt = new URLSearchParams({ lead_type: 'productions_start_a_project', first_name: 'Person', last_name: 'P', job_title: 'Director P', email: 'org-p@example.test', organization: 'Org P', initiative: 'A two-day member summit', service: 'Virtual / hybrid event production', event_start: '2027-04-08', event_end: '2027-04-09', heard_about: 'Search', source_page: '/get-in-touch' });
+    const gtRes = await onRequestPost({ request: new Request('https://westpeekproductions.com/api/lead', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: gt }), env: leadEnv });
+    const recP = await call(env, '/dashboard/flow/org-p', { cookie: s.cookie });
+    check('get in touch: the person, title, service and event dates reach the deal record; no Source line', gtRes.status === 200 && /Person P/.test(recP.text) && /Title<\/span><span>Director P/.test(recP.text) && /Service<\/span><span>Virtual &#x2F; hybrid event production|Service<\/span><span>Virtual \/ hybrid event production/.test(recP.text) && /Event dates<\/span><span>Thu, Apr 8 to Fri, Apr 9/.test(recP.text) && !/<span>Source<\/span>/.test(recP.text) && /Form request/.test(recP.text));
+    const gtInq = await call(env, '/dashboard/inquiries', { cookie: s.cookie });
+    check('get in touch: Inquiries shows the service and the event dates', /Service: Virtual (&#x2F;|\/) hybrid event production · event Thu, Apr 8 to Fri, Apr 9/.test(gtInq.text));
+    const gtDisc = await call(env, '/dashboard/flow/org-p/discovery', { cookie: s.cookie });
+    check('get in touch: Discovery starts with their service picked and their event dates filled', /value="virtual-hybrid-events" checked/.test(gtDisc.text) && /name="event_start" type="date" value="2027-04-08"/.test(gtDisc.text));
+    await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-p', back: '/dashboard/flow/org-p' } });
+    const pRow = pipeline.at(-1);
+    check('get in touch: added to his tracker as ONE row with the service in his Service column and the event dates in Notes', pRow[1] === 'Org P' && /Virtual \/ hybrid event production/.test(pRow[3]) && /Event: 2027-04-08 to 2027-04-09/.test(pRow[12]) && pRow.length === 14, JSON.stringify(pRow));
+    const { recordWebInquiry } = await import('../functions/_lib/pd/deal.mjs');
+    await recordWebInquiry(env, { first_name: 'Person', last_name: 'Q', organization: 'Org Q', email: 'org-q@example.test', service: 'Brand strategy', event_start: '2027-01-01' });
+    check('get in touch: event dates are kept only for Virtual / hybrid event production', Boolean(await env.PRODUCTIONS_DB.prepare("SELECT id FROM web_inquiry WHERE org = 'Org Q' AND service = 'brand-strategy' AND event_start = '' AND name = 'Person Q'").first()));
+
     // A researched lead he picks by hand: one row, Source "Researched" only if his tracker has that column (it has not: nothing added).
     const before2 = pipeline.length;
     await call(env, '/dashboard/lead/add', { method: 'POST', cookie: s.cookie, form: { org: 'Org N', name: 'Person N', email: 'org-n@example.test', need: 'Annual report film', owner: 'Owner A', back: '/dashboard/inquiries' } });
@@ -919,13 +955,21 @@ const realFetch = globalThis.fetch;
     check('researched lead: never added twice', pipeline.length === before2 + 1);
 
     // Discovery: different questions for a foundation asking for brand work and a brand asking for an activation.
-    const fq = discoveryQuestions({ service: 'brand', buyer: 'foundation', objective: 'funding', budget: 'unknown' }).map((q) => q.id);
-    const bq = discoveryQuestions({ service: 'activation', buyer: 'brand', objective: 'sales', budget: 'initiative' }).map((q) => q.id);
-    check('discovery: a foundation\'s brand work and a brand\'s activation get different questions', fq.includes('f_board') && fq.includes('b_gap') && !fq.includes('a_moment') && bq.includes('a_moment') && bq.includes('br_kpi') && !bq.includes('f_board') && fq.slice(0, 5).join() === bq.slice(0, 5).join());
+    const fq = discoveryQuestions({ services: ['brand-strategy'], buyer: 'foundation', objective: 'funding', budget: 'unknown' }).map((q) => q.id);
+    const bq = discoveryQuestions({ services: ['virtual-hybrid-events'], buyer: 'brand', objective: 'sales', budget: 'initiative' }).map((q) => q.id);
+    const both = discoveryQuestions({ services: ['brand-strategy', 'virtual-hybrid-events'] }).map((q) => q.id);
+    check('discovery: a foundation\'s brand strategy and a brand\'s hybrid event get different questions; two services ask both sets', fq.includes('f_board') && fq.includes('b_gap') && !fq.includes('e_format') && bq.includes('e_format') && bq.includes('br_kpi') && !bq.includes('f_board') && fq.slice(0, 5).join() === bq.slice(0, 5).join() && both.includes('b_gap') && both.includes('e_format'));
+    const { SERVICES } = await import('../functions/_lib/services.mjs');
+    check('services: the six, in Scooter\'s order, one list', SERVICES.map((x) => x.name).join('|') === 'Content production|Podcast production|Virtual / hybrid event production|Community-As-A-Service|Brand strategy|Web development');
     const dPage = await call(env, '/dashboard/flow/org-k/discovery', { cookie: s.cookie });
-    check('discovery: the deal\'s own Service and Buyer type columns shape the questions', /value="brand" selected/.test(dPage.text) && /value="foundation" selected/.test(dPage.text) && /board or trustees/.test(dPage.text));
-    await call(env, '/dashboard/discovery', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', p_service: 'brand', p_buyer: 'foundation', p_objective: 'funding', p_budget: 'unknown', a_outcome: 'Funders understand the grantee work', a_audience: 'Program officers', back: '/dashboard/flow/org-k/discovery' } });
-    check('discovery: answers persist on a second device', /Funders understand the grantee work/.test((await call(env, '/dashboard/flow/org-k/discovery', { cookie: second.cookie })).text));
+    const tiles = [...dPage.text.matchAll(/<label class="d-svc"><svg[^]*?<\/svg><span>([^<]+)<\/span><input type="checkbox" name="p_services" value="([a-z-]+)"/g)];
+    check('discovery: starts with the six services as icon tiles, in the site\'s order, before anything else', tiles.map((t) => t[2]).join('|') === SERVICES.map((x) => x.id).join('|') && dPage.text.indexOf('name="p_services"') < dPage.text.indexOf('name="p_buyer"') && dPage.text.indexOf('name="p_buyer"') < dPage.text.indexOf('name="a_call_department"'), tiles.map((t) => t[1]).join('|'));
+    check('discovery: the deal\'s own Service and Buyer type columns pre-pick the service and Organization type', /value="brand-strategy" checked/.test(dPage.text) && /value="foundation" selected/.test(dPage.text) && /board or trustees/.test(dPage.text) && />Organization type</.test(dPage.text) && !/Who is buying/.test(dPage.text));
+    check('discovery: space for his sales-call notes, all six', ['call_department', 'call_happening', 'call_working', 'call_length', 'call_timeline', 'call_next'].every((id) => new RegExp(`name="a_${id}"`).test(dPage.text)) && /Which department are we working with/.test(dPage.text) && /What is working, and what is not working/.test(dPage.text) && /Next steps/.test(dPage.text));
+    await call(env, '/dashboard/discovery', { method: 'POST', cookie: s.cookie, form: [['key', 'org-k'], ['p_services', 'brand-strategy'], ['p_services', 'virtual-hybrid-events'], ['p_services', 'not-a-service'], ['p_buyer', 'foundation'], ['p_objective', 'funding'], ['p_budget', 'unknown'], ['event_start', '2027-03-04'], ['event_end', '2027-03-05'], ['a_outcome', 'Funders understand the grantee work'], ['a_audience', 'Program officers'], ['a_call_department', 'Communications team'], ['back', '/dashboard/flow/org-k/discovery']] });
+    const dBack = (await call(env, '/dashboard/flow/org-k/discovery', { cookie: second.cookie })).text;
+    check('discovery: services, event dates, call notes and answers persist on a second device (an unknown service is dropped)', /Funders understand the grantee work/.test(dBack) && /Communications team/.test(dBack) && /value="brand-strategy" checked/.test(dBack) && /value="virtual-hybrid-events" checked/.test(dBack) && !/not-a-service/.test(dBack) && /name="event_start" type="date" value="2027-03-04"/.test(dBack) && /name="event_end" type="date" value="2027-03-05"/.test(dBack) && /What should attendees do in the week after the event/.test(dBack));
+    check('discovery: the deal record shows the event dates carried from discovery', /Event dates<\/span><span>Thu, Mar 4 to Fri, Mar 5/.test((await call(env, '/dashboard/flow/org-k', { cookie: s.cookie })).text));
 
     // Money hold: a Google connection that still holds the wide grant refuses rates and quotes.
     await env.PRODUCTIONS_DB.prepare("UPDATE connection SET scopes = ? WHERE provider = 'google'").bind('openid https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.compose').run();
@@ -940,30 +984,36 @@ const realFetch = globalThis.fetch;
     check('grant: reconnecting asks Google for no Gmail and no Drive contents', !/gmail|drive\.readonly/.test(new URL(st.location).searchParams.get('scope')));
     await call(env, `/dashboard/oauth/callback?state=${new URL(st.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
 
-    // The pricing builder: catalog rates are his, kept encrypted; floor, price and rationale stay apart.
+    // The catalog (optional now; kept for a possible event rate card): rates are his, kept encrypted.
     const cat = await call(env, '/dashboard/catalog', { cookie: s.cookie });
     check('catalog: the structure is there and every rate starts unknown', /Account lead time/.test(cat.text) && !/name="cost_0" inputmode="decimal" value="\d/.test(cat.text));
     const catForm = { n: '3', id_0: 'L11', line_0: 'Discovery workshop', service_0: 'brand', unit_0: 'session', cost_0: '700', id_1: 'L12', line_1: 'Narrative and messaging', service_1: 'brand', unit_1: 'deliverable', cost_1: '', id_2: 'L20', line_2: 'Account lead time', service_2: 'team', unit_2: 'hour', cost_2: '90', back: '/dashboard/catalog' };
     const cs = await call(env, '/dashboard/catalog', { method: 'POST', cookie: s.cookie, form: catForm });
     const catRow = await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM catalog').first();
     check('catalog: saved, read back, and stored encrypted (no rate in plain)', /m=catalog_saved/.test(cs.location || '') && catRow && !/700|Discovery workshop/.test(catRow.data_enc));
-    const q1 = await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', qty_L11: '2', qty_L12: '1', qty_L20: '10', month_L11: '1', price: '', term: '6', plan: 'monthly', rationale: 'A story funders can repeat', back: '/dashboard/flow/org-k/quote' } });
+    const qp0 = await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie });
+    check('quote: the services picked on Discovery carry in, each with specialist, their cost and his client price; no catalog or per-day lines', /hybrid event production<\/h3>/.test(qp0.text) && /Brand strategy<\/h3>/.test(qp0.text) && /name="sp_brand-strategy"/.test(qp0.text) && /name="cost_brand-strategy"/.test(qp0.text) && /name="price_brand-strategy"/.test(qp0.text) && /name="price_virtual-hybrid-events"/.test(qp0.text) && !/name="sp_content-production"/.test(qp0.text) && !/Quantity|per day|qty_/.test(qp0.text) && qp0.text.indexOf('name="sp_virtual-hybrid-events"') < qp0.text.indexOf('name="sp_brand-strategy"'));
+    const qform = (extra) => [['key', 'org-k'], ['svc', 'brand-strategy'], ['svc', 'virtual-hybrid-events'], ['sp_brand-strategy', 'Specialist B'], ['cost_brand-strategy', '2000'], ['term', '6'], ['plan', 'monthly'], ['rationale', 'A story funders can repeat'], ['back', '/dashboard/flow/org-k/quote'], ...extra];
+    const q1 = await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: qform([['price_brand-strategy', ''], ['price_virtual-hybrid-events', '']]) });
     const qp = await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie });
-    check('quote: the floor counts team time, names the unknown line, and no price is picked for him', /m=quote_saved/.test(q1.location || '') && /[$]2,300/.test(qp.text) && /Unknown costs: Narrative and messaging/.test(qp.text) && /set your price to see it/.test(qp.text) && /name="price" inputmode="decimal" value=""/.test(qp.text));
-    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', qty_L11: '2', qty_L12: '1', qty_L20: '10', month_L11: '1', price: '6000', term: '6', plan: 'monthly', rationale: 'A story funders can repeat', title: 'Proposal for Org K', back: '/dashboard/flow/org-k/quote' } });
+    check('quote: his specialist and cost are kept, a blank cost is named not zero, and no client price is set for him', /m=quote_saved/.test(q1.location || '') && /value="Specialist B"/.test(qp.text) && /[$]2,000/.test(qp.text) && /No cost entered yet: Virtual/.test(qp.text) && /set your price to see it/.test(qp.text) && /name="price_brand-strategy" inputmode="decimal" value=""/.test(qp.text) && /name="price_virtual-hybrid-events" inputmode="decimal" value=""/.test(qp.text));
+    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: qform([['price_brand-strategy', '7500'], ['price_virtual-hybrid-events', '4500'], ['sp_virtual-hybrid-events', 'Specialist V'], ['cost_virtual-hybrid-events', '1500'], ['title', 'Proposal for Org K']]) });
     const qp2 = await call(env, '/dashboard/flow/org-k/quote', { cookie: second.cookie });
-    check('quote: with his price, the margin is "at most" while a cost is unknown, and the 6-month bundle is visible', /[$]3,700/.test(qp2.text) && /at most/.test(qp2.text) && /[$]1,000 a month for 6 months/.test(qp2.text));
+    check('quote: his client price is exactly what he typed (no markup, no formula): total, what is left, the 6-month bundle', /value="7500"/.test(qp2.text) && /value="4500"/.test(qp2.text) && /[$]12,000/.test(qp2.text) && /[$]8,500/.test(qp2.text) && /[$]2,000 a month for 6 months/.test(qp2.text) && !/at most/.test(qp2.text));
     check('quote: payment timing against when costs go out, month by month', /Month 1/.test(qp2.text) && /Month 6/.test(qp2.text));
-    const m = quoteMath({ lines: [{ line: 'x', qty: 1, cost: 5000, month: 1 }], price: 6000, term: 3, plan: 'monthly' });
+    const qm0 = quoteMath({ services: [{ name: 'x', cost: 2000, price: null }] });
+    check('quote: nothing ever derives a client price from a cost', qm0.price === null && qm0.margin === null);
+    const m = quoteMath({ services: [{ name: 'x', cost: 5000, price: 6000, month: 1 }], term: 3, plan: 'monthly' });
     check('quote: a month where costs go out before payment arrive is named', m.shortMonths.includes(1) && m.timeline[2].position === 1000);
-    check('quote: every quote is stored encrypted', !(await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM quote').all()).results.some((r) => /6000|funders/.test(r.data_enc)));
+    check('quote: every quote is stored encrypted', !(await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM quote').all()).results.some((r) => /7500|Specialist B|funders/.test(r.data_enc)));
 
     // Quote to proposal: the draft carries price, scope and term; never the floor, a rate or the margin.
     await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'draft', back: '/dashboard/flow/org-k/proposal' } });
     const pp = await call(env, '/dashboard/flow/org-k/proposal', { cookie: s.cookie });
     const text = (pp.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '';
-    check('proposal: drafted from the quote and discovery, editable', /Funders understand the grantee work/.test(text) && /[$]6,000 in total/.test(text) && /bundled over 6 months, [$]1,000 a month/.test(text) && /Discovery workshop: 2 sessions/.test(text));
-    check('proposal: never the cost floor, a rate, team time or the margin', !/2,300|3,700|700|Account lead time|margin|floor/i.test(text));
+    check('proposal: drafted from the quote and discovery, editable: services with his prices, the event dates, his total', /Funders understand the grantee work/.test(text) && /[$]12,000 in total/.test(text) && /bundled over 6 months, [$]2,000 a month/.test(text) && /Brand strategy: [$]7,500/.test(text) && /hybrid event production: [$]4,500/.test(text) && /Event dates: 2027-03-04 to 2027-03-05/.test(text));
+    // Internal costs never reach anything the client sees (Scooter, 15 Nov 2026).
+    check('proposal: never a specialist, a specialist cost, what is left, or the word cost', !/Specialist B|Specialist V|2,000[^ ]|\b2000\b|1,500|1500|8,500|margin|floor|cost/i.test(text.replace(/[$]2,000 a month/, '')));
     await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'save', status: 'sent', text: `${text.replace(/&amp;/g, '&')}\nEdited by hand.`, back: '/dashboard/flow/org-k/proposal' } });
     const pp2 = await call(env, '/dashboard/flow/org-k/proposal', { cookie: second.cookie });
     check('proposal: his edit and its Sent status persist on a second device', /Edited by hand\./.test(pp2.text) && /Sent to the client · version 2/.test(pp2.text));
@@ -974,16 +1024,16 @@ const realFetch = globalThis.fetch;
     const tokenK = new URL(`${PROD}${acc.location}`).searchParams.get('portal');
     check('accepted: the deal moves to Signed agreement in his tracker, read back', pipeline[11][5] === 'Signed agreement' && /m=accepted/.test(acc.location || ''));
     const dv = await call(env, acc.location, { cookie: s.cookie });
-    check('accepted: account team, a task per scope line (no team-time task) and the portal link shown once', /Owner A: account lead/.test(dv.text) && /Discovery workshop/.test(dv.text) && /Narrative and messaging/.test(dv.text) && !/<s>Account lead time|>Account lead time</.test(dv.text) && dv.text.includes(`/portal/${tokenK}`));
+    check('accepted: account team, a task per quoted service (never a specialist) and the portal link shown once', /Owner A: account lead/.test(dv.text) && />Brand strategy</.test(dv.text) && /hybrid event production</.test(dv.text) && !/Specialist B|Specialist V/.test(dv.text) && dv.text.includes(`/portal/${tokenK}`));
     check('accepted: no invoice is created', !(await env.PRODUCTIONS_DB.prepare("SELECT row_id FROM row_cache WHERE kind = 'invoices'").first()) && !Object.values(g.sheets).some((x) => x.tabs.Invoices));
     check('accepted: the portal link itself is never stored, only its hash', !JSON.stringify((await env.PRODUCTIONS_DB.prepare('SELECT * FROM portal').all()).results).includes(tokenK));
     await call(env, '/dashboard/delivery/task', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', title: 'Internal budget check', owner: 'Owner A', back: '/dashboard/flow/org-k/delivery' } });
     await call(env, '/dashboard/delivery/asset', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', label: 'Shared folder K', url: 'https://drive.google.com/drive/folders/folder-k', client: '1', back: '/dashboard/flow/org-k/delivery' } });
-    const taskId = (await env.PRODUCTIONS_DB.prepare("SELECT id FROM task WHERE key = 'org-k' AND title = 'Discovery workshop'").first())?.id ?? -1;
+    const taskId = (await env.PRODUCTIONS_DB.prepare("SELECT id FROM task WHERE key = 'org-k' AND title = 'Brand strategy'").first())?.id ?? -1;
     await call(env, '/dashboard/delivery/task/set', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', id: String(taskId), field: 'done', value: '1', back: '/dashboard/flow/org-k/delivery' } });
 
     // A second client, accepted the same way, has its own portal.
-    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', qty_L11: '1', price: '4000', back: '/dashboard/flow/org-l/quote' } });
+    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', svc: 'web-development', 'price_web-development': '4000', back: '/dashboard/flow/org-l/quote' } });
     await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', do: 'draft', back: '/dashboard/flow/org-l/proposal' } });
     const accL = await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-l', do: 'accept', team: '', back: '/dashboard/flow/org-l/proposal' } });
     const tokenL = new URL(`${PROD}${accL.location}`).searchParams.get('portal');
@@ -992,8 +1042,8 @@ const realFetch = globalThis.fetch;
     const { handlePortal } = await import('../functions/_lib/productions-dashboard.mjs');
     const portal = async (t, host = PROD) => { const r = await handlePortal({ request: new Request(`${host}/portal/${t}`), env }); return { status: r.status, text: await r.text() }; };
     const pK = await portal(tokenK);
-    check('portal: the client sees their own tasks (done marked) and shared files', pK.status === 200 && /Org K/.test(pK.text) && /<s>Discovery workshop<\/s>/.test(pK.text) && /Shared folder K/.test(pK.text));
-    check('portal: never an internal task, another client, a note, a quote, a rate, a price or money', !/Internal budget check|Org L|Venue walk-through L|Board|First note|6,000|6000|2,300|700|\$|Proposal|margin|floor/i.test(pK.text.replace(/<style>[\s\S]*?<\/style>/, '')));
+    check('portal: the client sees their own tasks (done marked) and shared files', pK.status === 200 && /Org K/.test(pK.text) && /<s>Brand strategy<\/s>/.test(pK.text) && /Shared folder K/.test(pK.text));
+    check('portal: never an internal task, another client, a note, a quote, a specialist, a cost, a price or money', !/Internal budget check|Org L|Venue walk-through L|Board|First note|12,000|7,500|7500|2000|2,000|1500|Specialist B|Specialist V|\$|Proposal|margin|floor|cost/i.test(pK.text.replace(/<style>[\s\S]*?<\/style>/, '')));
     const pL = await portal(tokenL);
     check('portal: each client sees only their own', /Venue walk-through L/.test(pL.text) && !/Shared folder K|Org K/.test(pL.text) && !/<s>/.test(pL.text));
     check('portal: a made-up link opens nothing', (await portal('A'.repeat(32))).status === 404);
@@ -1006,7 +1056,7 @@ const realFetch = globalThis.fetch;
 
     // Keep money out also holds the pricing builder.
     await call(env, '/dashboard/choice', { method: 'POST', cookie: s.cookie, form: { key: 'money', value: 'off', back: '/dashboard/access#limit' } });
-    check('money hold: with Keep money out, the quote page shows no figures', /Keep money out is on/.test((await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie })).text) && !/[$]2,300/.test((await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie })).text));
+    check('money hold: with Keep money out, the quote page shows no figures', /Keep money out is on/.test((await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie })).text) && !/[$]12,000|Specialist B/.test((await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie })).text));
     await call(env, '/dashboard/choice', { method: 'POST', cookie: s.cookie, form: { key: 'money', value: 'on', back: '/dashboard/access#limit' } });
 
     // Synced copies can be deleted on request; his sheets are not touched.

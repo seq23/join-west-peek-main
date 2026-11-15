@@ -9,7 +9,8 @@ import { GOOGLE_SCOPE_WORDS, KEY_FIELDS, PROVIDERS, RETIRED_GOOGLE_SCOPES, wideG
 import { BACKUP_TABLES, TABLE_WORDS } from './schema.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
 import { cashPicture } from './deal.mjs';
-import { cashRulesSection, rulesWalkSection, dealSections, inquiriesBody } from './views-deal.mjs';
+import { cashRulesSection, rulesWalkSection, dealSections, eventOf, eventWords, inquiriesBody } from './views-deal.mjs';
+import { SERVICE_BY_ID } from '../services.mjs';
 
 const HELP = '/dashboard/help';
 export const providerName = (p) => ({ google: 'Google', dropbox: 'Dropbox', docusign: 'DocuSign', quickbooks: 'QuickBooks', xero: 'Xero' }[p] || p);
@@ -121,6 +122,8 @@ details.d-fold[open] summary::after{content:'⌄'}
 .d-find{display:flex;gap:8px;margin:10px 0}
 .d-find input,.d-form input,.d-form select{flex:1;width:100%;font:inherit;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--ink-2);color:var(--white);min-height:44px}
 .d-form label{display:block;margin:14px 0 6px}
+.d-form .d-svc{display:flex;margin:0}
+.d-form .d-svc input{width:22px;height:22px;min-height:0;padding:0;flex:none}
 .d-kv{list-style:none;margin:0;padding:0}
 .d-kv li{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--ink-3)}
 .d-kv li span:last-child{text-align:right;font-variant-numeric:tabular-nums}
@@ -163,6 +166,18 @@ code{overflow-wrap:anywhere}
 .d-steps li.on{color:var(--white);border-top-color:var(--orange)}
 .d-note{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--ink-2);border-radius:12px;padding:10px 12px;margin:6px 0;color:var(--copy)}
 .d-form textarea{width:100%;font:inherit;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--ink-2);color:var(--white);min-height:120px}
+.d-svcs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 0}
+@media (min-width:620px){.d-svcs{grid-template-columns:1fr 1fr 1fr}}
+.d-svc{position:relative;display:flex;flex-direction:column;gap:8px;min-height:96px;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:var(--ink-2);cursor:pointer;font-size:15px;font-weight:700;line-height:1.25}
+.d-svc input{position:absolute;top:10px;right:10px;width:22px;height:22px;margin:0;accent-color:var(--orange)}
+.d-svc svg{width:30px;height:30px;fill:none;stroke:var(--orange);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.d-svc:has(input:checked){border-color:var(--orange);background:#2a1a08}
+.d-svc:has(input:focus-visible){outline:3px solid var(--orange);outline-offset:2px}
+@supports selector(:has(*)){.d-event{display:none}.d-form:has(input[value="virtual-hybrid-events"]:checked) .d-event{display:block}}
+.d-qsvc{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:var(--ink-2)}
+.d-qsvc h3{margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.d-qsvc h3 svg{width:24px;height:24px;fill:none;stroke:var(--orange);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.d-mine{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:10px 0 0}
 .d-grid2{display:grid;grid-template-columns:1fr;gap:0 12px}
 @media (min-width:620px){.d-grid2{grid-template-columns:1fr 1fr}}
 .d-helpdoc code{background:var(--ink-3);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
@@ -293,13 +308,16 @@ export function renderPipeline(view, ctx, list) {
     : `<section class="d-sec d-sec--none" id="stage-${n + 1}"><h2>${esc(g.label)} · 0</h2></section>`).join('');
   const otherSec = [...groups.extra.map((g, n) => sec(`stage-x${n + 1}`, `${g.label} · ${g.deals.length}`, `<ul class="d-list">${g.deals.map(dealRow).join('')}</ul>`)),
     groups.blank.length ? sec('stage-other', `No stage set · ${groups.blank.length}`, `<ul class="d-list">${groups.blank.map(dealRow).join('')}</ul>`) : ''].join('');
-  const freshSec = sec('new', `New inquiries · ${fresh.length}`, fresh.length
+  // "Form requests" = people who submitted a form, not yet in his tracker (Scooter, 15 Nov 2026).
+  const freshSec = sec('new', `Form requests · ${fresh.length}`, fresh.length
     ? `<ul class="d-list">${fresh.map((j) => { const q = j.inquiries.at(-1) || {}; return `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${[q.name ? esc(q.name) : '', toTime(q.at) !== null ? esc(usDay(q.at)) : ''].filter(Boolean).join(' · ') || 'Inquiry'}</span></div></li>`; }).join('')}</ul>`
     : '<p class="d-sub">None.</p>');
   const unread = layout && !layout.recognised ? layoutBox(layout) : '';
   const off = notConnected(ctx, 'Your pipeline') || (!ctx.sample && !ctx.sources.work && !ctx.sources.tracker ? empty('Name your deal tracker and every deal shows here under its stage.', '/dashboard/connections#sheets', 'Name your tracker', 'deals') : '');
   const lists = off || unread ? '' : `${freshSec}${stageSecs}${otherSec}`;
-  const body = `<h1>Pipeline</h1>${lists ? `<p class="d-count">Deals · ${deals.length} · New inquiries · ${fresh.length}</p>` : ''}${faultList}${ctx.flash || ''}${unread}${off}${lists}${source(view, ['deals', 'inquiries'].filter((k) => view.sync[k]), now)}${refreshButton(ctx)}`;
+  const tb = (view.hidden?.deals || 0) + (view.hidden?.inquiries || 0);
+  const leftOut = lists && tb ? `<p class="d-src">Productions only: ${tb} Top Barz ${tb === 1 ? 'row is' : 'rows are'} not shown here. ${tb === 1 ? 'It stays' : 'They stay'} in your tracker, unchanged.</p>` : '';
+  const body = `<h1>Pipeline</h1>${lists ? `<p class="d-count">Deals · ${deals.length} · Form requests · ${fresh.length}</p>` : ''}${faultList}${ctx.flash || ''}${unread}${off}${lists}${leftOut}${source(view, ['deals', 'inquiries'].filter((k) => view.sync[k]), now)}${refreshButton(ctx)}`;
   return page('Pipeline', body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 function todayAction(i) {
@@ -406,7 +424,10 @@ export function renderFlowRecord(view, j, ctx) {
   const need = d?.notes && /^Need: /m.test(d.notes) ? d.notes.match(/^Need: (.*)$/m)[1] : saved.need || inq.initiative || '';
   const person = inq.name || d?.contact || '';
   const email = inq.email || d?.email || '';
-  const contactKv = `${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${email ? `<li><span>Email</span><span><a href="mailto:${esc(email)}">${esc(email)}</a></span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${d?.source ? `<li><span>Source</span><span>${esc(d.source)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Inquiry</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}`;
+  // No Source here (Scooter, 15 Nov 2026: "Remove 'Source' from the deal view"); his tracker keeps it.
+  const service = SERVICE_BY_ID[inq.service]?.name || '';
+  const evWords = eventWords(eventOf(j, ctx.discovery));
+  const contactKv = `${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${inq.title ? `<li><span>Title</span><span>${esc(inq.title)}</span></li>` : ''}${email ? `<li><span>Email</span><span><a href="mailto:${esc(email)}">${esc(email)}</a></span></li>` : ''}${service ? `<li><span>Service</span><span>${esc(service)}</span></li>` : ''}${evWords ? `<li><span>Event dates</span><span>${esc(evWords)}</span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Form request</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}`;
   const contact = contactKv ? sec('contact', 'Contact', `<ul class="d-kv">${contactKv}</ul>`) : '';
 
   const envs = ctx.settings.envelopes || {};
@@ -418,7 +439,7 @@ export function renderFlowRecord(view, j, ctx) {
     : sec('cash', 'Invoices and cash', `<ul class="d-kv"><li><span>Invoiced</span><span>${esc(money(j.invoiced)) || '$0'}</span></li><li><span>Paid</span><span>${esc(money(j.paid)) || '$0'}</span></li><li><span>Still open</span><span class="${j.overdue.length ? 'd-red' : ''}">${esc(money(j.open)) || '$0'}</span></li></ul>
       ${j.openRows.length ? `<ul class="d-list">${j.openRows.map((i) => { const late = daysSince(i.due, now); return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${i.id ? `${esc(i.id)} · ` : ''}${num(i.amount) === null ? gap('amount not entered') : esc(money(num(i.amount)))}</span><span class="d-row__sub ${late > 0 ? 'red' : ''}">due ${dayOr(i.due)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}</span></div><div class="d-row__act">${act('paid', i._id, 'Mark paid', back, { primary: true })}${late > 0 && i.email ? mailLink('invoices', i, 'Reminder in Gmail') : ''}</div></li>`; }).join('')}</ul>` : ''}`);
 
-  const where = d ? [d.stage || 'No stage set', d.owner].filter(Boolean).join(' · ') : j.inquiries.length ? 'New inquiry' : j.where;
+  const where = d ? [d.stage || 'No stage set', d.owner].filter(Boolean).join(' · ') : j.inquiries.length ? 'Form request' : j.where;
   const body = `<p><a class="d-help" href="/dashboard">← Pipeline</a></p><h1>${esc(j.name)}</h1><p class="d-count">${esc(where)}</p>${ctx.flash || ''}
     ${sec('deal', 'Deal', deal)}
     ${sec('notes', 'Notes', notes)}
@@ -432,7 +453,7 @@ export function renderFlowRecord(view, j, ctx) {
 export function renderInquiries(view, ctx, journeysByKey = {}) {
   const { list: rows, add } = inquiriesBody(view, ctx, journeysByKey);
   const list = rows
-    || notConnected(ctx, 'Inquiries') || (ctx.sample || ctx.sources.inquiries ? '<p class="d-sub">No inquiries yet. The Start a project form on your site and your form\'s response sheet both land here.</p>' : empty('Inquiries from the Start a project form on your site land here by themselves. To add your Google Form too, name its response sheet. Neither ever goes into any West Peek network sheet.', '/dashboard/connections#sheets', 'Name the response sheet', 'sheets'));
+    || notConnected(ctx, 'Inquiries') || (ctx.sample || ctx.sources.inquiries ? '<p class="d-sub">No inquiries yet. The Get in touch form on your site and your form\'s response sheet both land here.</p>' : empty('Inquiries from the Get in touch form on your site land here by themselves. To add your Google Form too, name its response sheet. Neither ever goes into any West Peek network sheet.', '/dashboard/connections#sheets', 'Name the response sheet', 'sheets'));
   return page('Inquiries', `<h1>Inquiries</h1>${ctx.flash || ''}${sec('inq', `Newest first · ${view.rows.inquiries.length}`, list, source(view, ['inquiries'], ctx.now))}${sec('researched', 'Researched leads', add)}`, { tab: 'inquiries', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 
@@ -680,7 +701,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
 
   <h2 id="sections">What each section shows, and where it comes from</h2>
   <ul>
-   <li id="flow"><strong>Pipeline</strong>: the first screen. New inquiries not yet in your tracker, then one list per stage of your tracker, in its order, each deal under the stage it sits in. Tap a deal to change its stage, owner, next action and date, keep a note, and run discovery, the quote, the proposal and delivery, all on that deal. A red row above the lists means a sheet or account stopped syncing; ✓ hides it.</li>
+   <li id="flow"><strong>Pipeline</strong>: the first screen. Form requests (people who sent a form) not yet in your tracker, then one list per stage of your tracker, in its order, each deal under the stage it sits in. Tap a deal to change its stage, owner, next action and date, keep a note, and run discovery, the quote, the proposal and delivery, all on that deal. A red row above the lists means a sheet or account stopped syncing; ✓ hides it.</li>
    <li id="projects"><strong>Clients</strong>: the Projects tab of your Work sheet. Tap a project for its binder, Drive folder, contacts, approval owners, next meeting (your Google Calendar), what the client owes you (the Waiting on client tab), deliverables and SOW signature (DocuSign).</li>
    <li id="deals"><strong>How your tracker is read</strong>: your own deal tracker, read as it is laid out (Connections → Your deal tracker; until it is named, the Work sheet's Deals tab). The tab is found by its columns, so it needs one for the organization and one for the stage; a title line above the column names is fine, and no ID column is needed. Stages are your tracker's own. A deal with a Proposal sent date shows it on its Pipeline row.</li>
    <li><strong>Inquiries</strong>: your inquiry form's response sheet, read only.</li>

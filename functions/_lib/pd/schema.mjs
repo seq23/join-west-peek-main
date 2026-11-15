@@ -74,6 +74,18 @@ export const MIGRATIONS = [
       'CREATE TABLE IF NOT EXISTS portal (token_hash TEXT PRIMARY KEY, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, revoked_at INTEGER)',
       'CREATE INDEX IF NOT EXISTS portal_key ON portal (key, sample)'
     ]
+  },
+  {
+    // The Get in touch form (Scooter, 15 Nov 2026): the service picked from the six, the person's
+    // title, and for Virtual / hybrid event production the event's start and end dates, carried into
+    // the deal. Additive columns only.
+    version: 5,
+    sql: [
+      'ALTER TABLE web_inquiry ADD COLUMN service TEXT',
+      'ALTER TABLE web_inquiry ADD COLUMN title TEXT',
+      'ALTER TABLE web_inquiry ADD COLUMN event_start TEXT',
+      'ALTER TABLE web_inquiry ADD COLUMN event_end TEXT'
+    ]
   }
 ];
 
@@ -94,11 +106,11 @@ export const TABLE_WORDS = {
   sample_sheet: 'Made-up rows for the preview\'s sample mode (never real)',
   app_key: 'App keys you pasted on Connections, encrypted',
   note: 'Every saved version of your notes (the current note is the Notes cell in your tracker, where it has one)',
-  web_inquiry: 'Inquiries sent from the Start a project form on your site: name, organization, email and what they need',
+  web_inquiry: 'Form requests sent from the Get in touch form on your site: name, title, organization, email, the service, event dates and what they need',
   intake: 'The owner and need you set on an inquiry that is not in your tracker yet',
   discovery: 'Your discovery answers on each deal, every saved version',
   catalog: 'Your service catalog and rates, encrypted',
-  quote: 'Each quote you built (cost floor, your price, rationale), encrypted, every version',
+  quote: 'Each quote you built (each service\'s specialist and their cost, your client price, rationale), encrypted, every version',
   proposal: 'Each proposal version and whether it was sent or accepted, encrypted',
   delivery: 'The account team on each accepted deal',
   task: 'Tasks on each accepted deal, and which ones the client sees',

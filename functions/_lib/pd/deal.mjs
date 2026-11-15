@@ -14,6 +14,7 @@
  */
 import { dbOf, ensureSchema } from './schema.mjs';
 import { decryptJson, encryptJson, httpsOnly, isoDay, num, randomToken, sha256b64, toTime } from './core.mjs';
+import { EVENT_SERVICE, SERVICES, SERVICE_BY_ID, serviceFrom } from '../services.mjs';
 
 const DAY = 86400000;
 const KEY_RE = /^[a-z0-9~-]{1,120}$/;
@@ -38,14 +39,19 @@ export function needFrom(fields) {
   const choice = pick === 'Other' ? (f('need_other', 300) ? `Other: ${f('need_other', 300)}` : 'Other') : pick;
   return [choice, f('initiative', 2000) || f('message', 2000)].filter(Boolean).join('. ').slice(0, 2000);
 }
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export async function recordWebInquiry(env, fields, now = Date.now()) {
   const db = dbOf(env);
   if (!db) return 'no_database';
   try {
     await ensureSchema(db);
     const f = (k, n) => clip(fields[k], n);
-    await db.prepare('INSERT INTO web_inquiry (at, form, name, org, email, need, timing, budget, heard, page) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .bind(now, f('lead_type', 80), f('name', 200), f('organization', 200) || f('company', 200), f('email', 200).toLowerCase(), needFrom(fields), f('timing', 120), f('budget_range', 120), [f('heard_about', 120), f('heard_about_detail', 200)].filter(Boolean).join(' · '), f('source_page', 300)).run();
+    const name = f('name', 200) || [f('first_name', 100), f('last_name', 100)].filter(Boolean).join(' ');
+    const service = serviceFrom(f('service', 120));
+    // Event dates only for Virtual / hybrid event production (Scooter, 15 Nov 2026).
+    const day = (k) => (service === EVENT_SERVICE.id && DAY_RE.test(f(k, 10)) ? f(k, 10) : '');
+    await db.prepare('INSERT INTO web_inquiry (at, form, name, org, email, need, timing, budget, heard, page, service, title, event_start, event_end) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .bind(now, f('lead_type', 80), name, f('organization', 200) || f('company', 200), f('email', 200).toLowerCase(), needFrom(fields), f('timing', 120), f('budget_range', 120), [f('heard_about', 120), f('heard_about_detail', 200)].filter(Boolean).join(' · '), f('source_page', 300), service, f('job_title', 160), day('event_start'), day('event_end')).run();
     return 'ok';
   } catch (err) {
     console.error('productions inquiry not kept for the dashboard', String(err).slice(0, 200));
@@ -55,7 +61,7 @@ export async function recordWebInquiry(env, fields, now = Date.now()) {
 /** The site's inquiries as rows the Lead to cash record reads beside his form's response sheet. */
 export async function webInquiryRows(db) {
   const rows = (await db.prepare('SELECT * FROM web_inquiry ORDER BY id').all()).results || [];
-  return rows.map((r) => ({ _id: `w${r.id}`, _origin: 'Start a project form on your site', at: isoDay(Number(r.at)), name: r.name, org: r.org, email: r.email, initiative: r.need, timing: r.timing, budget: r.budget, heard: r.heard, from_site: true }));
+  return rows.map((r) => ({ _id: `w${r.id}`, _origin: 'Get in touch form on your site', at: isoDay(Number(r.at)), name: r.name, org: r.org, email: r.email, initiative: r.need, timing: r.timing, budget: r.budget, heard: r.heard, service: r.service || '', title: r.title || '', event_start: r.event_start || '', event_end: r.event_end || '', from_site: true }));
 }
 
 /** Owner and need on an inquiry that is not in his tracker yet (once it is, his tracker holds them). */
@@ -75,15 +81,34 @@ export async function intakeAll(env, sample) {
 
 /* ------------------------------------------------------------------ discovery */
 
-/** What shapes the questions: the four capabilities, who is buying, what it is for, and the scale. */
+/**
+ * What shapes the questions. Services come first and are picked from the site's own six (Scooter,
+ * 15 Nov 2026: "Start Discovery with a service picker using the site's icons"), several at once;
+ * then Organization type (was "Who is buying"), what it is for, and the scale.
+ */
+export const SERVICE_OPTIONS = Object.fromEntries(SERVICES.map((x) => [x.id, x.name]));
+/** Service keys saved before 15 Nov 2026, read as today's services. */
+const OLD_SERVICE = { content: 'content-production', events: 'virtual-hybrid-events', brand: 'brand-strategy', web: 'web-development', activation: 'content-production' };
 export const DISCOVERY_PROFILE = {
-  service: { label: 'Service', options: { content: 'Content and media', events: 'Events and experiences', brand: 'Brand and storytelling', web: 'Web and digital', activation: 'Brand activation or sponsorship' } },
-  buyer: { label: 'Who is buying', options: { foundation: 'Foundation or funder', education: 'School, college or education group', nonprofit: 'Nonprofit', association: 'Association or membership body', brand: 'Brand or company', public: 'Public agency' } },
+  buyer: { label: 'Organization type', options: { foundation: 'Foundation or funder', education: 'School, college or education group', nonprofit: 'Nonprofit', association: 'Association or membership body', brand: 'Brand or company', public: 'Public agency' } },
   objective: { label: 'What it is for', options: { awareness: 'Be known and understood', funding: 'Raise money or win funders', members: 'Grow members, enrollment or attendance', advocacy: 'Change a policy or a public view', launch: 'Launch something new', sales: 'Sell, or win sponsors', culture: 'Align their own people' } },
   budget: { label: 'Scale', options: { unknown: 'Budget not shared yet', pilot: 'One piece or a pilot', initiative: 'One full initiative', ongoing: 'Several parts, or ongoing' } }
 };
 
 const Q = (id, text) => ({ id, text });
+/**
+ * His sales-call notes, asked on every deal before the guided questions (Scooter, 15 Nov 2026:
+ * "department, what's happening, what's working and not working, engagement length, timeline to
+ * getting started, and next steps").
+ */
+export const CALL_NOTES = [
+  Q('call_department', 'Which department are we working with?'),
+  Q('call_happening', 'What is happening with them right now?'),
+  Q('call_working', 'What is working, and what is not working?'),
+  Q('call_length', 'How long an engagement are they thinking of?'),
+  Q('call_timeline', 'What is the timeline to getting started?'),
+  Q('call_next', 'Next steps')
+];
 const BANK = {
   always: [
     Q('outcome', 'What has to be true six months from now for this to have been worth it?'),
@@ -93,11 +118,12 @@ const BANK = {
     Q('timing', 'What dates are fixed, and what happens if one slips?')
   ],
   service: {
-    content: [Q('c_use', 'Where will the content live and be seen first, and for how long?'), Q('c_voices', 'Whose voices and stories carry it, and are they available to film or record?'), Q('c_assets', 'What footage, photos or brand assets already exist that we can use?')],
-    events: [Q('e_format', 'In person, virtual or hybrid, and how many people in each?'), Q('e_after', 'What should attendees do in the week after the event?'), Q('e_venue', 'Is a venue, platform or date already booked, and under whose contract?')],
-    brand: [Q('b_gap', 'Where does the way they describe themselves fall short of the work they do?'), Q('b_owners', 'Who owns the brand inside, and who has to live with the result every day?'), Q('b_keep', 'What must stay (names, marks, colours, commitments to funders)?')],
-    web: [Q('w_job', 'What is the one job the site must do for its main visitor?'), Q('w_today', 'What runs the site today, and who updates it after we hand it over?'), Q('w_content', 'Which pages and content exist, and which must be written new?')],
-    activation: [Q('a_moment', 'Which moment, place or audience is the activation built around?'), Q('a_measure', 'How will the brand count it a success: reach, sign-ups, sales or something else?'), Q('a_rights', 'What sponsor rights, approvals or brand rules apply?')]
+    'content-production': [Q('c_use', 'Where will the content live and be seen first, and for how long?'), Q('c_voices', 'Whose voices and stories carry it, and are they available to film or record?'), Q('c_assets', 'What footage, photos or brand assets already exist that we can use?')],
+    'podcast-production': [Q('pc_show', 'Is this a new show or an existing one, and who hosts it?'), Q('pc_guests', 'Who are the guests or voices, and how often should episodes go out?'), Q('pc_home', 'Where will it be published and promoted?')],
+    'virtual-hybrid-events': [Q('e_format', 'In person, virtual or hybrid, and how many people in each?'), Q('e_after', 'What should attendees do in the week after the event?'), Q('e_venue', 'Is a venue, platform or date already booked, and under whose contract?')],
+    'community-as-a-service': [Q('cs_who', 'Who is the community for, and where do they gather today?'), Q('cs_value', 'What should members get from it, every month?'), Q('cs_owner', 'Who on their side will be its face, and for how long?')],
+    'brand-strategy': [Q('b_gap', 'Where does the way they describe themselves fall short of the work they do?'), Q('b_owners', 'Who owns the brand inside, and who has to live with the result every day?'), Q('b_keep', 'What must stay (names, marks, colours, commitments to funders)?')],
+    'web-development': [Q('w_job', 'What is the one job the site must do for its main visitor?'), Q('w_today', 'What runs the site today, and who updates it after we hand it over?'), Q('w_content', 'Which pages and content exist, and which must be written new?')],
   },
   buyer: {
     foundation: [Q('f_grantees', 'Is this about the foundation\'s own story, or the work of its grantees?'), Q('f_board', 'What will the board or trustees need to see, and when?'), Q('f_evidence', 'What evidence of impact can be shown publicly, and what must stay private?')],
@@ -124,21 +150,34 @@ const BANK = {
   }
 };
 
-/** The guided questions for one deal, in order: always, then by service, buyer, objective and scale. */
+/** The services picked on a deal, in the site's order (old single-service saves read as one). */
+export function servicesOf(profile = {}) {
+  const raw = [...(Array.isArray(profile.services) ? profile.services : []), profile.service].filter(Boolean).map((x) => OLD_SERVICE[x] || x);
+  return SERVICES.map((x) => x.id).filter((id) => raw.includes(id));
+}
+/** The guided questions for one deal, in order: always, then by each service, organization type, objective and scale. */
 export function discoveryQuestions(profile = {}) {
   const out = [...BANK.always];
-  for (const part of ['service', 'buyer', 'objective', 'budget']) out.push(...(BANK[part][profile[part]] || []));
+  for (const id of servicesOf(profile)) out.push(...(BANK.service[id] || []));
+  for (const part of ['buyer', 'objective', 'budget']) out.push(...(BANK[part][profile[part]] || []));
   const seen = new Set();
   return out.filter((q) => (seen.has(q.id) ? false : seen.add(q.id)));
 }
 export function cleanProfile(p = {}) {
-  return Object.fromEntries(Object.keys(DISCOVERY_PROFILE).map((k) => [k, DISCOVERY_PROFILE[k].options[p[k]] ? p[k] : '']));
+  return { services: servicesOf(p), ...Object.fromEntries(Object.keys(DISCOVERY_PROFILE).map((k) => [k, DISCOVERY_PROFILE[k].options[p[k]] ? p[k] : ''])) };
 }
-export async function saveDiscovery(env, { key, profile, answers, sample }, now = Date.now()) {
+/** Event dates on a deal (Virtual / hybrid event production only): YYYY-MM-DD, or ''. */
+export function cleanEvent(e = {}, services = []) {
+  if (!services.includes(EVENT_SERVICE.id)) return { start: '', end: '' };
+  const d = (v) => (DAY_RE.test(String(v || '')) ? String(v) : '');
+  return { start: d(e.start), end: d(e.end) };
+}
+export async function saveDiscovery(env, { key, profile, answers, event, sample }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
   if (!validKey(key)) return 'failed';
-  const data = { profile: cleanProfile(profile), answers: Object.fromEntries(Object.entries(answers || {}).map(([k, v]) => [k, clip(v, 2000)]).filter(([, v]) => v)) };
+  const clean = cleanProfile(profile);
+  const data = { profile: clean, event: cleanEvent(event, clean.services), answers: Object.fromEntries(Object.entries(answers || {}).map(([k, v]) => [k, clip(v, 2000)]).filter(([, v]) => v)) };
   const r = await db.prepare('INSERT INTO discovery (key, sample, at, data) VALUES (?,?,?,?) RETURNING id').bind(key, sample ? 1 : 0, now, JSON.stringify(data)).first();
   const back = await db.prepare('SELECT data FROM discovery WHERE id = ?').bind(r?.id ?? -1).first();
   return back && back.data === JSON.stringify(data) ? 'saved' : 'failed';
@@ -162,8 +201,8 @@ export const CATALOG_STRUCTURE = [
   ['web', 'Site strategy and design', 'page'], ['web', 'Build and launch', 'page'], ['web', 'Content writing and migration', 'page'],
   ['activation', 'Activation concept', 'deliverable'], ['activation', 'On-site activation team', 'day'],
   ['team', 'Account lead time', 'hour'], ['team', 'Creative lead time', 'hour'], ['team', 'Producer time', 'hour'], ['team', 'Specialist time', 'hour']
-].map(([service, line, unit], i) => ({ id: `L${i + 1}`, service, line, unit, cost: null, team: service === 'team' }));
-export const SERVICE_NAMES = { ...DISCOVERY_PROFILE.service.options, team: 'Team time' };
+].map(([service, line, unit], i) => ({ id: `L${i + 1}`, service: OLD_SERVICE[service] || service, line, unit, cost: null, team: service === 'team' }));
+export const SERVICE_NAMES = { ...SERVICE_OPTIONS, team: 'Team time' };
 
 async function sealed(env, sql, binds) {
   const r = await dbOf(env).prepare(sql).bind(...binds).first();
@@ -171,7 +210,7 @@ async function sealed(env, sql, binds) {
 }
 export async function readCatalog(env, sample) {
   const c = await sealed(env, 'SELECT data_enc FROM catalog WHERE sample = ?', [sample ? 1 : 0]);
-  return Array.isArray(c) && c.length ? c : CATALOG_STRUCTURE.map((x) => ({ ...x }));
+  return Array.isArray(c) && c.length ? c.map((l) => ({ ...l, service: OLD_SERVICE[l.service] || l.service })) : CATALOG_STRUCTURE.map((x) => ({ ...x }));
 }
 export function cleanCatalog(lines) {
   return lines.map((l, i) => ({ id: clip(l.id, 20) || `L${i + 1}`, service: SERVICE_NAMES[l.service] ? l.service : 'team', line: clip(l.line, 120), unit: clip(l.unit, 30) || 'each', cost: num(l.cost), team: l.service === 'team' || Boolean(l.team) })).filter((l) => l.line).slice(0, 200);
@@ -207,24 +246,30 @@ export const TERMS = { 0: 'One project', 3: '3-month package', 6: '6-month packa
 export const PAY_PLANS = { signing: 'All at signing', split: 'Half at signing, half at delivery', monthly: 'Monthly, paid at the start of each month', custom: 'My own split (for example 30/30/20/20)' };
 
 /**
- * The quote's numbers. Three stay separate, always: the COST FLOOR (every line's quantity times his
- * cost rate, team time included; a line with no rate is UNKNOWN and named, never zero), the PRICE he
- * chooses (never picked or suggested here), and the RATIONALE the client hears (his words).
- * Returns the floor, the unknowns, the margin math (only once he has set a price), and month by month
- * when payments arrive against when costs go out.
+ * The quote, the way he makes it (Scooter, 15 Nov 2026: "For each service, let me enter the
+ * specialist's name and their cost, then set my client price myself. No automatic markup or
+ * client-price formula. These internal costs must stay separate from anything the client sees").
+ * The services come from Discovery. Each has a specialist and their cost (internal, his only) and his
+ * client price (typed by him; never suggested, derived or marked up here). This only ADDS what he
+ * typed: specialist costs, his client prices, what is left between them, and when money moves.
+ * A cost or price left blank is named, never counted as zero.
  */
+export function quoteServices(q = {}) {
+  if (Array.isArray(q.services)) return q.services;
+  // A quote saved before 15 Nov 2026 (catalog lines): each line read as one item, its cost kept.
+  return (q.lines || []).filter((l) => num(l.qty) > 0).map((l) => ({ id: l.id, name: l.line, specialist: '', cost: num(l.cost) === null ? null : num(l.qty) * num(l.cost), price: null, team: Boolean(l.team) }));
+}
 export function quoteMath(q) {
   const term = TERMS[q.term] !== undefined ? Number(q.term) : 0;
   const months = Math.max(1, term || Number(q.months) || 1);
-  const lines = (q.lines || []).filter((l) => num(l.qty) > 0);
-  const known = lines.filter((l) => num(l.cost) !== null);
-  const unknown = lines.filter((l) => num(l.cost) === null);
-  const lineCost = (l) => num(l.qty) * num(l.cost);
-  const floor = known.reduce((a, l) => a + lineCost(l), 0);
-  const team = known.filter((l) => l.team).reduce((a, l) => a + lineCost(l), 0);
-  const price = num(q.price);
-  const margin = price === null ? null : { amount: price - floor, pct: price ? Math.round(((price - floor) / price) * 1000) / 10 : null, atMost: unknown.length > 0, belowFloor: price < floor };
-  // Payments in, by month (month 1 = signing).
+  const items = quoteServices(q);
+  const costed = items.filter((x) => num(x.cost) !== null);
+  const priced = items.filter((x) => num(x.price) !== null);
+  const cost = costed.reduce((a, x) => a + num(x.cost), 0);
+  const typedTotal = priced.length ? priced.reduce((a, x) => a + num(x.price), 0) : null;
+  // A whole-quote price typed before 15 Nov 2026 still counts when no service carries one.
+  const price = typedTotal ?? num(q.price);
+  const margin = price === null ? null : { amount: price - cost, atMost: costed.length < items.length, belowCost: price < cost };
   const inflow = new Array(months).fill(0);
   if (price !== null) {
     const plan = PAY_PLANS[q.plan] ? q.plan : (term ? 'monthly' : 'split');
@@ -237,30 +282,27 @@ export function quoteMath(q) {
       parts.forEach((p, i) => { const m = parts.length === 1 ? 0 : Math.round((i * (months - 1)) / (parts.length - 1)); inflow[m] += (price * p) / total; });
     }
   }
-  // Costs out, by month: a line goes out in its own month, or spread evenly over the term.
+  // Specialist costs go out in the month he picks for the service, else spread evenly over the term.
   const outflow = new Array(months).fill(0);
-  for (const l of known) {
-    const m = Math.min(months, Math.max(0, Number(l.month) || 0));
-    if (m) outflow[m - 1] += lineCost(l);
-    else for (let i = 0; i < months; i += 1) outflow[i] += lineCost(l) / months;
+  for (const x of costed) {
+    const m = Math.min(months, Math.max(0, Number(x.month) || 0));
+    if (m) outflow[m - 1] += num(x.cost);
+    else for (let i = 0; i < months; i += 1) outflow[i] += num(x.cost) / months;
   }
   let running = 0;
   const timeline = inflow.map((cashIn, i) => { running += cashIn - outflow[i]; return { month: i + 1, cashIn, cashOut: outflow[i], position: running }; });
-  return { term, months, floor, team, unknown: unknown.map((l) => l.line), price, margin, monthly: price !== null && term ? price / term : null, timeline, shortMonths: timeline.filter((t) => t.position < 0).map((t) => t.month) };
+  return { term, months, items, cost, noCost: items.filter((x) => num(x.cost) === null).map((x) => x.name), price, noPrice: items.filter((x) => num(x.price) === null).map((x) => x.name), margin, monthly: price !== null && term ? price / term : null, timeline, shortMonths: timeline.filter((t) => t.position < 0).map((t) => t.month) };
 }
 
-export function cleanQuote(raw, catalog) {
-  const byId = Object.fromEntries(catalog.map((l) => [l.id, l]));
-  const lines = (raw.lines || []).map((l) => {
-    const c = byId[l.id];
-    if (!c) return null;
-    const qty = num(l.qty);
-    if (!(qty > 0)) return null;
-    // A rate typed on the quote wins for this quote only; else the catalog rate; blank stays unknown.
-    const cost = num(l.cost) ?? c.cost;
-    return { id: c.id, service: c.service, line: c.line, unit: c.unit, qty, cost, team: c.team, month: Math.max(0, Math.min(12, Number(l.month) || 0)) };
-  }).filter(Boolean);
-  return { lines, price: num(raw.price), term: TERMS[raw.term] !== undefined ? Number(raw.term) : 0, months: Math.max(1, Math.min(24, Number(raw.months) || 1)), plan: PAY_PLANS[raw.plan] ? raw.plan : '', split: clip(raw.split, 40), rationale: clip(raw.rationale, 3000), title: clip(raw.title, 160) };
+/** A quote from the form: one entry per service carried from Discovery, in the site's order. */
+export function cleanQuote(raw) {
+  const picked = new Set((raw.services || []).map((x) => x.id));
+  const byId = Object.fromEntries((raw.services || []).map((x) => [x.id, x]));
+  const services = SERVICES.filter((x) => picked.has(x.id)).map((x) => {
+    const r = byId[x.id];
+    return { id: x.id, name: x.name, specialist: clip(r.specialist, 160), cost: num(r.cost), price: num(r.price), month: Math.max(0, Math.min(12, Number(r.month) || 0)) };
+  });
+  return { services, term: TERMS[raw.term] !== undefined ? Number(raw.term) : 0, months: Math.max(1, Math.min(24, Number(raw.months) || 1)), plan: PAY_PLANS[raw.plan] ? raw.plan : '', split: clip(raw.split, 40), rationale: clip(raw.rationale, 3000), title: clip(raw.title, 160) };
 }
 export async function saveQuote(env, { key, quote, sample }, now = Date.now()) {
   const db = dbOf(env);
@@ -283,17 +325,20 @@ export async function latestQuote(env, key, sample) {
 
 const usd = (n) => (n === null || n === undefined ? '' : `$${Math.round(n).toLocaleString('en-US')}`);
 /**
- * A first proposal from a quote and the discovery answers, for him to edit. It carries the scope
- * (lines and quantities), the term with its bundled duration, his price, the payment plan and his
- * rationale. It never carries a cost rate, the cost floor or the margin.
+ * A first proposal from a quote and the discovery answers, for him to edit. It carries the services,
+ * his client price for each, the term, the payment plan and his rationale. It NEVER carries a
+ * specialist's name, a specialist's cost, or what is left between cost and price: those are his only
+ * (Scooter, 15 Nov 2026: "These internal costs must stay separate from anything the client sees").
  */
 export function proposalDraft({ name, quote, discovery }) {
   const m = quoteMath(quote);
   const outcome = discovery?.answers?.outcome;
   const audience = discovery?.answers?.audience;
-  const scope = quote.lines.filter((l) => !l.team).map((l) => `- ${l.line}: ${l.qty} ${l.unit}${l.qty === 1 ? '' : 's'}`);
+  const scope = m.items.filter((x) => !x.team).map((x) => `- ${x.name}${num(x.price) === null ? '' : `: ${usd(num(x.price))}`}`);
   const termWords = m.term ? `${TERMS[m.term]}: the work below is bundled over ${m.term} months${m.monthly !== null ? `, ${usd(m.monthly)} a month` : ''}.` : 'One project, scoped below.';
   const plan = PAY_PLANS[quote.plan] || (m.term ? PAY_PLANS.monthly : PAY_PLANS.split);
+  const ev = discovery?.event;
+  const when = ev?.start ? `Event dates: ${ev.start}${ev.end && ev.end !== ev.start ? ` to ${ev.end}` : ''}.` : '';
   return [
     `${quote.title || `Proposal for ${name}`}`,
     '',
@@ -305,13 +350,14 @@ export function proposalDraft({ name, quote, discovery }) {
     quote.rationale || '(Your reasoning for the client goes here.)',
     '',
     'What we will do',
-    ...(scope.length ? scope : ['- (Scope lines from the quote)']),
+    ...(scope.length ? scope : ['- (Services from the quote)']),
+    when,
     '',
     'Term',
     termWords,
     '',
     'Investment',
-    m.price !== null ? `${usd(m.price)} in total. Payment: ${plan}.` : '(Set your price on the quote.)',
+    m.price !== null ? `${usd(m.price)} in total. Payment: ${plan}.` : '(Set your client price on the quote.)',
     '',
     'Next step',
     'Reply to confirm and we will send the agreement for signature.'
@@ -345,7 +391,7 @@ export async function proposalStatuses(env, sample) {
 
 /* ------------------------------------------------------------------ the work side, and the portal */
 
-/** An accepted deal gets its work side: the account team, tasks from the quote's scope, and a portal. */
+/** An accepted deal gets its work side: the account team, a task per quoted service, and a portal. */
 export async function startDelivery(env, { key, team, quote, sample }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
@@ -353,7 +399,8 @@ export async function startDelivery(env, { key, team, quote, sample }, now = Dat
   const have = await db.prepare('SELECT key FROM delivery WHERE key = ? AND sample = ?').bind(key, s).first();
   if (have) return { created: false };
   const stmts = [db.prepare('INSERT INTO delivery (key, sample, at, team) VALUES (?,?,?,?)').bind(key, s, now, clip(team, 1000))];
-  for (const l of (quote?.lines || []).filter((x) => !x.team)) stmts.push(db.prepare('INSERT INTO task (key, sample, at, title, owner, due, done, client) VALUES (?,?,?,?,?,?,0,1)').bind(key, s, now, clip(l.line, 200), '', ''));
+  // One task per service (or per line of an older quote); never a specialist's name or cost.
+  for (const x of (quote ? quoteServices(quote) : []).filter((y) => !y.team)) stmts.push(db.prepare('INSERT INTO task (key, sample, at, title, owner, due, done, client) VALUES (?,?,?,?,?,?,0,1)').bind(key, s, now, clip(x.name, 200), '', ''));
   await db.batch(stmts);
   const token = await newPortal(env, { key, sample }, now);
   return { created: true, token };

@@ -21,6 +21,7 @@ import { BACKUP_TABLES, dbOf, ensureSchema } from './schema.mjs';
 import { accessToken, connectionRow, disconnect, docusignHost, markConnection, wideGoogleScopes } from './providers.mjs';
 import { daysSince, isoDay, num, toTime } from './core.mjs';
 import { CASH_RULES, catalogFromGrid, webInquiryRows } from './deal.mjs';
+import { SERVICE_BY_ID } from '../services.mjs';
 import { sendViaCloudflare, sendViaResend } from '../../api/lead.js';
 
 export const FUNNEL_STAGES = [
@@ -275,7 +276,9 @@ export function sampleRows(now = Date.now()) {
       { id: 'SD1', org: 'Sample Org D', stage: 'Discovery', owner: 'Sample Lead', next_action: 'Sample follow-up call', next_date: d(3), proposal_sent: '', follow_up: '', email: '' },
       { id: 'SD2', org: 'Sample Org E', stage: 'Proposal', owner: 'Sample Lead', next_action: 'Sample proposal follow-up', next_date: d(-1), proposal_sent: d(-10), follow_up: d(-1), email: 'sample-e@example.test' },
       { id: 'SD3', org: 'Sample Org F', stage: 'Relationship identified', owner: 'Sample Lead', next_action: 'Sample intro', next_date: d(7), proposal_sent: '', follow_up: '', email: '' },
-      { id: 'SD4', org: 'Sample Org A', stage: 'Delivery handoff', owner: 'Sample Lead', next_action: 'Sample wrap call', next_date: d(12), proposal_sent: d(-50), follow_up: '', email: 'sample-a@example.test' }
+      { id: 'SD4', org: 'Sample Org A', stage: 'Delivery handoff', owner: 'Sample Lead', next_action: 'Sample wrap call', next_date: d(12), proposal_sent: d(-50), follow_up: '', email: 'sample-a@example.test' },
+      // A Top Barz row, so the preview shows it is left out of the Productions screens (never changed).
+      { id: 'SD5', org: 'Sample Top Barz show', stage: 'Proposal', owner: 'Sample Lead', next_action: 'Sample sponsor call', next_date: d(2), proposal_sent: '', follow_up: '', email: '' }
     ],
     drafts: [
       { id: 'SA1', project: 'SP1', document: 'Sample client update draft', link: 'https://docs.google.com/document/d/sample-draft-one', agent: 'Sample client-update assistant', drafted: d(-1), status: 'Waiting' }
@@ -330,6 +333,27 @@ async function ensureSample(db, now) {
 /* ------------------------------------------------------------------ reading what is on screen */
 
 /**
+ * The dashboard is Productions only (Scooter, 15 Nov 2026: "Keep this pipeline Productions-only.
+ * Filter out Top Barz work, including SoundCloud, Overtime Elite, Sagaboy and Wendy's. Don't delete or
+ * change those tracker rows."). Filtered at READ time only: the rows stay in his tracker exactly as
+ * they are, sync still copies them, and nothing ever writes to them because of this.
+ */
+export const NOT_PRODUCTIONS = /top\s*-?\s*barz|soundcloud|sound\s+cloud|overtime\s+elite|saga\s*boy|wendy'?s\b/i;
+export function isTopBarz(row) {
+  return ['org', 'opportunity', 'service', 'client', 'name'].some((k) => NOT_PRODUCTIONS.test(String(row?.[k] ?? '')));
+}
+/** Splits rows into what the Productions screens show and the Top Barz rows left alone. */
+export function productionsOnly(rows) {
+  const hidden = { deals: 0, inquiries: 0 };
+  for (const kind of Object.keys(hidden)) {
+    const keep = (rows[kind] || []).filter((r) => !isTopBarz(r));
+    hidden[kind] = (rows[kind] || []).length - keep.length;
+    rows[kind] = keep;
+  }
+  return hidden;
+}
+
+/**
  * Everything a screen needs. { sample, rows: {kind: [...]}, sync: {kind: state}, sources, connections }.
  * Real sessions read the last synced copy (row_cache); sample sessions read sample_sheet.
  */
@@ -344,25 +368,27 @@ export async function loadView(env, { sample }, now = Date.now()) {
       if (rows[r.kind]) rows[r.kind].push({ ...JSON.parse(r.data), _id: r.row_id, _origin: 'Sample sheet' });
     }
     for (const k of Object.keys(KINDS)) sync[k] = { status: 'ok', synced_at: now, rows: rows[k].length, origins: 'Sample sheet' };
-    return { sample: true, rows, sync, sources: { work: { title: 'Sample work sheet' }, money: { title: 'Sample money sheet' }, inquiries: { title: 'Sample form responses' } }, settings: {} };
+    const hidden = productionsOnly(rows);
+    return { sample: true, rows, sync, hidden, sources: { work: { title: 'Sample work sheet' }, money: { title: 'Sample money sheet' }, inquiries: { title: 'Sample form responses' } }, settings: {} };
   }
   for (const r of (await db.prepare('SELECT kind, row_id, origin, data FROM row_cache').all()).results || []) {
     if (rows[r.kind]) rows[r.kind].push({ ...JSON.parse(r.data), _id: r.row_id, _origin: JSON.parse(r.origin).title || '' });
   }
   for (const r of (await db.prepare('SELECT * FROM sync_state').all()).results || []) sync[r.kind] = r;
-  // His own site's Start a project form feeds the same inquiry list as his form's response sheet.
+  // His own site's Get in touch form feeds the same inquiry list as his form's response sheet.
   const site = await webInquiryRows(db);
   if (site.length) {
     rows.inquiries.push(...site.map((x, i) => ({ ...x, _row: 100000 + i })));
     sync.inquiries = sync.inquiries || { status: 'ok', synced_at: now, rows: 0, origins: '' };
-    sync.inquiries = { ...sync.inquiries, origins: [sync.inquiries.origins, 'Start a project form on your site'].filter(Boolean).join(' + '), synced_at: sync.inquiries.synced_at || now };
+    sync.inquiries = { ...sync.inquiries, origins: [sync.inquiries.origins, 'Get in touch form on your site'].filter(Boolean).join(' + '), synced_at: sync.inquiries.synced_at || now };
   }
   const sources = {};
   for (const r of (await db.prepare('SELECT * FROM source').all()).results || []) sources[r.kind] = r;
   const settings = {};
   for (const r of (await db.prepare("SELECT key, value FROM setting WHERE key IN ('acct_cash','envelopes','last_sync_run','google_narrowed') OR key LIKE 'disconnected:%' OR key LIKE 'layout:%' OR key LIKE 'cash_rule:%'").all()).results || []) settings[r.key] = JSON.parse(r.value);
   for (const list of Object.values(rows)) list.sort((a, b) => (a._row || 0) - (b._row || 0));
-  return { sample: false, rows, sync, sources, settings };
+  const hidden = productionsOnly(rows);
+  return { sample: false, rows, sync, hidden, sources, settings };
 }
 
 /* ------------------------------------------------------------------ sync */
@@ -689,7 +715,10 @@ async function currentRow(db, kind, rowId, sample) {
   const r = sample
     ? await db.prepare('SELECT data FROM sample_sheet WHERE kind = ? AND row_id = ?').bind(kind, rowId).first()
     : await db.prepare('SELECT data FROM row_cache WHERE kind = ? AND row_id = ?').bind(kind, rowId).first();
-  return r ? JSON.parse(r.data) : null;
+  const row = r ? JSON.parse(r.data) : null;
+  // A Top Barz row is never written from the Productions dashboard (Scooter, 15 Nov 2026: "Don't
+  // delete or change those tracker rows"), even by a hand-made request.
+  return row && isTopBarz(row) ? null : row;
 }
 
 /** One quick action. Returns { id (action_log), outcome: 'saved' | 'failed', detail }. */
@@ -750,11 +779,17 @@ export async function addDealFromInquiry(env, { journey, session, carry = {} }, 
   const fail = async (detail) => ({ id: await logAction(db, { ...base, outcome: 'failed', detail }), outcome: 'failed' });
   const inq = journey.inquiries.at(-1) || {};
   const { stages } = await dealStages(db, session.sample);
-  const values = { org: journey.name, stage: stages[0] || FUNNEL_STAGES[0], contact: inq.name || '', email: inq.email || '', source: carry.source || (inq.from_site ? 'Website: Start a project' : 'Website inquiry'), next_action: carry.next_action || 'Reply to the inquiry', next_date: isoDay(now) };
+  const values = { org: journey.name, stage: stages[0] || FUNNEL_STAGES[0], contact: inq.name || '', email: inq.email || '', source: carry.source || (inq.from_site ? 'Website: Get in touch' : 'Website inquiry'), next_action: carry.next_action || 'Reply to the inquiry', next_date: isoDay(now) };
   if (carry.owner) values.owner = carry.owner;
   values.opportunity = journey.name; // only where his tracker has an Opportunity column of its own
   const need = carry.need || inq.initiative || '';
-  if (carry.note || need) values.notes = [need ? `Need: ${need}` : '', carry.note || ''].filter(Boolean).join('\n').slice(0, 4000);
+  // The service and, for Virtual / hybrid event production, the event dates from the site's form
+  // travel with the new row (Scooter, 15 Nov 2026: "carry them into the deal"): into his own Service
+  // column where he has one, and into the Notes cell; never a new column.
+  const service = SERVICE_BY_ID[inq.service]?.name || '';
+  if (service) values.service = service;
+  const eventLine = inq.event_start || inq.event_end ? `Event: ${[inq.event_start, inq.event_end].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(' to ')}` : '';
+  if (carry.note || need || eventLine) values.notes = [need ? `Need: ${need}` : '', eventLine, carry.note || ''].filter(Boolean).join('\n').slice(0, 4000);
   if (session.sample) {
     const id = `SD-${orgKey(journey.name).slice(0, 20)}`;
     await db.prepare('INSERT OR IGNORE INTO sample_sheet (kind, row_id, data) VALUES (?,?,?)').bind('deals', id, JSON.stringify({ id, owner: 'Sample Lead', proposal_sent: '', follow_up: '', notes: '', ...values })).run();
@@ -1118,7 +1153,7 @@ export function journeys(view, { notes = {}, now = Date.now() } = {}) {
     const where = lost ? `Closed · ${deal.stage}` : step === 6 ? 'Paid in full'
       : step === 5 ? (overdue.length ? `${overdue.length} invoice${overdue.length === 1 ? '' : 's'} overdue` : `Invoiced · ${openRows.length} open`)
         : step === 4 ? `Client · ${j.projects[0].status || 'project on the go'}`
-          : step === 3 ? 'Signed' : step === 2 ? `Deal · ${deal.stage || 'no stage yet'}` : 'New inquiry';
+          : step === 3 ? 'Signed' : step === 2 ? `Deal · ${deal.stage || 'no stage yet'}` : 'Form request';
     const next = overdue.length ? { text: `Chase invoice ${overdue[0].id || ''}`.trim(), date: overdue[0].due, tone: 'red' }
       : deal?.next_action ? { text: deal.next_action, date: deal.next_date, tone: (daysSince(deal.next_date, now) ?? -1) > 0 ? 'gold' : '' }
         : step === 1 ? { text: 'Reply, and add them to your tracker', date: j.inquiries.at(-1)?.at, tone: 'gold' } : null;

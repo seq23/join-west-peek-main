@@ -5,7 +5,8 @@
  */
 import { esc, isoDay, money, usDay, usTime } from './core.mjs';
 import { FUNNEL_STAGES, stageOptions } from './data.mjs';
-import { CASH_RULES, rulesWalk, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, discoveryQuestions, quoteMath } from './deal.mjs';
+import { CASH_RULES, rulesWalk, CALL_NOTES, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, discoveryQuestions, quoteMath, quoteServices, servicesOf } from './deal.mjs';
+import { EVENT_SERVICE, SERVICES, SERVICE_BY_ID, serviceFrom } from '../services.mjs';
 import { act, dayOr, empty, errorBox, gap, page, sec, val } from './views.mjs';
 
 const shell = (title, body, ctx) => page(title, body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
@@ -30,10 +31,11 @@ export function dealSections(j, ctx) {
   const q = ctx.quote;
   const p = ctx.proposal;
   const del = ctx.delivery;
-  const discLine = disc?.at ? `${Object.keys(disc.answers || {}).length} of ${discoveryQuestions(disc.profile).length} answered · saved ${esc(usTime(disc.at, ctx.now))}` : 'Not started';
+  const picked = servicesOf(disc?.profile || {}).map((id) => SERVICE_BY_ID[id].name);
+  const discLine = disc?.at ? `${picked.length ? `${esc(picked.join(', '))} · ` : ''}saved ${esc(usTime(disc.at, ctx.now))}` : 'Not started';
   const hold = moneyHold(ctx);
   const qm = q && !q.unreadable ? quoteMath(q) : null;
-  const quoteLine = hold ? 'Held' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Floor ${m$(qm.floor)}${qm.unknown.length ? ` + ${qm.unknown.length} unknown` : ''} · your price ${qm.price === null ? gap('not set') : m$(qm.price)}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
+  const quoteLine = hold ? 'Held' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Specialists ${m$(qm.cost)}${qm.noCost.length ? ` + ${qm.noCost.length} not entered` : ''} · your price ${qm.price === null ? gap('not set') : m$(qm.price)}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
   const propLine = !p ? 'No proposal yet' : `${esc(PROPOSAL_STATUS[p.status] || p.status)} · version ${p.versions} · ${esc(usTime(p.at, ctx.now))}`;
   const delLine = del ? `${del.tasks.filter((t) => !t.done).length} open tasks · portal ${del.portalSince ? 'on' : 'off'}` : 'Starts once accepted';
   const gmail = `https://mail.google.com/mail/u/0/#search/${encodeURIComponent((j.deal?.email || j.inquiries.at(-1)?.email) ? `"${j.deal?.email || j.inquiries.at(-1)?.email}"` : `"${j.name}"`)}`;
@@ -57,7 +59,7 @@ export function inquiriesBody(view, ctx, journeysByKey) {
   const list = rows.length ? `<ul class="d-list">${rows.map((r) => {
     const j = journeysByKey[orgOf(r, journeysByKey)];
     const owner = j?.deal?.owner || ctx.intake?.[j?.key]?.owner || '';
-    return `<li class="d-row"><div class="d-row__main">${j ? `<a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(r.org || r.name || 'Inquiry')} ›</a>` : `<span class="d-row__title">${esc(r.org || r.name || 'Inquiry')}</span>`}<span class="d-row__sub">${esc(r.name || '')}${r.email ? ` · ${esc(r.email)}` : ''} · ${dayOr(r.at)}${r.from_site ? ' · your site' : ''}</span>${r.initiative ? `<span class="d-row__sub">Needs: ${esc(String(r.initiative).slice(0, 140))}</span>` : ''}<span class="d-row__sub">Owner: ${owner ? esc(owner) : gap('nobody yet')} · ${j?.deal ? 'in your tracker' : 'not in your tracker yet'}</span></div></li>`;
+    return `<li class="d-row"><div class="d-row__main">${j ? `<a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(r.org || r.name || 'Inquiry')} ›</a>` : `<span class="d-row__title">${esc(r.org || r.name || 'Inquiry')}</span>`}<span class="d-row__sub">${esc(r.name || '')}${r.email ? ` · ${esc(r.email)}` : ''} · ${dayOr(r.at)}${r.from_site ? ' · your site' : ''}</span>${r.service ? `<span class="d-row__sub">Service: ${esc(SERVICE_BY_ID[r.service]?.name || r.service)}${eventWords({ start: r.event_start, end: r.event_end }) ? ` · event ${esc(eventWords({ start: r.event_start, end: r.event_end }))}` : ''}</span>` : ''}${r.initiative ? `<span class="d-row__sub">Needs: ${esc(String(r.initiative).slice(0, 140))}</span>` : ''}<span class="d-row__sub">Owner: ${owner ? esc(owner) : gap('nobody yet')} · ${j?.deal ? 'in your tracker' : 'not in your tracker yet'}</span></div></li>`;
   }).join('')}</ul>` : '';
   const add = `<details class="d-fold"${rows.length ? '' : ' open'}><summary><span>Add a researched lead</span></summary>
     <form class="d-form" method="post" action="/dashboard/lead/add">${hidden('back', '/dashboard/inquiries')}
@@ -76,66 +78,103 @@ function orgOf(r, map) {
 
 /* ------------------------------------------------------------------ discovery */
 
+/** Event dates on a deal: what he saved on Discovery, else what the person typed on the site's form. */
+export function eventOf(j, disc) {
+  if (disc?.event?.start || disc?.event?.end) return disc.event;
+  const inq = [...(j.inquiries || [])].reverse().find((i) => i.event_start || i.event_end);
+  return inq ? { start: inq.event_start || '', end: inq.event_end || '' } : { start: '', end: '' };
+}
+export function eventWords(ev) {
+  if (!ev?.start && !ev?.end) return '';
+  return ev.start && ev.end && ev.start !== ev.end ? `${usDay(ev.start)} to ${usDay(ev.end)}` : usDay(ev.start || ev.end);
+}
+
+/**
+ * Discovery (Scooter, 15 Nov 2026): services first, picked by the site's own icons (several at once);
+ * then Organization type, what it is for and the scale; then his sales-call notes; then the guided
+ * questions for what he picked. One form, one Save; the questions follow the services he saved.
+ */
 export function renderDiscovery(j, ctx) {
   const saved = ctx.discovery || { profile: {}, answers: {} };
   const deal = j.deal || {};
+  const inq = j.inquiries?.at(-1) || {};
+  // Before his first save, start from the deal's own Service cell or the site form's service.
+  const services = saved.at ? servicesOf(saved.profile) : [serviceFrom(deal.service), serviceFrom(inq.service)].filter(Boolean);
   const guess = (part) => saved.profile?.[part] || guessFrom(part, deal);
-  const profile = Object.fromEntries(Object.keys(DISCOVERY_PROFILE).map((k) => [k, guess(k)]));
+  const profile = { services, ...Object.fromEntries(Object.keys(DISCOVERY_PROFILE).map((k) => [k, guess(k)])) };
   const qs = discoveryQuestions(profile);
   const back = `/dashboard/flow/${encodeURIComponent(j.key)}/discovery`;
+  const answer = (q) => esc(saved.answers?.[q.id] || '');
+  const tiles = `<div class="d-svcs">${SERVICES.map((x) => `<label class="d-svc">${x.icon}<span>${esc(x.name)}</span><input type="checkbox" name="p_services" value="${x.id}"${services.includes(x.id) ? ' checked' : ''}></label>`).join('')}</div>`;
+  const ev = eventOf(j, saved);
+  const event = `<div class="d-event"><div class="d-grid2"><div><label for="ev-start">Event start date</label><input id="ev-start" name="event_start" type="date" value="${esc(ev.start)}"></div><div><label for="ev-end">Event end date</label><input id="ev-end" name="event_end" type="date" value="${esc(ev.end)}"></div></div><p class="d-sub">For ${esc(EVENT_SERVICE.name)}.${!saved.event?.start && ev.start ? ' From their form on your site.' : ''}</p></div>`;
   const pickers = `<div class="d-grid2">${Object.entries(DISCOVERY_PROFILE).map(([k, def]) => `<div><label for="dp-${k}">${esc(def.label)}</label><select id="dp-${k}" name="p_${k}"><option value="">Choose…</option>${Object.entries(def.options).map(([v, l]) => `<option value="${v}"${profile[k] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`).join('')}</div>`;
-  const shape = `<form class="d-form" method="get" action="${back}">${pickers}<p><button type="submit">Show the questions for this</button></p></form>`;
-  const answers = `<form class="d-form" method="post" action="/dashboard/discovery">${hidden('key', j.key)}${hidden('back', back)}${Object.entries(profile).map(([k, v]) => hidden(`p_${k}`, v)).join('')}
-    ${qs.map((q, i) => `<label for="dq-${q.id}">${i + 1}. ${esc(q.text)}</label><textarea id="dq-${q.id}" name="a_${q.id}" maxlength="2000">${esc(saved.answers?.[q.id] || '')}</textarea>`).join('')}
-    <p><button type="submit" class="d-primary">Save answers</button></p><p class="d-sub">Saved with this deal on every device; every save is kept. The quote and proposal start from these answers.</p></form>`;
-  const status = ctx.discovery?.at ? `<p class="d-src">Last saved ${esc(usTime(ctx.discovery.at, ctx.now))}</p>` : '<p class="d-sub">Choose what this deal is, then answer what you know. Blank answers are fine; they show what to ask next.</p>';
-  return shell(`Discovery · ${j.name}`, `${backTo(j)}<h1>Discovery</h1><p class="d-sub">${esc(j.name)}: the same discipline for every scope. The questions change with the service, the buyer, the objective and the scale.</p>${ctx.flash || ''}${sec('shape', 'What this deal is', shape)}${sec('questions', `Questions · ${qs.length}`, status + answers)}`, ctx);
+  const call = CALL_NOTES.map((q) => `<label for="dq-${q.id}">${esc(q.text)}</label><textarea id="dq-${q.id}" name="a_${q.id}" maxlength="2000">${answer(q)}</textarea>`).join('');
+  const guided = qs.map((q, i) => `<label for="dq-${q.id}">${i + 1}. ${esc(q.text)}</label><textarea id="dq-${q.id}" name="a_${q.id}" maxlength="2000">${answer(q)}</textarea>`).join('');
+  const status = ctx.discovery?.at ? `<p class="d-src">Last saved ${esc(usTime(ctx.discovery.at, ctx.now))}</p>` : '';
+  const save = (label) => `<p><button type="submit" class="d-primary">${label}</button></p>`;
+  const form = `<form class="d-form" method="post" action="/dashboard/discovery">${hidden('key', j.key)}${hidden('back', back)}
+    ${sec('services', 'Services', `<p class="d-sub">Pick every service they need. Each one carries into the quote.</p>${tiles}${event}`)}
+    ${sec('shape', 'About them', pickers)}
+    ${sec('call', 'Sales call notes', call)}
+    ${sec('questions', `Questions · ${qs.length}`, `${services.length ? '' : '<p class="d-sub">Pick their services above and save; the questions for those services appear here.</p>'}${guided}`)}
+    ${save('Save')}<p class="d-sub">Saved with this deal on every device; every save is kept.</p></form>`;
+  return shell(`Discovery · ${j.name}`, `${backTo(j)}<h1>Discovery</h1><p class="d-sub">${esc(j.name)}</p>${status}${ctx.flash || ''}${form}`, ctx);
 }
 function guessFrom(part, deal) {
-  const text = String(part === 'service' ? deal.service || '' : part === 'buyer' ? deal.buyer || '' : '').toLowerCase();
+  const text = String(part === 'buyer' ? deal.buyer || '' : '').toLowerCase();
   if (!text) return '';
-  const map = part === 'service'
-    ? [['activation', /activation|sponsor/], ['events', /event|summit|conference|gathering/], ['brand', /brand|story|identity/], ['web', /web|site|digital/], ['content', /content|video|film|media|photo/]]
-    : [['foundation', /foundation|funder|philanthrop/], ['education', /school|college|universit|education/], ['association', /association|member/], ['nonprofit', /nonprofit|non-profit|charity/], ['public', /public|government|agency|city|state/], ['brand', /brand|company|corporate|business/]];
+  const map = [['foundation', /foundation|funder|philanthrop/], ['education', /school|college|universit|education/], ['association', /association|member/], ['nonprofit', /nonprofit|non-profit|charity/], ['public', /public|government|agency|city|state/], ['brand', /brand|company|corporate|business/]];
   return (map.find(([, re]) => re.test(text)) || [''])[0];
 }
 
 /* ------------------------------------------------------------------ the pricing builder */
 
+/**
+ * The quote, the way he makes it (Scooter, 15 Nov 2026): the services picked on Discovery, each with
+ * the specialist's name and their cost (his only), and the client price HE types. No catalog lines,
+ * no per-day maths, no markup and no formula: the page only adds up what he typed.
+ */
 export function renderQuote(j, ctx) {
-  const back = `/dashboard/flow/${encodeURIComponent(j.key)}/quote`;
+  const k = encodeURIComponent(j.key);
+  const back = `/dashboard/flow/${k}/quote`;
   const hold = moneyHold(ctx);
   if (hold) return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${ctx.flash || ''}${holdBox(hold)}`, ctx);
   if (ctx.quote?.unreadable) return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${errorBox('The last quote could not be read back.', 'It was saved encrypted and the key that opens it is not the one this site has now. Build it again below; nothing else is affected.', back, 'Start again')}`, ctx);
-  const q = ctx.quote || { lines: [], price: null, term: 0, months: 1, plan: '', split: '', rationale: '', title: '' };
-  const catalog = ctx.catalog || CATALOG_STRUCTURE;
-  const wanted = ctx.discovery?.profile?.service;
-  const byService = {};
-  for (const l of catalog) (byService[l.service] = byService[l.service] || []).push(l);
-  const order = [wanted, ...Object.keys(SERVICE_NAMES).filter((s) => s !== wanted && s !== 'team'), 'team'].filter((s, i, a) => s && byService[s] && a.indexOf(s) === i);
-  const on = Object.fromEntries(q.lines.map((l) => [l.id, l]));
-  const lineRow = (l) => { const x = on[l.id] || {}; return `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(l.line)}</span><span class="d-row__sub">per ${esc(l.unit)} · your rate ${l.cost === null ? gap('unknown: set it on Catalog or here') : esc(money(l.cost))}</span>
-    <div class="d-grid2"><div><label for="q-${l.id}">Quantity (${esc(l.unit)}s)</label><input id="q-${l.id}" name="qty_${l.id}" inputmode="decimal" value="${esc(x.qty ?? '')}"></div><div><label for="c-${l.id}">Rate for this quote</label><input id="c-${l.id}" name="cost_${l.id}" inputmode="decimal" value="${esc(x.cost !== undefined && x.cost !== l.cost && x.cost !== null ? x.cost : '')}" placeholder="${l.cost === null ? 'unknown' : 'catalog rate'}"></div></div>
-    <label for="m-${l.id}">Cost goes out in month</label><select id="m-${l.id}" name="month_${l.id}"><option value="0"${!x.month ? ' selected' : ''}>Spread over the term</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}"${Number(x.month) === i + 1 ? ' selected' : ''}>Month ${i + 1}</option>`).join('')}</select></div></li>`; };
-  const lines = order.map((s, i) => `<details class="d-fold"${i === 0 || byService[s].some((l) => on[l.id]) ? ' open' : ''}><summary><span>${esc(SERVICE_NAMES[s])} · ${byService[s].filter((l) => on[l.id]).length} chosen</span></summary><ul class="d-list">${byService[s].map(lineRow).join('')}</ul></details>`).join('');
-  const m = quoteMath(q);
-  const numbers = q.lines.length ? `<ul class="d-kv">
-      <li><span><strong>Cost floor</strong><br><span class="d-sub">Everything the work costs you, team time included</span></span><span>${m$(m.floor)}${m.unknown.length ? ` <span class="d-gold">+ unknown</span>` : ''}</span></li>
-      ${m.team ? `<li><span>of which team time</span><span>${m$(m.team)}</span></li>` : ''}
-      <li><span><strong>Your price</strong><br><span class="d-sub">You choose it. The builder never does.</span></span><span>${m.price === null ? gap('not set') : m$(m.price)}</span></li>
-      <li><span><strong>Margin</strong></span><span class="${m.margin?.belowFloor ? 'd-red' : ''}">${!m.margin ? gap('set your price to see it') : `${m$(m.margin.amount)}${m.margin.pct === null ? '' : ` · ${m.margin.pct}%`}${m.margin.atMost ? ' <span class="d-gold">at most (some costs unknown)</span>' : ''}${m.margin.belowFloor ? ' · below your floor' : ''}`}</span></li>
+  const q = ctx.quote || { services: [], term: 0, months: 1, plan: '', split: '', rationale: '', title: '' };
+  const had = Object.fromEntries((Array.isArray(q.services) ? q.services : []).map((x) => [x.id, x]));
+  // The services carried from Discovery, plus any already on this quote, in the site's order.
+  const ids = SERVICES.map((x) => x.id).filter((id) => servicesOf(ctx.discovery?.profile || {}).includes(id) || had[id]);
+  if (!ids.length) {
+    return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${ctx.flash || ''}${empty('Pick their services on Discovery first. Each one you pick shows here, ready for the specialist and your price.', `/dashboard/flow/${k}/discovery`, '← Pick services on Discovery', 'flow')}`, ctx);
+  }
+  const val$ = (n) => (n === null || n === undefined ? '' : esc(n));
+  const svc = (id) => {
+    const x = SERVICE_BY_ID[id];
+    const h = had[id] || {};
+    const rateCard = x.events ? '<p class="d-sub"><a href="/dashboard/catalog">Event rate card, if you use one ›</a></p>' : '';
+    return `<div class="d-qsvc">${hidden('svc', id)}<h3>${x.icon}${esc(x.name)}</h3>
+      <p class="d-mine">Yours only · never shown to the client</p>
+      <div class="d-grid2"><div><label for="sp-${id}">Specialist</label><input id="sp-${id}" name="sp_${id}" maxlength="160" value="${esc(h.specialist || '')}" placeholder="Name"></div><div><label for="cost-${id}">Their cost to you</label><input id="cost-${id}" name="cost_${id}" inputmode="decimal" value="${val$(h.cost)}" placeholder="$"></div></div>
+      <label for="price-${id}">Your client price</label><input id="price-${id}" name="price_${id}" inputmode="decimal" value="${val$(h.price)}" placeholder="You decide">${rateCard}</div>`;
+  };
+  const m = quoteMath({ ...q, services: Array.isArray(q.services) ? q.services : [] });
+  const saved = ctx.quote && Array.isArray(ctx.quote.services);
+  const numbers = saved ? `<ul class="d-kv">
+      <li><span>Specialist costs<br><span class="d-sub">Yours only</span></span><span>${m$(m.cost)}${m.noCost.length ? ' <span class="d-gold">+ not entered</span>' : ''}</span></li>
+      <li><span>Your client price</span><span>${m.price === null ? gap('not set') : m$(m.price)}</span></li>
+      <li><span>Left after specialists<br><span class="d-sub">Yours only</span></span><span class="${m.margin?.belowCost ? 'd-red' : ''}">${!m.margin ? gap('set your price to see it') : `${m$(m.margin.amount)}${m.margin.atMost ? ' <span class="d-gold">at most</span>' : ''}${m.margin.belowCost ? ' · below your costs' : ''}`}</span></li>
       ${m.term ? `<li><span>${esc(TERMS[m.term])}</span><span>${m.monthly === null ? gap('set your price') : `${m$(m.monthly)} a month for ${m.term} months`}</span></li>` : ''}
-    </ul>${m.unknown.length ? `<p class="d-sub d-gold">Unknown costs: ${esc(m.unknown.join(', '))}. The floor above leaves them out, so it is lower than the real floor.</p>` : ''}` : '<p class="d-sub">Choose service lines and quantities below; the floor appears when you save.</p>';
-  const timeline = q.lines.length && m.price !== null ? `<ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">${m.shortMonths.length ? `<span class="d-red">You are out of pocket in month ${m.shortMonths.join(', ')}: costs go out before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'} Running position on this deal only.</p>` : '<p class="d-sub">Set your price and payment plan to see when payments arrive against when costs go out.</p>';
+    </ul>${m.noCost.length ? `<p class="d-sub d-gold">No cost entered yet: ${esc(m.noCost.join(', '))}.</p>` : ''}${m.noPrice.length && m.price !== null ? `<p class="d-sub d-gold">No client price yet: ${esc(m.noPrice.join(', '))}.</p>` : ''}<p class="d-src">Saved ${esc(usTime(ctx.quote._at, ctx.now))}. Every version is kept, encrypted.</p>` : '';
+  const timeline = saved && m.price !== null ? `<details class="d-fold"><summary><span>When money moves</span></summary><ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">${m.shortMonths.length ? `<span class="d-red">You are out of pocket in month ${m.shortMonths.join(', ')}: specialists are paid before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'}</p></details>` : '';
   const terms = `<div class="d-grid2"><div><label for="q-term">Package</label><select id="q-term" name="term">${Object.entries(TERMS).map(([v, l]) => `<option value="${v}"${String(q.term) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div><div><label for="q-months">If one project: how many months it runs</label><input id="q-months" name="months" inputmode="numeric" value="${esc(q.months || 1)}"></div></div>
     <div class="d-grid2"><div><label for="q-plan">Payment plan</label><select id="q-plan" name="plan"><option value="">Choose…</option>${Object.entries(PAY_PLANS).map(([v, l]) => `<option value="${v}"${q.plan === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div><div><label for="q-split">Your own split (percent)</label><input id="q-split" name="split" value="${esc(q.split || '')}" placeholder="30/30/20/20"></div></div>`;
   const form = `<form class="d-form" method="post" action="/dashboard/quote">${hidden('key', j.key)}${hidden('back', back)}
-    ${sec('lines', 'Service lines', `<p class="d-sub">From your catalog. A line with no rate counts as unknown, never as zero. <a href="/dashboard/catalog">Edit the catalog ›</a></p>${lines}`)}
-    ${sec('price', 'Term, price and payment', `${terms}<label for="q-price">Your price (total)</label><input id="q-price" name="price" inputmode="decimal" value="${esc(q.price ?? '')}" placeholder="You decide">`)}
-    ${sec('why', 'Value rationale (what the client hears)', `<label for="q-title">Proposal title</label><input id="q-title" name="title" maxlength="160" value="${esc(q.title || '')}" placeholder="Proposal for ${esc(j.name)}"><label for="q-rat">Why this is worth it to them</label><textarea id="q-rat" name="rationale" maxlength="3000">${esc(q.rationale || '')}</textarea><p class="d-sub">Your words. The client sees this and your price, never your costs or margin.</p>`)}
+    ${sec('services', `Services · ${ids.length}`, `<p class="d-sub">From Discovery. <a href="/dashboard/flow/${k}/discovery">Change the services ›</a></p>${ids.map(svc).join('')}`)}
+    ${sec('terms', 'Term and payment', terms)}
+    ${sec('why', 'What the client reads', `<label for="q-title">Proposal title</label><input id="q-title" name="title" maxlength="160" value="${esc(q.title || '')}" placeholder="Proposal for ${esc(j.name)}"><label for="q-rat">Why this is worth it to them</label><textarea id="q-rat" name="rationale" maxlength="3000">${esc(q.rationale || '')}</textarea><p class="d-sub">The client sees these words, the services and your prices. Never a specialist or a cost.</p>`)}
     <p><button type="submit" class="d-primary">Save quote</button></p></form>`;
-  const saved = ctx.quote ? `<p class="d-src">Saved ${esc(usTime(ctx.quote._at, ctx.now))}. Every version is kept, encrypted.</p>` : '';
-  return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1><p class="d-sub">${esc(j.name)}. Three numbers, kept apart: what it costs you, what you charge, and why it is worth it to them.</p>${ctx.flash || ''}${sec('numbers', 'The numbers', numbers + saved)}${sec('timing', 'When money moves', timeline)}${form}`, ctx);
+  return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1><p class="d-sub">${esc(j.name)}</p>${ctx.flash || ''}${numbers ? sec('numbers', 'The numbers', numbers + timeline) : ''}${form}`, ctx);
 }
 
 /* ------------------------------------------------------------------ the catalog */
