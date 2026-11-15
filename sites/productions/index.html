@@ -13,7 +13,7 @@
   <meta property="og:url" content="https://westpeekproductions.com/">
   <link rel="preload" href="/assets/fonts/Maax-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/assets/fonts/Maax-Regular.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/assets/productions.css?v=20261113">
+  <link rel="stylesheet" href="/assets/productions.css?v=20261114">
   <meta name="theme-color" content="#0b0b0c">
   <script type="application/ld+json">
 {
@@ -79,9 +79,9 @@
   <div class="wpp-header__inner">
     <a class="wpp-brand" href="/" aria-label="West Peek Productions home"><img src="/assets/img/productions-logo.jpg" alt="" width="40" height="40"><span>West Peek Productions</span></a>
     <nav class="wpp-nav" aria-label="Main">
-      <a href="/work">Work</a>
-      <a href="/what-we-do">What we do</a>
       <a href="/about">About</a>
+      <a href="/what-we-do">Capabilities</a>
+      <a href="/work">Case studies</a>
       <a class="wpp-nav__cta" href="/start">Start a project</a>
     </nav>
   </div>
@@ -91,134 +91,125 @@
   <section class="wpp-hero" aria-labelledby="hero-title">
     <div class="wpp-wrap">
       <p class="wpp-eyebrow">West Peek Productions</p>
-      <h1 id="hero-title">We make people <span class="wpp-o">care.</span></h1>
-      <p class="wpp-hero__sub">Your impact deserves more attention.</p>
-      <p class="wpp-lead">We help organizations close the gap between the work they are doing and how they are telling its story, through creative strategy, storytelling, content, digital experiences and production, online and in person.</p>
+      <!-- The moving line (Scooter, 14 Nov 2026): "care." is the real text; the rest rotate in (productions.js). -->
+      <h1 id="hero-title">We make people <span class="wpp-o wpp-rotate" data-rotate='["care.","take action.","show up.","come back.","belong."]'>care.</span></h1>
+      <p class="wpp-lead">We help organizations close the gap between the work they are doing and how its story is told, through creative strategy, storytelling, content, digital experiences and online.</p>
       <div class="wpp-hero__actions">
         <a class="wpp-btn" href="/start">Start a project <span aria-hidden="true">&rarr;</span></a>
-        <a class="wpp-btn wpp-btn--ghost" href="/what-we-do">What we do</a>
-      </div>
-      <div class="wpp-gap" role="img" aria-label="The work an organization is doing is often far bigger than how it is being told. We close that gap.">
-        <div class="wpp-gap__row"><span class="wpp-gap__label">The work you are doing</span><span class="wpp-gap__track"><span class="wpp-gap__bar"></span></span></div>
-        <div class="wpp-gap__row"><span class="wpp-gap__label">How it is being told</span><span class="wpp-gap__track"><span class="wpp-gap__bar wpp-gap__bar--story"></span></span></div>
-        <div class="wpp-gap__row"><span class="wpp-gap__label">Where we take it</span><span class="wpp-gap__track"><span class="wpp-gap__bar wpp-gap__bar--with"></span></span></div>
+        <a class="wpp-btn wpp-btn--ghost" href="/work">See the case studies</a>
       </div>
     </div>
   </section>
 
+  <!-- Every organization we have worked with. Grey text until Scooter's logo files land; then each name becomes its logo, greyed in CSS. -->
+  <section class="wpp-logos" aria-labelledby="logos-title">
+    <div class="wpp-wrap"><h2 id="logos-title" class="wpp-logos__title">Organizations we have worked with</h2></div>
+    <div class="wpp-logos__track">
+      <ul class="wpp-logos__row">
+        <li>TNTP</li><li>NCTA</li><li>ELC</li><li>Mercury</li><li>Clinton Foundation</li><li>Robertson Scholars</li><li>Duke University</li>
+      </ul>
+      <ul class="wpp-logos__row" aria-hidden="true">
+        <li>TNTP</li><li>NCTA</li><li>ELC</li><li>Mercury</li><li>Clinton Foundation</li><li>Robertson Scholars</li><li>Duke University</li>
+      </ul>
+    </div>
+    <div class="wpp-wrap"><p class="wpp-tag-placeholder">Placeholder &middot; logos to come, names shown until then</p></div>
+  </section>
+
   <section class="wpp-section wpp-section--paper" aria-labelledby="gap-title">
-    <div class="wpp-wrap wpp-statement">
-      <div data-reveal>
+    <div class="wpp-wrap">
+      <div class="wpp-head" data-reveal>
         <p class="wpp-eyebrow">The gap</p>
-        <h2 id="gap-title">Most organizations are doing better work than their story shows.</h2>
+        <h2 id="gap-title">Your impact deserves more attention.</h2>
+        <p class="wpp-lead">When TNTP came to us, its best work sat inside an 80-page strategic plan. Real work, trapped. Most organizations have the same pile, going stale:</p>
       </div>
-      <div data-reveal>
-        <p>The programs are real. The results are real. But the website, the video, the event and the report tell a smaller version of it, so the people who should care never quite do.</p>
-        <p>Closing that gap is the whole job. We start with the audience and the reason they would engage, not with a format or a deliverable. Then we make the work visible.</p>
-        <p class="wpp-pull">Make your marketing match your impact.</p>
-      </div>
+      <ul class="wpp-stale" data-reveal>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 15h5M10 18h3"/></svg>Strategic reports</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h10v11H3z"/></svg>Case studies</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.4 5 2.7 5 5.8"/></svg>Alumni updates</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/></svg>Findings</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>Research</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>Live events</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>Annual reports</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>Program stories</li>
+      </ul>
+      <p class="wpp-bigline" data-reveal>Make your marketing match your impact.</p>
     </div>
   </section>
 
   <section class="wpp-section" aria-labelledby="who-title">
     <div class="wpp-wrap">
       <div class="wpp-head" data-reveal>
-        <p class="wpp-eyebrow">Who hires us</p>
+        <p class="wpp-eyebrow">Who we work with</p>
         <h2 id="who-title">Organizations with real work to show.</h2>
       </div>
-      <ol class="wpp-who" data-reveal>
-        <li><span class="wpp-who__n">01</span><span class="wpp-who__name">Foundations</span><span class="wpp-who__note"></span></li>
-        <li><span class="wpp-who__n">02</span><span class="wpp-who__name">Educational organizations</span><span class="wpp-who__note"></span></li>
-        <li><span class="wpp-who__n">03</span><span class="wpp-who__name">Nonprofits</span><span class="wpp-who__note"></span></li>
-        <li><span class="wpp-who__n">04</span><span class="wpp-who__name">Associations and membership organizations</span><span class="wpp-who__note"></span></li>
-        <li><span class="wpp-who__n">05</span><span class="wpp-who__name">Mission-led institutions</span><span class="wpp-who__note"></span></li>
-        <li><span class="wpp-who__n">06</span><span class="wpp-who__name">Brands</span><span class="wpp-who__note">when the problem fits</span></li>
-      </ol>
-      <p class="wpp-who-foot" data-reveal>It usually starts with a senior leader who knows the story is bigger than it looks, and a communications team that has to make it happen. We earn the first one&rsquo;s confidence and make the second one&rsquo;s job easier. The moment is often a launch, a new strategic plan, an anniversary or a major event.</p>
+      <ul class="wpp-who-tiles" data-reveal>
+        <li tabindex="0"><span class="wpp-who-tiles__name">Foundations</span><span class="wpp-who-tiles__line">Show grantees, boards and the public what your funding makes possible.</span></li>
+        <li tabindex="0"><span class="wpp-who-tiles__name">Mission-led institutions and nonprofits</span><span class="wpp-who-tiles__line">Turn programs, reports and results into stories people act on.</span></li>
+        <li tabindex="0"><span class="wpp-who-tiles__name">Brands and influencers</span><span class="wpp-who-tiles__line">Campaigns and live moments with a purpose an audience can feel.</span></li>
+        <li tabindex="0"><span class="wpp-who-tiles__name">Associations and membership organizations</span><span class="wpp-who-tiles__line">Keep members engaged all year, not just at the annual meeting.</span></li>
+      </ul>
+      <p class="wpp-who-foot" data-reveal><a class="wpp-link" href="/work">Read the case studies <span aria-hidden="true">&rarr;</span></a></p>
     </div>
   </section>
 
   <section class="wpp-section" aria-labelledby="caps-title">
     <div class="wpp-wrap">
       <div class="wpp-head" data-reveal>
-        <p class="wpp-eyebrow">What we do</p>
-        <h2 id="caps-title">Four capabilities. One question: why should people care?</h2>
-        <p class="wpp-lead">These are capabilities, not packages. We diagnose first, then recommend the mix that fits the initiative.</p>
+        <p class="wpp-eyebrow">Capabilities</p>
+        <h2 id="caps-title">What we do.</h2>
+        <p class="wpp-lead">Turnkey production, from the idea to the day it goes live. Tap any one to see what it covers.</p>
       </div>
-    <div class="wpp-caps">
-      <article class="wpp-cap" id="content-and-media" data-reveal>
-        <p class="wpp-cap__role">Make stories visible</p>
-        <h3>Content and media</h3>
-        <p>Social video, podcasts, interviews and series that put the people and the work on screen, so the story travels further than the room it happened in.</p>
-        <p class="wpp-cap__eg">Social video &middot; podcasts &middot; interviews &middot; documentary-style series &middot; event-to-content</p>
-        <a class="wpp-link" href="/what-we-do#content-and-media">More on content and media <span aria-hidden="true">&rarr;</span></a>
-      </article>
-      <article class="wpp-cap" id="events-and-experiences" data-reveal>
-        <p class="wpp-cap__role">Create participation</p>
-        <h3>Events and experiences</h3>
-        <p>Virtual, livestream and hybrid events and live activations that bring people into the work, not just in front of it. This is where we started, and where we are most practiced.</p>
-        <p class="wpp-cap__eg">Virtual and hybrid conferences &middot; summits &middot; webinars &middot; executive broadcasts &middot; livestreams &middot; activations</p>
-        <a class="wpp-link" href="/what-we-do#events-and-experiences">More on events and experiences <span aria-hidden="true">&rarr;</span></a>
-      </article>
-      <article class="wpp-cap" id="brand-and-storytelling" data-reveal>
-        <p class="wpp-cap__role">Clarify why people care</p>
-        <h3>Brand and storytelling</h3>
-        <p>Narrative, identity and campaigns that say plainly what the work means, who it is for and why it matters now.</p>
-        <p class="wpp-cap__eg">Positioning and narrative &middot; identity &middot; campaign concepts &middot; launch creative</p>
-        <a class="wpp-link" href="/what-we-do#brand-and-storytelling">More on brand and storytelling <span aria-hidden="true">&rarr;</span></a>
-      </article>
-      <article class="wpp-cap" id="web-and-digital" data-reveal>
-        <p class="wpp-cap__role">Make engagement easier</p>
-        <h3>Web and digital</h3>
-        <p>Websites, portals and interactive tools that turn interest into action: sign up, show up, give, apply, come back.</p>
-        <p class="wpp-cap__eg">Websites &middot; portals &middot; interactive tools &middot; landing pages for launches and events</p>
-        <a class="wpp-link" href="/what-we-do#web-and-digital">More on web and digital <span aria-hidden="true">&rarr;</span></a>
-      </article>
-    </div>
+      <ul class="wpp-capgrid" data-reveal>
+        <li id="podcast-production"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-podcast"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>Podcast production</span></button><p id="cap-podcast" class="wpp-capgrid__desc">Series planned, recorded, edited and published, from the first guest list to the last episode.</p></li>
+        <li id="events-and-experiences"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-virtual"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M10.5 8l4 2-4 2z"/></svg><span>Virtual events</span></button><p id="cap-virtual" class="wpp-capgrid__desc">Summits, conferences and webinars run end to end: speakers, sound checks, hosts, run of show and the platform.</p></li>
+        <li id="in-person"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-inperson"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Curated in-person experiences</span></button><p id="cap-inperson" class="wpp-capgrid__desc">Gatherings designed around the people in the room, and captured so they keep working afterwards.</p></li>
+        <li id="content-and-media"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-content"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Content strategy</span></button><p id="cap-content" class="wpp-capgrid__desc">What to say, to whom, where and how often, built from the work you already have.</p></li>
+        <li id="brand-and-storytelling"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-strategy"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg><span>Strategy</span></button><p id="cap-strategy" class="wpp-capgrid__desc">Who needs to care, what you want them to do, and the plan that gets them there.</p></li>
+        <li id="production"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-production"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3z"/></svg><span>Production</span></button><p id="cap-production" class="wpp-capgrid__desc">Video, design and social content made to stop the scroll and carry the story.</p></li>
+        <li id="web-and-digital"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-platform"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>Platform management</span></button><p id="cap-platform" class="wpp-capgrid__desc">The tools behind the work, set up and run for you: event platforms, websites and channels.</p></li>
+        <li id="turnkey"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-turnkey"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3M21 12v2"/></svg><span>Turnkey production</span></button><p id="cap-turnkey" class="wpp-capgrid__desc">One team from the idea to the day it goes live, so your team is never left holding the pieces.</p></li>
+      </ul>
     </div>
   </section>
 
-  <section class="wpp-section wpp-section--paper" aria-labelledby="proof-title">
+  <section class="wpp-section wpp-section--paper" aria-labelledby="team-title">
     <div class="wpp-wrap">
       <div class="wpp-head" data-reveal>
-        <p class="wpp-eyebrow">Proof</p>
-        <h2 id="proof-title">Production you can trust with the moment that matters.</h2>
+        <p class="wpp-eyebrow">The team</p>
+        <h2 id="team-title">The people behind the work.</h2>
       </div>
-      <div class="wpp-stats" data-reveal>
+      <ul class="wpp-team" data-reveal>
+        <li><div class="wpp-team__photo"><img src="/assets/img/team-scooter.jpg" alt="Scooter Taylor" width="720" height="720" loading="lazy"></div><p class="wpp-team__name">Scooter Taylor</p><p class="wpp-team__role">Founder</p></li>
+        <li><div class="wpp-team__photo wpp-team__photo--todo"><span>Photo to come</span></div><p class="wpp-team__name">Name to confirm</p><p class="wpp-team__role">Web and technology</p></li>
+        <li><div class="wpp-team__photo wpp-team__photo--todo"><span>Photo to come</span></div><p class="wpp-team__name">Name to confirm</p><p class="wpp-team__role">Design</p></li>
+      </ul>
+      <p class="wpp-team-foot" data-reveal>Plus a talented roster of specialists who extend your bench.</p>
+    </div>
+  </section>
+
+  <section class="wpp-section" aria-labelledby="cases-title">
+    <div class="wpp-wrap">
+      <div class="wpp-head" data-reveal>
+        <p class="wpp-eyebrow">Case studies</p>
+        <h2 id="cases-title">Production you can trust with the moment that matters.</h2>
+      </div>
+      <ul class="wpp-caselist" data-reveal>
+        <li><a href="/work#tntp"><span class="wpp-caselist__client">TNTP</span><span class="wpp-caselist__title">Great work, trapped behind a strategic report</span><span class="wpp-caselist__go" aria-hidden="true">&rarr;</span></a></li>
+        <li><a href="/work#ncta"><span class="wpp-caselist__client">NCTA &middot; Ripple Effect</span><span class="wpp-caselist__title">Engaging an audience all year, not just at one event</span><span class="wpp-caselist__go" aria-hidden="true">&rarr;</span></a></li>
+        <li><a href="/work#elc"><span class="wpp-caselist__client">ELC &middot; Mid-Level Managers&rsquo; Symposium</span><span class="wpp-caselist__title">Engaging 200+ virtual attendees</span><span class="wpp-caselist__go" aria-hidden="true">&rarr;</span></a></li>
+        <li><a href="/work#mercury"><span class="wpp-caselist__client">Mercury</span><span class="wpp-caselist__title">A virtual conference for hundreds</span><span class="wpp-caselist__go" aria-hidden="true">&rarr;</span></a></li>
+      </ul>
+      <div class="wpp-stats wpp-stats--two" data-reveal>
         <div class="wpp-stat"><strong>2020</strong><span>the year West Peek Productions began, producing virtual and hybrid events</span></div>
         <div class="wpp-stat"><strong>400+</strong><span>virtual and hybrid events produced since</span></div>
-        <div class="wpp-stat"><strong>4</strong><span>capabilities, led by one creative point of view</span></div>
       </div>
-      <div style="margin-top:56px" data-reveal>
-        <div class="wpp-placeholder">
-          <p class="wpp-placeholder__tag">Placeholder &middot; selected work</p>
-          <h3>Selected work is being cleared with clients.</h3>
-          <p>No client name, logo, asset or number appears on this site until that client has said yes. Approved case studies will sit here and on the Work page.</p>
-          <a class="wpp-link" href="/work">How we write up our work <span aria-hidden="true">&rarr;</span></a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="wpp-section" aria-labelledby="how-title">
-    <div class="wpp-wrap">
-      <div class="wpp-head" data-reveal>
-        <p class="wpp-eyebrow">How a project starts</p>
-        <h2 id="how-title">Diagnosis before deliverables.</h2>
-      </div>
-      <ol class="wpp-steps" data-reveal>
-        <li><h3>Diagnose</h3><p>What is changing or launching, and why now? Who needs to care, and what should they do?</p></li>
-        <li><h3>Recommend</h3><p>The right mix of content, events, brand and digital, with scope, timing and budget in writing.</p></li>
-        <li><h3>Make</h3><p>Specialists produce the work. The creative lead stays on the concept and the decisions that matter.</p></li>
-        <li><h3>Report honestly</h3><p>Reach and engagement are reported apart from organizational outcomes, so you can see what moved.</p></li>
-      </ol>
     </div>
   </section>
 
   <section class="wpp-cta" aria-labelledby="cta-title">
     <div class="wpp-wrap">
-      <h2 id="cta-title">Have a priority initiative?</h2>
-      <p>Tell us what is launching or changing, and who needs to care. Scooter reads every inquiry and follows up himself.</p>
+      <h2 id="cta-title">What do you need people to care about?</h2>
+      <p>Tell us what you are working on, and we will reply by email.</p>
       <a class="wpp-btn" href="/start">Start a project <span aria-hidden="true">&rarr;</span></a>
     </div>
   </section>
@@ -229,31 +220,22 @@
     <div class="wpp-footer__grid">
       <div>
         <div class="wpp-footer__brand"><img src="/assets/img/productions-logo.jpg" alt="" width="44" height="44"><span>West Peek Productions</span></div>
-        <p class="wpp-footer__tag">We make people care.</p>
+        <p class="wpp-footer__tag">We make people <span class="wpp-o wpp-rotate" data-rotate='["care.","take action.","show up.","come back.","belong."]'>care.</span></p>
       </div>
       <nav aria-label="Explore">
         <h2>Explore</h2>
         <ul>
-          <li><a href="/work">Work</a></li>
-          <li><a href="/what-we-do">What we do</a></li>
           <li><a href="/about">About</a></li>
+          <li><a href="/what-we-do">Capabilities</a></li>
+          <li><a href="/work">Case studies</a></li>
           <li><a href="/start">Start a project</a></li>
         </ul>
       </nav>
-      <nav aria-label="Planning resources">
-        <h2>Planning resources</h2>
-        <ul>
-          <li><a href="/event-production-cost">What event production costs</a></li>
-          <li><a href="/virtual-event-planning-checklist">Virtual event planning checklist</a></li>
-          <li><a href="/in-house-vs-agency-event-production">In-house vs agency production</a></li>
-          <li><a href="/how-to-choose-a-virtual-event-platform">Choosing a virtual event platform</a></li>
-        </ul>
-      </nav>
     </div>
-    <div class="wpp-footer__base">&copy; <span id="y">2026</span> West Peek Productions &middot; New York &middot; Atlanta &middot; Memphis</div>
+    <div class="wpp-footer__base">&copy; <span id="y">2026</span> West Peek Productions &middot; Based in Brooklyn, New York</div>
   </div>
 </footer>
 
-<script src="/assets/productions.js" defer></script>
+<script src="/assets/productions.js?v=20261114" defer></script>
 </body>
 </html>

@@ -8,7 +8,9 @@
  *    hidden fields, so they travel in Scooter's email and nowhere else.
  * 2. A gentle reveal on scroll, off under prefers-reduced-motion and for
  *    anyone without IntersectionObserver.
- * 3. The footer year.
+ * 3. The moving "We make people …" line, the capability icons, the form's
+ *    "Something else" box (14 Nov 2026 edits).
+ * 4. The footer year.
  */
 (function () {
   'use strict';
@@ -76,6 +78,62 @@
       });
     }, { rootMargin: '0px 0px -8% 0px' });
     document.querySelectorAll('[data-reveal]').forEach(function (el) { io.observe(el); });
+  }
+
+  document.documentElement.classList.add('wpp-ui');
+
+  // The moving line (Scooter, 14 Nov 2026: "We make people care" in orange, moving, in the hero and
+  // the footer). The element's own text ("care.") is what ships, what screen readers hear and what a
+  // reduced-motion visitor sees; the typed copy beside it is aria-hidden decoration.
+  Array.prototype.forEach.call(document.querySelectorAll('[data-rotate]'), function (el) {
+    if (reduce) return;
+    var words;
+    try { words = JSON.parse(el.getAttribute('data-rotate') || '[]'); } catch (e) { words = []; }
+    words = words.filter(function (w) { return typeof w === 'string' && w.length; });
+    if (words.length < 2) return;
+    var real = el.textContent;
+    el.textContent = '';
+    var sr = document.createElement('span'); sr.className = 'wpp-sr'; sr.textContent = real;
+    var live = document.createElement('span'); live.className = 'wpp-rotate__live'; live.setAttribute('aria-hidden', 'true'); live.textContent = words[0];
+    el.appendChild(sr); el.appendChild(live);
+    var i = 0, pos = words[0].length, erasing = true;
+    function tick() {
+      if (document.hidden) { setTimeout(tick, 500); return; }
+      var w = words[i];
+      if (erasing) {
+        pos -= 1; live.textContent = w.slice(0, pos);
+        if (pos <= 0) { erasing = false; i = (i + 1) % words.length; setTimeout(tick, 300); return; }
+        setTimeout(tick, 32);
+      } else {
+        pos += 1; live.textContent = words[i].slice(0, pos);
+        if (pos >= words[i].length) { erasing = true; setTimeout(tick, 2200); return; }
+        setTimeout(tick, 70);
+      }
+    }
+    setTimeout(tick, 2600);
+  });
+
+  // Capabilities: a tap opens what each one is (hover does the same on a laptop).
+  Array.prototype.forEach.call(document.querySelectorAll('.wpp-capgrid__btn'), function (btn) {
+    btn.addEventListener('click', function () {
+      var open = btn.getAttribute('aria-expanded') !== 'true';
+      btn.setAttribute('aria-expanded', String(open));
+      btn.parentNode.classList.toggle('is-open', open);
+    });
+  });
+
+  // Start a project: "Something else" asks for a few words, and only then.
+  if (form) {
+    var other = form.querySelector('[data-other-field]');
+    var otherInput = other && other.querySelector('input');
+    var sync = function () {
+      var picked = form.querySelector('input[name="need_type"]:checked');
+      var on = Boolean(picked && picked.hasAttribute('data-other'));
+      if (other) other.classList.toggle('is-on', on);
+      if (otherInput) otherInput.required = on;
+    };
+    Array.prototype.forEach.call(form.querySelectorAll('input[name="need_type"]'), function (r) { r.addEventListener('change', sync); });
+    sync();
   }
 
   var y = document.getElementById('y');

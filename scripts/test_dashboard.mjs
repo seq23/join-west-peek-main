@@ -1033,6 +1033,65 @@ const realFetch = globalThis.fetch;
   check('proposal draft: no unknown or team line leaks', !/Specialist/.test(proposalDraft({ name: 'Org A', quote: { lines: [{ line: 'Specialist time', qty: 2, unit: 'hour', team: true, cost: 100 }], price: 100, term: 0, plan: 'signing' }, discovery: null })));
 }
 
+// His Pipeline tab exactly as he describes it (Porter takeover, 14 Nov 2026): a summary block on rows 1-10
+// whose own labels reuse his column words (Stage, Owner, Value, Notes, Organization), the header row on
+// row 11 across A to N (Opportunity through Flag), data from row 12. Read: only the table. Update: only
+// the cell he changes, in place; the summary block, the header row and every other row stay as they were.
+{
+  const g = fakeGoogle();
+  const PIPE = 'PIPELINESHEETID00000000000002';
+  const head = ['Opportunity', 'Organization', 'Contact', 'Service', 'Buyer type', 'Stage', 'Owner', 'Value', 'Probability', 'Expected close', 'Next step', 'Next step date', 'Notes', 'Flag'];
+  const summary = [
+    ['Pipeline', '', '', '', 'Updated', '11/14/2026'],
+    ['Stage', 'Count', 'Value', 'Weighted', 'Owner', 'Open'],
+    ['Discovery', '=COUNTIF(F12:F,"Discovery")', '9', '4.5', 'Lead', '2'],
+    ['Proposal', '=COUNTIF(F12:F,"Proposal")', '9', '2.7', '', ''],
+    ['Organization', 'Stage', 'Value', 'Notes'],
+    ['Org Z (top)', 'Proposal', '9', 'A summary line, not a deal'],
+    [],
+    ['Total', '2', '18', '7.2'],
+    ['Flag', 'Hot', '1'],
+    []
+  ];
+  const pipeline = [...summary, head,
+    ['Org P film', 'Org P', 'Contact P', 'Brand', 'Foundation', 'Discovery', 'Lead', '9', '50%', '12/15/2026', 'Scope call', '11/20/2026', 'His own note', ''],
+    ['Org Q summit', 'Org Q', 'Contact Q', 'Events', 'Brand', 'Proposal', 'Lead', '9', '30%', '1/10/2027', '', '', '', 'Hot']];
+  check('his tracker fixture: header on row 11, A to N, data from row 12', pipeline[10] === head && head.length === 14 && pipeline[11][1] === 'Org P');
+  const { parseGrid } = await import('../functions/_lib/pd/data.mjs');
+  const parsed = parseGrid('deals', pipeline);
+  check('his tracker: the header is row 11, never a summary line that reuses his column words', parsed.headerRow === 10 && parsed.recognised && parsed.idx.org === 1 && parsed.idx.stage === 5 && parsed.idx.notes === 12 && parsed.idx.flag === 13, `headerRow=${parsed.headerRow + 1}`);
+  check('his tracker: exactly his two deals, from rows 12 and 13; nothing from the summary', parsed.rows.length === 2 && parsed.rows[0]._row === 12 && parsed.rows[1]._row === 13 && !parsed.rows.some((r) => /Org Z|Discovery|Total/.test(r.org)));
+  g.sheets[PIPE] = { title: 'Pipeline test 2', tabs: { Pipeline: pipeline } };
+  globalThis.fetch = g.fetch;
+  try {
+    const env = ENV({ google: true });
+    await seedOwner(env);
+    const s = await signIn(env, OWNER, PW);
+    const start = await call(env, '/dashboard/connect', { method: 'POST', cookie: s.cookie, form: { provider: 'google' } });
+    await call(env, `/dashboard/oauth/callback?state=${new URL(start.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
+    await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${PIPE}/edit` } });
+    const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
+    check('his tracker on Deals: two deals, read from row 11, the summary line never shown as a deal', /Deals · 2/.test(deals.text) && /Org P/.test(deals.text) && /Org Q/.test(deals.text) && !/Org Z/.test(deals.text) && /Pipeline, column names on row 11/.test(deals.text));
+    const before = JSON.parse(JSON.stringify(pipeline));
+    await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-p', text: 'Edited on the dashboard', back: '/dashboard/flow/org-p' } });
+    await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-p', stage: 'Proposal', back: '/dashboard/flow/org-p' } });
+    const changed = [];
+    pipeline.forEach((row, r) => (row || []).forEach((v, c) => { if (v !== (before[r] || [])[c]) changed.push(`${String.fromCharCode(65 + c)}${r + 1}`); }));
+    check('his tracker: a note and a stage change through the dashboard write M12 and F12 only, in place', changed.sort().join() === 'F12,M12' && pipeline[11][12] === 'Edited on the dashboard' && pipeline[11][5] === 'Proposal', changed.join());
+    check('his tracker: no row or column added, and the summary block is untouched', pipeline.length === before.length && pipeline.every((row, r) => (row || []).length === (before[r] || []).length) && JSON.stringify(pipeline.slice(0, 11)) === JSON.stringify(before.slice(0, 11)));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+// The Start a project form's multiple choice reaches the dashboard as what they need (Scooter, 14 Nov 2026).
+{
+  const { needFrom } = await import('../functions/_lib/pd/deal.mjs');
+  check('intake: the chosen need is carried, with any extra note', needFrom({ need_type: 'Build community', initiative: 'Alumni network' }) === 'Build community. Alumni network');
+  check('intake: "something else" carries his visitor\'s own words', needFrom({ need_type: 'Other', need_other: 'A podcast for donors' }) === 'Other: A podcast for donors');
+  check('intake: an older submission with only a message still reads', needFrom({ message: 'A summit' }) === 'A summit' && needFrom({}) === '');
+}
+
 if (failures.length) {
   console.error(`test:dashboard FAILED ${failures.length}/${cases}:\n - ${failures.join('\n - ')}`);
   process.exit(1);

@@ -28,6 +28,16 @@ const clip = (v, n = 300) => String(v ?? '').replace(/\r\n/g, '\n').trim().slice
  * Scooter has been decided; any failure here is logged and never changes what the visitor sees
  * (productions forms email Scooter and never reach any network sheet: Sequoia, 22 Sep 2026).
  */
+/**
+ * What they need, from the Start a project form (Scooter, 14 Nov 2026: a multiple-choice "what's your
+ * problem", with "other" and a text box): the choice, the "something else" words, then any extra note.
+ */
+export function needFrom(fields) {
+  const f = (k, n) => clip(fields[k], n);
+  const pick = f('need_type', 120);
+  const choice = pick === 'Other' ? (f('need_other', 300) ? `Other: ${f('need_other', 300)}` : 'Other') : pick;
+  return [choice, f('initiative', 2000) || f('message', 2000)].filter(Boolean).join('. ').slice(0, 2000);
+}
 export async function recordWebInquiry(env, fields, now = Date.now()) {
   const db = dbOf(env);
   if (!db) return 'no_database';
@@ -35,7 +45,7 @@ export async function recordWebInquiry(env, fields, now = Date.now()) {
     await ensureSchema(db);
     const f = (k, n) => clip(fields[k], n);
     await db.prepare('INSERT INTO web_inquiry (at, form, name, org, email, need, timing, budget, heard, page) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .bind(now, f('lead_type', 80), f('name', 200), f('organization', 200) || f('company', 200), f('email', 200).toLowerCase(), f('initiative', 2000) || f('message', 2000), f('timing', 120), f('budget_range', 120), [f('heard_about', 120), f('heard_about_detail', 200)].filter(Boolean).join(' · '), f('source_page', 300)).run();
+      .bind(now, f('lead_type', 80), f('name', 200), f('organization', 200) || f('company', 200), f('email', 200).toLowerCase(), needFrom(fields), f('timing', 120), f('budget_range', 120), [f('heard_about', 120), f('heard_about_detail', 200)].filter(Boolean).join(' · '), f('source_page', 300)).run();
     return 'ok';
   } catch (err) {
     console.error('productions inquiry not kept for the dashboard', String(err).slice(0, 200));
