@@ -48,6 +48,23 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
   const home = (await get('/')).text;
   if ((home.match(/Who we work with/g) || []).length !== 1 || !/We turn the impact you make into compelling marketing\./.test(home) || !/Turnkey production services/.test(home) || !/<ul class="wpp-logos__row">\s*<li><img src="\/assets\/img\/logos\/google\.webp"/.test(home)) fail('page /', 'the 15 Nov polish is not on the homepage');
 }
+{
+  // Item 7 of the 15 Nov round: each case study is ONE <details> (one + opens the problem, what we did,
+  // results and highlighted work together, no nested toggles), Client / Project labels sit in the summary,
+  // the copy Scooter is writing is a marked data-copy-slot (his words: "leave placeholders until I send
+  // it"), and "Get in touch" stays the page's main call to action.
+  const work = (await get('/work')).text;
+  const cases = work.match(/<details class="wpp-acc" id="[a-z0-9-]+">[\s\S]*?<\/details>/g) || [];
+  if (cases.length === 0) fail('page /work', 'no case studies');
+  for (const c of cases) {
+    const id = c.match(/id="([^"]+)"/)[1];
+    if (/<details/.test(c.slice(8))) fail('page /work', `${id} has a nested toggle; one + must open it all`);
+    if (!/wpp-acc__client">Client:/.test(c) || !/wpp-acc__project">Project:/.test(c)) fail('page /work', `${id} lacks the Client / Project labels`);
+    for (const h of ['The problem', 'What we did', 'Results', 'Highlighted work']) if (!c.includes(`>${h}</h3>`)) fail('page /work', `${id} lacks "${h}"`);
+    if (/Copy to come from Scooter/.test(c.replace(/<p class="wpp-tag-placeholder" data-copy-slot="[^"]+">Copy to come from Scooter<\/p>/g, ''))) fail('page /work', `${id} has an unmarked copy placeholder`);
+  }
+  if (!/class="wpp-btn" href="\/get-in-touch">Get in touch/.test(work)) fail('page /work', '"Get in touch" is not the main call to action');
+}
 ok('public pages load with no placeholder text');
 
 // 2. Signed out.
