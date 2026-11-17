@@ -991,6 +991,22 @@ const realFetch = globalThis.fetch;
     const cs = await call(env, '/dashboard/catalog', { method: 'POST', cookie: s.cookie, form: catForm });
     const catRow = await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM catalog').first();
     check('catalog: saved, read back, and stored encrypted (no rate in plain)', /m=catalog_saved/.test(cs.location || '') && catRow && !/700|Discovery workshop/.test(catRow.data_enc));
+    // A rate-card line keeps its tier and quantity through the page's own fields (review, 16 Nov 2026).
+    {
+      const { readCatalog } = await import('../functions/_lib/pd/deal.mjs');
+      await call(env, '/dashboard/catalog', { method: 'POST', cookie: s.cookie, form: { ...catForm, tier_0: 'Gold', qty_0: '2' } });
+      const page = await call(env, '/dashboard/catalog', { cookie: s.cookie });
+      const f = (page.text.match(/<form class="d-form" method="post" action="\/dashboard\/catalog">([\s\S]*?)<\/form>/) || [])[1] || '';
+      const form = {};
+      for (const m of f.matchAll(/<input ([^>]*)>/g)) { const name = (m[1].match(/name="([^"]*)"/) || [])[1]; if (name) form[name] = ((m[1].match(/value="([^"]*)"/) || [])[1] || ''); }
+      for (const m of f.matchAll(/<select id="[^"]*" name="([^"]*)">([\s\S]*?)<\/select>/g)) form[m[1]] = ((m[2].match(/<option value="([^"]*)" selected>/) || [])[1] || '');
+      form.cost_2 = '95';
+      await call(env, '/dashboard/catalog', { method: 'POST', cookie: s.cookie, form });
+      const back = await readCatalog(env, false);
+      const l0 = back.find((l) => l.id === 'L11');
+      check('catalog: a tier and quantity survive correcting another rate on the page', l0?.tier === 'Gold' && l0?.qty === 2 && back.find((l) => l.id === 'L20')?.cost === 95 && back.filter((l) => l.tier).length === 1);
+      await call(env, '/dashboard/catalog', { method: 'POST', cookie: s.cookie, form: catForm });
+    }
     // The quote builder (Scooter, 15 Nov 2026; quote-builder-format.pdf): a service loads its roles and
     // cost categories; people come from a team directory; each role is billed its own way.
     const formOf = (html) => {

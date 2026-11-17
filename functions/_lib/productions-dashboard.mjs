@@ -564,7 +564,7 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
   }
   if (path === '/dashboard/catalog') {
     const n = Math.min(Number(field(form, 'n')) || 0, 201);
-    const lines = Array.from({ length: n }, (_, i) => ({ id: field(form, `id_${i}`) || `N${now.toString(36)}${i}`, line: field(form, `line_${i}`), service: field(form, `service_${i}`), unit: field(form, `unit_${i}`), cost: field(form, `cost_${i}`) }));
+    const lines = Array.from({ length: n }, (_, i) => ({ id: field(form, `id_${i}`) || `N${now.toString(36)}${i}`, line: field(form, `line_${i}`), service: field(form, `service_${i}`), unit: field(form, `unit_${i}`), cost: field(form, `cost_${i}`), tier: field(form, `tier_${i}`), qty: field(form, `qty_${i}`) }));
     const r = await saveCatalog(env, { lines, sample: s }, now);
     return go(r === 'saved' ? 'catalog_saved' : r, '/dashboard/catalog');
   }
