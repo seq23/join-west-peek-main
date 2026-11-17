@@ -619,7 +619,7 @@ export function renderConnections(ctx) {
     ${sec('sheets', 'Your sheets', sheetRows + (sample ? '' : layoutBox(ctx.settings?.['layout:deals'])), '<p class="d-sub">Your sheets are the source of truth. The dashboard reads them and writes quick actions back to the row.</p>')}
     ${sample ? '' : `<form method="post" action="/dashboard/refresh" class="d-sec"><input type="hidden" name="back" value="/dashboard/connections"><button type="submit">Refresh now</button> <a class="d-help" href="/dashboard/check">Check my numbers ›</a></form>`}
     ${sec('choices', 'Your choices', choiceRows, '<p class="d-sub">Open decisions that are yours. Each one changes only when you press a button.</p>')}
-    ${sec('account', 'You', `<div class="d-acts"><a class="d-btn" href="/dashboard/password">Change password</a><form method="post" action="/dashboard/logout"><button type="submit">Sign out</button></form></div><p class="d-sub">Sign out ends this session for good. Your redirect address for app setup is <code>${esc(origin)}/dashboard/oauth/callback</code>.</p>`)}`;
+    ${sec('account', 'Your account', `<div class="d-acts"><a class="d-btn" href="/dashboard/password">Change password</a><form method="post" action="/dashboard/logout"><button type="submit">Sign out</button></form></div><p class="d-sub">Sign out ends this session for good. Your redirect address for app setup is <code>${esc(origin)}/dashboard/oauth/callback</code>.</p>`)}`;
   return page('Connections', body, { tab: 'connections', counts: ctx.counts, sample, signedIn: true });
 }
 function choiceWhy(k) {
