@@ -124,6 +124,8 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+- **Productions site polish** (Scooter, 15 Nov 2026): the WP mark is 34px in the header; the logo strip is "Who we work with" (said once on the page), his order, each logo's width/height attributes set by visual weight (equal area adjusted for ink density); `logoStrip` in `productions.js` makes it a real scroller (hover, focus or touch-and-hold pauses; drag, swipe or trackpad moves it); reduced motion keeps it static and wrapped.
+
 - **The Productions dashboard v1.0 is at westpeekproductions.com/dashboard, Scooter only**
   (Scooter, 13 Nov 2026: "No dashboard page or data without the password. Private figures never in
   the repo or any public file"; "The Productions dashboard is for Scooter only ... the owners list is
@@ -180,9 +182,18 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     Per deal: Discovery (services first as the site's icon tiles, several at once; Organization type,
     objective, scale; his six sales-call notes; guided questions per service; event start/end dates for
     Virtual / hybrid, carried from the Get in touch form),
-    Quote (one card per Discovery service: specialist name and their cost, his only, and the client price
-    HE types; no catalog, per-day line, markup or formula; what is left; 3/6/12-month terms; payments in vs
-    costs out by month; the old catalog page stays, optional, linked only under Virtual / hybrid), Proposal (drafted from quote + discovery: services and his prices, never a specialist, a cost or what is left; edit,
+    Quote (Scooter, 15 Nov 2026, built to his quote-builder-format.pdf: each Discovery service loads its roles
+    and cost categories from `SERVICE_ROLES` in `deal.mjs`, structure only, every box blank; each row has
+    Assigned to (from the team directory, `/dashboard/team`, D1 `team_directory`, encrypted; owner / team
+    member / contractor, a rate per hour, month or job only when known; "Add a new person" on a row saves to
+    the directory), Billed as (`BILLED`: six units, defaulting by role, changeable on the row), its own
+    hours / quantity / months; rows can be left out, custom rows added, a rate typed for one quote only;
+    the Virtual / hybrid card loads a tier of his event rate card (catalog `tier` + `qty` columns). Client
+    price per service is typed, never built from costs; discount lowers price, not cost; owner time is its
+    own cost (`OWNER_MODELS`: hours × rate, monthly, or share of price) apart from overhead and the tax
+    reserve, and the margin names what it includes. An empty box is left out of the math and named, never
+    zero; the margin is provisional until every row is priced and every role has someone assigned.
+    `quoteMath` / `roleCost`. Nothing is labelled "You"), Proposal (drafted from quote + discovery: services and his prices, never a specialist, a cost or what is left; edit,
     draft/sent), Accept → his tracker's signed stage (read back), the work side (team, a task per scope
     line, assets) and a client portal `/portal/<token>` (`functions/portal/[[path]].js`: one client's
     tasks and files marked "client sees"; token stored only as a hash; New link / Turn off). Catalog,
@@ -342,7 +353,7 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   2. LAND merges and deploys.
   3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
 - `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
-- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
+- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
 - `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
 
 ## Secrets

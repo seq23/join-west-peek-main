@@ -42,6 +42,12 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
   if (r.status !== 200) fail(`page ${p}`, `answered ${r.status}`);
   if (PLACEHOLDER.test(r.text)) fail(`page ${p}`, `carries placeholder text (${r.text.match(PLACEHOLDER)[0]})`);
 }
+{
+  // Scooter's 15 Nov 2026 polish round on the homepage: the strip is "Who we work with" (said once), the
+  // Gap line and its support, "Turnkey production services", Google first in the strip.
+  const home = (await get('/')).text;
+  if ((home.match(/Who we work with/g) || []).length !== 1 || !/We turn the impact you make into compelling marketing\./.test(home) || !/Turnkey production services/.test(home) || !/<ul class="wpp-logos__row">\s*<li><img src="\/assets\/img\/logos\/google\.webp"/.test(home)) fail('page /', 'the 15 Nov polish is not on the homepage');
+}
 ok('public pages load with no placeholder text');
 
 // 2. Signed out.
@@ -197,16 +203,41 @@ await post('/dashboard/discovery', [['key', dealKey], ['p_services', 'brand-stra
 const discB = (await get(`${deal}/discovery`, B)).text;
 if (!discB.includes(outcome) || !/First-run department/.test(discB) || !/board or trustees/.test(discB) || !/What should attendees do in the week after the event/.test(discB) || !/name="event_start" type="date" value="2027-03-04"/.test(discB)) fail('discovery', 'services, event dates, call notes or answers do not show on a second device');
 ok('discovery: services first, questions shaped by them, event dates and call notes persist on a second device');
-const q = await post('/dashboard/quote', [['key', dealKey], ['svc', 'brand-strategy'], ['svc', 'virtual-hybrid-events'], ['sp_brand-strategy', 'Sample Specialist'], ['cost_brand-strategy', '2000'], ['price_brand-strategy', '5000'], ['price_virtual-hybrid-events', '1000'], ['term', '3'], ['plan', 'monthly'], ['rationale', 'First-run rationale'], ['back', `${deal}/quote`]], A);
+// The quote builder (Scooter, 15 Nov 2026): the services load their roles; people come from the team
+// directory; each role is billed its own way; price, discount, costs and margin sit together, and the
+// margin is provisional while a role is unpriced or unassigned. Saved, and read on a second device.
+const formOf = (html) => {
+  const out = [];
+  const f = (html.match(/<form class="d-form" method="post" action="\/dashboard\/quote">([\s\S]*?)<\/form>/) || [])[1] || '';
+  for (const m of f.matchAll(/<input ([^>]*)>/g)) {
+    const a = m[1]; const name = (a.match(/name="([^"]*)"/) || [])[1]; if (!name) continue;
+    const value = ((a.match(/value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&');
+    if (/type="checkbox"/.test(a)) { if (/ checked/.test(a)) out.push([name, value]); } else out.push([name, value]);
+  }
+  for (const m of f.matchAll(/<select id="[^"]*" name="([^"]*)">([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
+  return out;
+};
+const q0 = await get(`${deal}/quote`, A);
+if (q0.status !== 200 || !/>Brand lead<\/span>/.test(q0.text) || !/>Account management<\/span>/.test(q0.text) || !/Hourly, hours per month/.test(q0.text) || !/Assigned to/.test(q0.text)) fail('quote', `the services did not load their roles, Assigned to or Billed as (${q0.status})`);
+const td = await post('/dashboard/team', { n: '2', pname_0: 'Sample Person A', ptype_0: 'owner', prate_0: '150', pper_0: 'hour', pname_1: 'Sample Person C', ptype_1: 'contractor', prate_1: '2000', pper_1: 'job', back: `${deal}/quote` }, A);
+if (!/m=team_dir_saved/.test(td.location || '')) fail('team directory', `not saved (${td.location || td.status})`);
+const tdB = (await get('/dashboard/team', B)).text;
+const ids = [...tdB.matchAll(/name="pid_(\d)" value="([^"]+)"/g)].map((x) => x[2]);
+if (!/value="Sample Person A"/.test(tdB) || ids.length !== 2) fail('team directory', 'the people do not show on a second device');
+ok('team directory: an owner and a contractor saved, read on a second device');
+const q1 = await get(`${deal}/quote`, A);
+const body = formOf(q1.text).filter(([k]) => !['rl_brand-strategy_0_who', 'rl_brand-strategy_1_who', 'rl_brand-strategy_1_hours', 'price_brand-strategy', 'price_virtual-hybrid-events', 'term', 'plan', 'rationale'].includes(k));
+body.push(['rl_brand-strategy_0_who', ids[1]], ['rl_brand-strategy_1_who', ids[0]], ['rl_brand-strategy_1_hours', '10'], ['price_brand-strategy', '5000'], ['price_virtual-hybrid-events', '1000'], ['term', '3'], ['plan', 'monthly'], ['rationale', 'First-run rationale']);
+const q = await post('/dashboard/quote', body, A);
 if (!/m=quote_saved/.test(q.location || '')) fail('quote', `not saved (${q.location || q.status})`);
 const qv = await get(`${deal}/quote`, B);
-if (!/value="Sample Specialist"/.test(qv.text) || !/[$]6,000/.test(qv.text) || !/[$]2,000 a month for 3 months/.test(qv.text) || !/Month 3/.test(qv.text) || /qty_|per day/.test(qv.text)) fail('quote', 'the specialist, his typed price, the 3-month bundle or the timing is missing');
-ok('quote: each service with its specialist and cost, his own client price, the 3-month bundle and timing, on a second device');
+if (!/Client price<\/span><strong>[$]6,000/.test(qv.text) || !/Costs so far<\/span><strong>[$]3,500/.test(qv.text) || !/provisional/.test(qv.text) || !/selected>Sample Person C</.test(qv.text) || !/[$]2,000 a month for 3 months/.test(qv.text) || !/Month 3/.test(qv.text)) fail('quote', 'the price, the role costs from the directory, the provisional margin, the assignment or the 3-month bundle is missing on a second device');
+ok('quote: roles priced from the directory, client price, costs and a provisional margin together, the 3-month bundle and timing, on a second device');
 let prop = await get(`${deal}/proposal`, A);
 if (!/Accepted ·|>Accepted</.test(prop.text)) {
   await post('/dashboard/proposal', { key: dealKey, do: 'draft', back: `${deal}/proposal` }, A);
   prop = await get(`${deal}/proposal`, A);
-  if (!/in total/.test(prop.text) || !/First-run rationale/.test(prop.text) || /Sample Specialist|\b2000\b|margin|cost/i.test(((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '').replace(/[$]2,000 a month/g, '')) || /2,000/.test(((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '').replace(/[$]2,000 a month/g, ''))) fail('proposal', 'the draft lacks the price or rationale, or shows a specialist or a cost');
+  if (!/in total/.test(prop.text) || !/First-run rationale/.test(prop.text) || /Sample Person|Brand lead|Account management|\b150\b|3,500|margin|cost|owner time|overhead/i.test((prop.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '')) fail('proposal', 'the draft lacks the price or rationale, or shows a role, a person, a rate or a cost');
   const accepted = await post('/dashboard/proposal', { key: dealKey, do: 'accept', team: 'Sample Lead: account lead', back: `${deal}/proposal` }, A);
   if (!/delivery\?m=accepted/.test(accepted.location || '')) fail('accepted', `delivery did not start (${accepted.location || accepted.status})`);
 }
@@ -218,7 +249,7 @@ const dv = await get(`${deal}/delivery`, B);
 if (!/Account team/.test(dv.text) || !/>Brand strategy</.test(dv.text)) fail('delivery', 'no team or a task per service on the work side');
 const portal = await get(`/portal/${token}`);
 const portalText = portal.text.replace(/<style>[\s\S]*?<\/style>/, '');
-if (portal.status !== 200 || !/Brand strategy/.test(portalText) || /[$]|Sample Specialist|2000|2,000|First-run rationale|First-run note|Sample Org E|margin|floor|cost/i.test(portalText)) fail('portal', `the client page is missing its tasks or shows money or another client (${portal.status})`);
+if (portal.status !== 200 || !/Brand strategy/.test(portalText) || /[$]|Sample Person|Brand lead|2000|2,000|3,500|First-run rationale|First-run note|Sample Org E|margin|floor|cost/i.test(portalText)) fail('portal', `the client page is missing its tasks or shows money or another client (${portal.status})`);
 await post('/dashboard/delivery/portal', { key: dealKey, do: 'off', back: `${deal}/delivery` }, A);
 if ((await get(`/portal/${token}`)).status !== 404) fail('portal', 'a turned-off portal link still opens');
 ok('delivery: team and tasks; the client portal shows their tasks, no money, and stops when turned off');

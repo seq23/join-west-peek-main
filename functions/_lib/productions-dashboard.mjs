@@ -23,7 +23,7 @@
  *   POST /cron/sync       (the cron Worker, every 15 minutes; secret checked against a hash in D1)
  */
 import { dbOf, ensureSchema } from './pd/schema.mjs';
-import { canEncrypt as canEncryptCheck, dashboardHost, isPreviewHost, isProductionHost, sha256b64, sameText, secretMatches, hashSecret } from './pd/core.mjs';
+import { canEncrypt as canEncryptCheck, dashboardHost, isPreviewHost, isProductionHost, randomToken, sha256b64, sameText, secretMatches, hashSecret } from './pd/core.mjs';
 import {
   OWNER_IDS, MIN_PASSWORD, SAMPLE_ID, checkPasswordSignIn, clearCookies, createSession, findOwnerByEmail, issueOneTimePassword,
   overLimit, revokeOtherSessions, revokeSession, saveOwner, sessionFromRequest, upgradeLegacyCookie, countFail, countRefused
@@ -37,7 +37,7 @@ import * as V from './pd/views.mjs';
 import * as D from './pd/views-deal.mjs';
 import {
   addAsset, addTask, catalogFromGrid, cleanQuote, deliveryOf, intakeAll, latestDiscovery, latestProposal, latestQuote, newPortal, portalView,
-  proposalDraft, readCatalog, revokePortal, rulesWalk, saveCatalog, saveDiscovery, saveIntake, saveProposal, saveQuote, saveTeam, setTask, startDelivery, validKey
+  proposalDraft, readCatalog, readDirectory, rolesFromCatalog, saveDirectory, revokePortal, rulesWalk, saveCatalog, saveDiscovery, saveIntake, saveProposal, saveQuote, saveTeam, setTask, startDelivery, validKey
 } from './pd/deal.mjs';
 import { readSheetGrid } from './pd/data.mjs';
 import { wideGoogleScopes } from './pd/providers.mjs';
@@ -132,7 +132,7 @@ async function context(env, session, url, now) {
 
 const DEAL_WORDS = {
   intake_saved: 'Saved. It shows on this record on every device.', discovery_saved: 'Answers saved. They show on every device, and the quote starts from them.',
-  quote_saved: 'Quote saved and read back. Your costs stay on this page; the client never sees them.', catalog_saved: 'Catalog saved and read back, encrypted.', catalog_read: 'Your rate card was read into the catalog. Check the lines, then build a quote.',
+  quote_saved: 'Quote saved and read back. Costs, rates, names and margin stay on this page; the client never sees them.', team_dir_saved: 'Directory saved and read back, encrypted.', catalog_saved: 'Catalog saved and read back, encrypted.', catalog_read: 'Your rate card was read into the catalog. Check the lines, then build a quote.',
   proposal_saved: 'Proposal saved.', proposal_drafted: 'A first draft was written from your quote. Edit it, then save it.', accepted: 'Accepted. The deal moved in your tracker, and delivery is set up below.',
   accepted_stage_failed: 'Accepted and delivery set up, but your tracker did not show the new stage when read back. Open your tracker to check it.',
   team_saved: 'Team saved.', task_saved: 'Task saved.', asset_saved: 'Asset added.', portal_off: 'The portal is off. No link opens it now.', portal_new: 'A new portal link was made. The old one no longer works.',
@@ -141,7 +141,7 @@ const DEAL_WORDS = {
   deal_failed: 'That did not save. Nothing was changed.', bad_link: 'That link could not be used. Use an https link.', no_rate_card: 'No Item and Rate (or Cost) columns were found in that sheet. Nothing was changed.',
   needs_tracker: 'Add them to your tracker first, so the deal can move there.', note_kept_here: 'Note saved here. Your tracker has no Notes column, so it was not written there.', already_in_tracker: 'They are already in your tracker.'
 };
-const DEAL_GOOD = ['intake_saved', 'discovery_saved', 'quote_saved', 'catalog_saved', 'catalog_read', 'proposal_saved', 'proposal_drafted', 'accepted', 'team_saved', 'task_saved', 'asset_saved', 'portal_off', 'portal_new', 'lead_added', 'copies_deleted', 'note_kept_here'];
+const DEAL_GOOD = ['intake_saved', 'discovery_saved', 'quote_saved', 'team_dir_saved', 'catalog_saved', 'catalog_read', 'proposal_saved', 'proposal_drafted', 'accepted', 'team_saved', 'task_saved', 'asset_saved', 'portal_off', 'portal_new', 'lead_added', 'copies_deleted', 'note_kept_here'];
 
 /** A client's portal: their own page, no sign-in, nothing but what is marked for them. */
 export async function handlePortal({ request, env = {} }) {
@@ -364,7 +364,7 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
       // Preview only: put the sample rows back as they started (first-run uses it when every sample deal has moved on).
       if (path === '/dashboard/sample/reset') {
         await db.prepare('DELETE FROM sample_sheet').run();
-        for (const t of ['tick', 'intake', 'discovery', 'catalog', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal']) await db.prepare(`DELETE FROM ${t} WHERE sample = 1`).run();
+        for (const t of ['tick', 'intake', 'discovery', 'catalog', 'team_directory', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal']) await db.prepare(`DELETE FROM ${t} WHERE sample = 1`).run();
       }
       return redirect('/dashboard');
     }
@@ -428,16 +428,18 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     const j = journeys(ctx.view, { notes: ctx.notes, now }).find((x) => x.key === key);
     if (!j) return redirect('/dashboard');
     const s = session.sample;
-    const deal = { ...ctx, discovery: await latestDiscovery(env, key, s), quote: await latestQuote(env, key, s), proposal: await latestProposal(env, key, s), delivery: await deliveryOf(env, key, s) };
+    const held = moneyHeld(ctx);
+    const deal = { ...ctx, discovery: await latestDiscovery(env, key, s), quote: await latestQuote(env, key, s), proposal: await latestProposal(env, key, s), delivery: await deliveryOf(env, key, s), directory: held ? [] : await readDirectory(env, s) };
     if (part === 'discovery') {
       return html(D.renderDiscovery(j, deal));
     }
-    if (part === 'quote') return html(D.renderQuote(j, deal));
+    if (part === 'quote') return html(D.renderQuote(j, { ...deal, catalog: held ? null : await readCatalog(env, s) }));
     if (part === 'proposal') return html(D.renderProposal(j, deal));
     if (part === 'delivery') return html(D.renderDelivery(j, deal, { origin: url.origin, token: /^[A-Za-z0-9_-]{20,64}$/.test(url.searchParams.get('portal') || '') ? url.searchParams.get('portal') : '' }));
     if (part) return redirect(`/dashboard/flow/${encodeURIComponent(key)}`);
     return html(V.renderFlowRecord(ctx.view, j, { ...deal, history: await noteHistory(env, key, s) }));
   }
+  if (path === '/dashboard/team') return html(D.renderTeam({ ...ctx, back: safeBack(url.searchParams.get('back') || '', '/dashboard'), directory: moneyHeld(ctx) ? [] : await readDirectory(env, session.sample) }));
   if (path === '/dashboard/catalog') return html(D.renderCatalog({ ...ctx, catalog: moneyHeld(ctx) ? null : await readCatalog(env, session.sample) }));
   if (path === '/dashboard/access') {
     return html(V.renderAccess({ ...ctx, access: await fileAccess(env, ctx.view, { sample: session.sample }), counts_stored: session.sample ? null : await storedCounts(env) }));
@@ -475,7 +477,7 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
   const needsKey = ['/dashboard/intake', '/dashboard/discovery', '/dashboard/quote', '/dashboard/proposal', '/dashboard/delivery/team', '/dashboard/delivery/task', '/dashboard/delivery/task/set', '/dashboard/delivery/asset', '/dashboard/delivery/portal'];
   if (needsKey.includes(path) && !validKey(key)) return redirect('/dashboard');
   // Money inputs (rates, quotes, prices, proposals) wait for the narrow Google grant and Money on.
-  const moneyPaths = ['/dashboard/quote', '/dashboard/catalog', '/dashboard/catalog/import', '/dashboard/proposal'];
+  const moneyPaths = ['/dashboard/quote', '/dashboard/team', '/dashboard/catalog', '/dashboard/catalog/import', '/dashboard/proposal'];
   if (moneyPaths.includes(path)) {
     const connections = s ? [] : await listConnections(env);
     const g = connections.find((c) => c.provider === 'google');
@@ -515,11 +517,50 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
     return go((await saveDiscovery(env, { key, profile, answers, event, sample: s }, now)) === 'saved' ? 'discovery_saved' : 'deal_failed', dealBack(key, 'discovery'));
   }
   if (path === '/dashboard/quote') {
-    // One entry per service the page carried from Discovery (svc); his typed figures only.
-    const services = form.getAll('svc').map(String).map((id) => ({ id, specialist: field(form, `sp_${id}`), cost: field(form, `cost_${id}`), price: field(form, `price_${id}`), month: field(form, `month_${id}`) }));
-    const raw = { services, term: field(form, 'term'), months: field(form, 'months'), plan: field(form, 'plan'), split: field(form, 'split'), rationale: field(form, 'rationale'), title: field(form, 'title') };
+    // One entry per service the page carried from Discovery (svc), each with every row it showed.
+    // A person added on a row goes into the team directory first, then is assigned to that row.
+    const added = [];
+    const catalog = await readCatalog(env, s);
+    const services = [...new Set(form.getAll('svc').map(String))].map((id) => {
+      const n = Math.min(Number(field(form, `rn_${id}`)) || 0, 60);
+      const roles = [];
+      for (let i = 0; i < n; i += 1) {
+        const f = (k) => field(form, `rl_${id}_${i}_${k}`);
+        let who = f('who') === '__new' ? '' : f('who');
+        if (f('newname').trim()) {
+          const person = { id: `p${randomToken(6)}`, name: f('newname').trim(), type: f('newtype'), rate: f('newrate'), per: f('newper') };
+          added.push(person);
+          who = person.id;
+        }
+        roles.push({ rid: f('rid'), name: f('name'), kind: f('kind'), billed: f('billed'), who, rate: f('rate'), qty: f('qty'), hours: f('hours'), months: f('months'), out: f('out'), custom: f('custom'), std: f('std'), stdPer: f('stdper'), card: f('card') });
+      }
+      if (field(form, `nr_${id}_name`).trim()) roles.push({ rid: `u${randomToken(4)}`, name: field(form, `nr_${id}_name`).trim(), kind: field(form, `nr_${id}_kind`), billed: '', custom: '1' });
+      const tier = form.get(`tier_${id}`);
+      if (typeof tier === 'string' && tier !== '__none') roles.push(...rolesFromCatalog(catalog, id, tier));
+      return { id, price: field(form, `price_${id}`), month: field(form, `month_${id}`), ...(n || roles.length ? { roles } : {}) };
+    });
+    if (added.length) {
+      const dir = await readDirectory(env, s);
+      const d = await saveDirectory(env, { people: [...dir, ...added], sample: s }, now);
+      if (d !== 'saved') return go(d === 'no_token_key' ? 'no_token_key' : 'deal_failed', dealBack(key, 'quote'));
+    }
+    const raw = {
+      services, term: field(form, 'term'), months: field(form, 'months'), plan: field(form, 'plan'), split: field(form, 'split'), rationale: field(form, 'rationale'), title: field(form, 'title'),
+      discount: { mode: field(form, 'disc_mode'), value: field(form, 'disc') },
+      ownerPlan: { model: field(form, 'own_model'), who: field(form, 'own_who'), hours: field(form, 'own_hours'), rate: field(form, 'own_rate'), monthly: field(form, 'own_monthly'), share: field(form, 'own_share') },
+      overhead: { mode: field(form, 'ov_mode'), value: field(form, 'ov_value') }, taxReserve: field(form, 'tax'),
+      include: { owner: field(form, 'inc_owner'), overhead: field(form, 'inc_overhead'), tax: field(form, 'inc_tax') }
+    };
     const r = await saveQuote(env, { key, quote: cleanQuote(raw), sample: s }, now);
     return go(r.outcome === 'saved' ? 'quote_saved' : r.outcome === 'no_token_key' ? 'no_token_key' : 'deal_failed', dealBack(key, 'quote'));
+  }
+  if (path === '/dashboard/team') {
+    const to = safeBack(field(form, 'back'), '/dashboard/team');
+    const n = Math.min(Number(field(form, 'n')) || 0, 202);
+    const people = [];
+    for (let i = 0; i < n; i += 1) if (field(form, `pname_${i}`).trim()) people.push({ id: field(form, `pid_${i}`), name: field(form, `pname_${i}`).trim(), type: field(form, `ptype_${i}`), rate: field(form, `prate_${i}`), per: field(form, `pper_${i}`) });
+    const r = await saveDirectory(env, { people, sample: s }, now);
+    return redirect(`/dashboard/team?m=${r === 'saved' ? 'team_dir_saved' : r === 'no_token_key' ? 'no_token_key' : 'deal_failed'}&back=${encodeURIComponent(to)}`);
   }
   if (path === '/dashboard/catalog') {
     const n = Math.min(Number(field(form, 'n')) || 0, 201);

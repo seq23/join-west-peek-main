@@ -213,7 +213,8 @@ export async function readCatalog(env, sample) {
   return Array.isArray(c) && c.length ? c.map((l) => ({ ...l, service: OLD_SERVICE[l.service] || l.service })) : CATALOG_STRUCTURE.map((x) => ({ ...x }));
 }
 export function cleanCatalog(lines) {
-  return lines.map((l, i) => ({ id: clip(l.id, 20) || `L${i + 1}`, service: SERVICE_NAMES[l.service] ? l.service : 'team', line: clip(l.line, 120), unit: clip(l.unit, 30) || 'each', cost: num(l.cost), team: l.service === 'team' || Boolean(l.team) })).filter((l) => l.line).slice(0, 200);
+  // Tier and quantity keep his event rate card's tiers and quantities (Scooter, 15 Nov 2026).
+  return lines.map((l, i) => ({ id: clip(l.id, 20) || `L${i + 1}`, service: SERVICE_NAMES[l.service] ? l.service : 'team', line: clip(l.line, 120), unit: clip(l.unit, 30) || 'each', cost: num(l.cost), team: l.service === 'team' || Boolean(l.team), ...(clip(l.tier, 60) ? { tier: clip(l.tier, 60) } : {}), ...(num(l.qty) !== null ? { qty: num(l.qty) } : {}) })).filter((l) => l.line).slice(0, 200);
 }
 export async function saveCatalog(env, { lines, sample }, now = Date.now()) {
   const db = dbOf(env);
@@ -229,13 +230,13 @@ export async function saveCatalog(env, { lines, sample }, now = Date.now()) {
 /** Lines from his own rate card grid (Service / Item / Unit / Rate or Cost columns), wherever its header row sits. */
 export function catalogFromGrid(grid) {
   const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
-  const want = { service: ['service', 'serviceline', 'category', 'capability'], line: ['item', 'line', 'lineitem', 'deliverable', 'description', 'name'], unit: ['unit', 'per', 'units'], cost: ['cost', 'costrate', 'rate', 'ourcost', 'internalrate', 'unitcost'] };
+  const want = { service: ['service', 'serviceline', 'category', 'capability'], line: ['item', 'line', 'lineitem', 'deliverable', 'description', 'name'], unit: ['unit', 'per', 'units'], cost: ['cost', 'costrate', 'rate', 'ourcost', 'internalrate', 'unitcost'], tier: ['tier', 'package', 'level', 'tierpackage'], qty: ['qty', 'quantity', 'quantities', 'count', 'number'] };
   for (let r = 0; r < Math.min(grid.length, 40); r += 1) {
     const head = (grid[r] || []).map(norm);
     const idx = Object.fromEntries(Object.entries(want).map(([k, names]) => [k, head.findIndex((h) => names.includes(h))]));
     if (idx.line < 0 || idx.cost < 0) continue;
-    const guess = (s) => { const n = norm(s); return Object.entries(SERVICE_NAMES).find(([k, v]) => n.includes(k) || n.includes(norm(v).slice(0, 6)))?.[0] || 'team'; };
-    return grid.slice(r + 1).filter((row) => String(row?.[idx.line] ?? '').trim()).map((row, i) => ({ id: `R${i + 1}`, service: idx.service > -1 ? guess(row[idx.service]) : 'team', line: String(row[idx.line]).trim(), unit: idx.unit > -1 ? String(row[idx.unit] || '').trim() : 'each', cost: num(row[idx.cost]) }));
+    const guess = (s) => { const n = norm(s); return serviceFrom(s) || Object.entries(SERVICE_NAMES).find(([k, v]) => n.includes(norm(k)) || n.includes(norm(v).slice(0, 6)))?.[0] || 'team'; };
+    return grid.slice(r + 1).filter((row) => String(row?.[idx.line] ?? '').trim()).map((row, i) => ({ id: `R${i + 1}`, service: idx.service > -1 ? guess(row[idx.service]) : (serviceFrom(row[idx.line]) || 'team'), line: String(row[idx.line]).trim(), unit: idx.unit > -1 ? String(row[idx.unit] || '').trim() : 'each', cost: num(row[idx.cost]), ...(idx.tier > -1 && String(row[idx.tier] || '').trim() ? { tier: String(row[idx.tier]).trim().slice(0, 60) } : {}), ...(idx.qty > -1 && num(row[idx.qty]) !== null ? { qty: num(row[idx.qty]) } : {}) }));
   }
   return null;
 }
@@ -243,66 +244,233 @@ export function catalogFromGrid(grid) {
 /* ------------------------------------------------------------------ the pricing builder */
 
 export const TERMS = { 0: 'One project', 3: '3-month package', 6: '6-month package', 12: '12-month package' };
-export const PAY_PLANS = { signing: 'All at signing', split: 'Half at signing, half at delivery', monthly: 'Monthly, paid at the start of each month', custom: 'My own split (for example 30/30/20/20)' };
+export const PAY_PLANS = { signing: 'All at signing', split: 'Half at signing, half at delivery', monthly: 'Monthly, paid at the start of each month', custom: 'A custom split (for example 30/30/20/20)' };
 
 /**
- * The quote, the way he makes it (Scooter, 15 Nov 2026: "For each service, let me enter the
- * specialist's name and their cost, then set my client price myself. No automatic markup or
- * client-price formula. These internal costs must stay separate from anything the client sees").
- * The services come from Discovery. Each has a specialist and their cost (internal, his only) and his
- * client price (typed by him; never suggested, derived or marked up here). This only ADDS what he
- * typed: specialist costs, his client prices, what is left between them, and when money moves.
- * A cost or price left blank is named, never counted as zero.
+ * How each role is billed (Scooter, 15 Nov 2026, quote-builder-format.pdf "Billing units that fit the
+ * work"). `needs` are the boxes the cost is built from; `per` is the unit a standard rate must be in.
  */
-export function quoteServices(q = {}) {
-  if (Array.isArray(q.services)) return q.services;
-  // A quote saved before 15 Nov 2026 (catalog lines): each line read as one item, its cost kept.
-  return (q.lines || []).filter((l) => num(l.qty) > 0).map((l) => ({ id: l.id, name: l.line, specialist: '', cost: num(l.cost) === null ? null : num(l.qty) * num(l.cost), price: null, team: Boolean(l.team) }));
+export const BILLED = {
+  job: { label: 'Flat fee for the whole job', needs: ['rate'], per: 'job' },
+  month: { label: 'Flat fee per month', needs: ['rate', 'months'], per: 'month' },
+  unit: { label: 'Flat fee per episode or event', needs: ['rate', 'qty'], per: 'job' },
+  hourly_month: { label: 'Hourly, hours per month', needs: ['rate', 'hours', 'months'], per: 'hour' },
+  hourly_unit: { label: 'Hourly, hours per episode or event', needs: ['rate', 'hours', 'qty'], per: 'hour' },
+  hourly_total: { label: 'Hourly, total hours for the job', needs: ['rate', 'hours'], per: 'hour' }
+};
+/** What each box is called on a role row, by billing. */
+export const BOX_WORDS = { rate: 'Rate', qty: 'Episodes or events', hours: { hourly_month: 'Hours a month', hourly_unit: 'Hours each', hourly_total: 'Total hours' }, months: 'Months' };
+export const RATE_PER = { hour: 'an hour', month: 'a month', job: 'a job' };
+/** People in the team directory are one of these; roles are kept apart from people. */
+export const PERSON_TYPES = { owner: 'Owner', team: 'Team member', contractor: 'Contractor' };
+/** A row on a service is a role (someone does it) or another cost (a booking, licence or tool). */
+export const ROLE_KINDS = { role: 'A role (someone does it)', cost: 'Another cost (a booking, licence or tool)' };
+const KIND_DEFAULT_BILLED = { role: 'hourly_total', cost: 'job' };
+
+const R = (name, billed, kind = 'role') => ({ name, billed, kind });
+/**
+ * What choosing a service loads: its roles and cost categories, each with the billing that fits it
+ * (Scooter, 15 Nov 2026: "Choosing a service loads its roles and cost categories (including strategy,
+ * account management, coordination)"). Structure only: no rate, quantity, hours or months is filled in.
+ */
+export const SERVICE_ROLES = {
+  'content-production': [R('Strategy and planning', 'hourly_month'), R('Account management', 'hourly_month'), R('Coordination', 'hourly_month'), R('Producer', 'unit'), R('Camera and crew per shoot', 'unit'), R('Video editor per piece', 'unit'), R('Graphics and templates', 'month'), R('Gear, locations and talent', 'unit', 'cost')],
+  'podcast-production': [R('Strategy and planning', 'hourly_month'), R('Account management', 'hourly_month'), R('Coordination', 'hourly_unit'), R('Editor per episode', 'unit'), R('Clip cutter', 'unit'), R('Graphics and templates', 'month'), R('Studio booking (pass-through)', 'unit', 'cost')],
+  'virtual-hybrid-events': [R('Strategy and run of show', 'job'), R('Account management', 'hourly_total'), R('Coordination', 'hourly_total'), R('Production manager', 'unit'), R('Technical director and platform operator', 'unit'), R('Stage, AV and crew', 'unit', 'cost'), R('Event platform licence', 'job', 'cost'), R('Venue and hospitality (pass-through)', 'job', 'cost')],
+  'community-as-a-service': [R('Strategy and planning', 'hourly_month'), R('Account management', 'hourly_month'), R('Coordination', 'hourly_month'), R('Community lead', 'month'), R('Content and graphics', 'month'), R('Community tools and platforms', 'month', 'cost')],
+  'brand-strategy': [R('Brand lead', 'job'), R('Strategy and planning', 'hourly_total'), R('Account management', 'hourly_total'), R('Coordination', 'hourly_total'), R('Designer', 'job'), R('Licences and fonts', 'job', 'cost')],
+  'web-development': [R('Strategy and planning', 'hourly_total'), R('Account management', 'hourly_total'), R('Coordination', 'hourly_total'), R('Designer', 'job'), R('Developer', 'hourly_total'), R('Content writing', 'job'), R('Hosting and tools', 'month', 'cost')]
+};
+export function templateRoles(serviceId) {
+  return (SERVICE_ROLES[serviceId] || []).map((r, i) => ({ rid: `t${i + 1}`, name: r.name, kind: r.kind, billed: r.billed, who: '', rate: null, qty: null, hours: null, months: null, out: false, custom: false, std: null, stdPer: '' }));
 }
-export function quoteMath(q) {
+
+/** The event rate card's lines (his catalog, his tiers and quantities) as rows on a service. */
+const UNIT_TO_BILLED = (unit) => {
+  const u = String(unit || '').toLowerCase();
+  if (/hour|hr/.test(u)) return { billed: 'hourly_total', box: 'hours', per: 'hour' };
+  if (/month/.test(u)) return { billed: 'month', box: 'months', per: 'month' };
+  return { billed: 'unit', box: 'qty', per: 'job' };
+};
+export function catalogTiers(catalog, serviceId) {
+  const lines = (catalog || []).filter((l) => l.service === serviceId);
+  return [...new Set(lines.map((l) => l.tier || ''))];
+}
+export function rolesFromCatalog(catalog, serviceId, tier) {
+  return (catalog || []).filter((l) => l.service === serviceId && (l.tier || '') === (tier || '')).map((l, i) => {
+    const u = UNIT_TO_BILLED(l.unit);
+    return { rid: `c${l.id || i + 1}`, name: l.line, kind: 'cost', billed: u.billed, who: '', rate: null, qty: null, hours: null, months: null, [u.box]: num(l.qty), out: false, custom: false, std: num(l.cost), stdPer: u.per, card: tier || 'rate card' };
+  });
+}
+
+/* The team directory: people, kept apart from roles. A rate is only there when it is known. */
+export function cleanPeople(list) {
+  const seen = new Set();
+  return (list || []).map((p) => ({ id: /^[A-Za-z0-9_-]{2,24}$/.test(String(p.id || '')) ? String(p.id) : `p${randomToken(6)}`, name: clip(p.name, 120), type: PERSON_TYPES[p.type] ? p.type : 'contractor', rate: num(p.rate), per: RATE_PER[p.per] ? p.per : 'hour' }))
+    .filter((p) => p.name && !seen.has(p.id) && seen.add(p.id)).slice(0, 200);
+}
+export async function readDirectory(env, sample) {
+  const d = await sealed(env, 'SELECT data_enc FROM team_directory WHERE sample = ?', [sample ? 1 : 0]);
+  return Array.isArray(d) ? d : [];
+}
+export async function saveDirectory(env, { people, sample }, now = Date.now()) {
+  const db = dbOf(env);
+  await ensureSchema(db);
+  const clean = cleanPeople(people);
+  let blob;
+  try { blob = await encryptJson(env, clean); } catch { return 'no_token_key'; }
+  await db.prepare('INSERT INTO team_directory (sample, data_enc, at) VALUES (?,?,?) ON CONFLICT(sample) DO UPDATE SET data_enc = excluded.data_enc, at = excluded.at').bind(sample ? 1 : 0, blob, now).run();
+  const back = await readDirectory(env, sample);
+  return JSON.stringify(back) === JSON.stringify(clean) ? 'saved' : 'failed';
+}
+
+/**
+ * One role's rate and cost. The rate typed on the quote wins (this quote only; the standard rate is
+ * not changed), then the rate card's standard rate, then the assigned person's standard rate when it
+ * is in the unit the billing needs. Any box the billing needs that is empty makes the cost unknown:
+ * left out of the math and named, never counted as zero.
+ */
+export function roleCost(r, dir = []) {
+  const b = BILLED[r.billed] || BILLED.job;
+  const person = dir.find((p) => p.id === r.who) || null;
+  let rate = num(r.rate); let from = rate === null ? '' : 'quote';
+  if (rate === null && num(r.std) !== null && (!r.stdPer || r.stdPer === b.per)) { rate = num(r.std); from = 'card'; }
+  if (rate === null && person && num(person.rate) !== null && person.per === b.per) { rate = num(person.rate); from = 'directory'; }
+  const vals = { rate, qty: num(r.qty), hours: num(r.hours), months: num(r.months) };
+  const missing = b.needs.filter((k) => vals[k] === null);
+  const cost = missing.length ? null : b.needs.reduce((a, k) => a * vals[k], 1);
+  const mismatch = rate === null && person && num(person.rate) !== null && person.per !== b.per;
+  return { cost, rate, from, missing, person, mismatch };
+}
+
+/** The services on a quote, each with its rows, its known cost and the client price typed for it. */
+export function quoteServices(q = {}, dir = []) {
+  if (Array.isArray(q.services)) {
+    return q.services.map((x) => {
+      if (!Array.isArray(x.roles)) return { ...x, roles: null };
+      const rows = x.roles.map((r) => ({ ...r, ...roleCost(r, dir) }));
+      const live = rows.filter((r) => !r.out);
+      const known = live.filter((r) => r.cost !== null);
+      return { ...x, rows, cost: known.length ? known.reduce((a, r) => a + r.cost, 0) : (live.length ? null : 0), unknown: live.filter((r) => r.cost === null).length };
+    });
+  }
+  // A quote saved before 15 Nov 2026 (catalog lines): each line read as one item, its cost kept.
+  return (q.lines || []).filter((l) => num(l.qty) > 0).map((l) => ({ id: l.id, name: l.line, specialist: '', cost: num(l.cost) === null ? null : num(l.qty) * num(l.cost), price: null, team: Boolean(l.team), roles: null }));
+}
+export const OWNER_MODELS = { hours: 'Hours at an hourly rate', monthly: 'A set amount each month of the engagement', share: 'A share of the client price (after discount)' };
+
+/**
+ * The numbers, kept apart (quote-builder-format.pdf "How the numbers read"): the client price is set
+ * by the value of the work and never built from costs; costs are roles at their billed unit plus other
+ * costs, internal only; a discount lowers the price, not the cost, so it comes out of margin; margin is
+ * price minus the costs it includes, provisional while anything it includes is unpriced or unassigned.
+ * Owner time is its own visible cost (planned one of three ways), apart from overhead and the tax
+ * reserve; which of those the margin includes is shown and chosen on the quote.
+ */
+export function quoteMath(q, dir = []) {
   const term = TERMS[q.term] !== undefined ? Number(q.term) : 0;
   const months = Math.max(1, term || Number(q.months) || 1);
-  const items = quoteServices(q);
-  const costed = items.filter((x) => num(x.cost) !== null);
+  const items = quoteServices(q, dir);
+  const rows = items.flatMap((x) => (x.rows || []).filter((r) => !r.out).map((r) => ({ ...r, service: x.name })));
+  const sum = (list) => list.reduce((a, r) => a + r.cost, 0);
+  const isOwner = (r) => r.person?.type === 'owner';
+  const known = (list) => list.filter((r) => r.cost !== null);
+  const groups = {
+    people: sum(known(rows.filter((r) => r.kind !== 'cost' && !isOwner(r)))),
+    ownerRoles: sum(known(rows.filter((r) => r.kind !== 'cost' && isOwner(r)))),
+    other: sum(known(rows.filter((r) => r.kind === 'cost')))
+  };
+  // Older quotes (one cost per service) still add up.
+  const legacy = items.filter((x) => !x.rows && num(x.cost) !== null).reduce((a, x) => a + num(x.cost), 0);
+  groups.people += legacy;
+  const unpriced = [...rows.filter((r) => r.cost === null).map((r) => `${r.service} · ${r.name}`), ...items.filter((x) => !x.rows && num(x.cost) === null).map((x) => x.name)];
+  const unassigned = rows.filter((r) => r.kind !== 'cost' && !r.person).map((r) => `${r.service} · ${r.name}`);
+  const cost = groups.people + groups.ownerRoles + groups.other;
+
   const priced = items.filter((x) => num(x.price) !== null);
-  const cost = costed.reduce((a, x) => a + num(x.cost), 0);
-  const typedTotal = priced.length ? priced.reduce((a, x) => a + num(x.price), 0) : null;
-  // A whole-quote price typed before 15 Nov 2026 still counts when no service carries one.
-  const price = typedTotal ?? num(q.price);
-  const margin = price === null ? null : { amount: price - cost, atMost: costed.length < items.length, belowCost: price < cost };
+  const price = priced.length ? priced.reduce((a, x) => a + num(x.price), 0) : num(q.price);
+  const d = q.discount || {};
+  const dv = num(d.value);
+  const discount = price === null || dv === null ? null : d.mode === 'pct' ? (price * dv) / 100 : dv;
+  const net = price === null ? null : price - (discount || 0);
+
+  const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: q.include?.tax !== false };
+  const o = q.ownerPlan || {};
+  const ownerPerson = dir.find((p) => p.id === o.who) || null;
+  const ownerRate = num(o.rate) ?? (ownerPerson && ownerPerson.per === 'hour' ? num(ownerPerson.rate) : null);
+  const ownerTime = o.model === 'hours' ? (num(o.hours) === null || ownerRate === null ? null : num(o.hours) * ownerRate)
+    : o.model === 'monthly' ? (num(o.monthly) === null ? null : num(o.monthly) * months)
+      : o.model === 'share' ? (num(o.share) === null || net === null ? null : (net * num(o.share)) / 100) : null;
+  const ov = q.overhead || {};
+  const overhead = num(ov.value) === null ? null : ov.mode === 'amount' ? num(ov.value) : net === null ? null : (net * num(ov.value)) / 100;
+  const taxPct = num(q.taxReserve);
+
+  const notSet = [];
+  if (inc.owner && ownerTime === null) notSet.push('owner time');
+  if (inc.overhead && overhead === null) notSet.push('overhead');
+  if (inc.tax && taxPct === null) notSet.push('tax reserve');
+  const beforeTax = net === null ? null : net - cost - (inc.owner ? ownerTime || 0 : 0) - (inc.overhead ? overhead || 0 : 0);
+  const tax = beforeTax === null || taxPct === null ? null : (Math.max(0, beforeTax) * taxPct) / 100;
+  const amount = beforeTax === null ? null : beforeTax - (inc.tax ? tax || 0 : 0);
+  const provisional = [...(unpriced.length ? [`${unpriced.length} not priced`] : []), ...(unassigned.length ? [`${unassigned.length} with nobody assigned`] : []), ...notSet.map((x) => `${x} not set`)];
+  const includes = ['roles', 'other costs', ...(inc.owner ? ['owner time'] : []), ...(inc.overhead ? ['overhead'] : []), ...(inc.tax ? ['tax reserve'] : [])];
+  const leftOut = [...(inc.owner ? [] : ['owner time']), ...(inc.overhead ? [] : ['overhead']), ...(inc.tax ? [] : ['tax reserve'])];
+  const margin = net === null ? null : { amount, pct: net ? (amount / net) * 100 : null, provisional, belowCost: amount < 0, includes, leftOut, atMost: provisional.length > 0 };
+
   const inflow = new Array(months).fill(0);
-  if (price !== null) {
+  if (net !== null) {
     const plan = PAY_PLANS[q.plan] ? q.plan : (term ? 'monthly' : 'split');
-    if (plan === 'signing') inflow[0] = price;
-    else if (plan === 'split') { inflow[0] += price / 2; inflow[months - 1] += price / 2; }
-    else if (plan === 'monthly') for (let m = 0; m < months; m += 1) inflow[m] = price / months;
+    if (plan === 'signing') inflow[0] = net;
+    else if (plan === 'split') { inflow[0] += net / 2; inflow[months - 1] += net / 2; }
+    else if (plan === 'monthly') for (let m = 0; m < months; m += 1) inflow[m] = net / months;
     else {
       const parts = String(q.split || '').split(/[^\d.]+/).map(Number).filter((x) => x > 0);
       const total = parts.reduce((a, b) => a + b, 0) || 1;
-      parts.forEach((p, i) => { const m = parts.length === 1 ? 0 : Math.round((i * (months - 1)) / (parts.length - 1)); inflow[m] += (price * p) / total; });
+      parts.forEach((p, i) => { const m = parts.length === 1 ? 0 : Math.round((i * (months - 1)) / (parts.length - 1)); inflow[m] += (net * p) / total; });
     }
   }
-  // Specialist costs go out in the month he picks for the service, else spread evenly over the term.
+  // Costs go out in the month set on the service, else spread evenly over the engagement.
   const outflow = new Array(months).fill(0);
-  for (const x of costed) {
+  for (const x of items.filter((y) => num(y.cost) !== null)) {
     const m = Math.min(months, Math.max(0, Number(x.month) || 0));
     if (m) outflow[m - 1] += num(x.cost);
     else for (let i = 0; i < months; i += 1) outflow[i] += num(x.cost) / months;
   }
   let running = 0;
   const timeline = inflow.map((cashIn, i) => { running += cashIn - outflow[i]; return { month: i + 1, cashIn, cashOut: outflow[i], position: running }; });
-  return { term, months, items, cost, noCost: items.filter((x) => num(x.cost) === null).map((x) => x.name), price, noPrice: items.filter((x) => num(x.price) === null).map((x) => x.name), margin, monthly: price !== null && term ? price / term : null, timeline, shortMonths: timeline.filter((t) => t.position < 0).map((t) => t.month) };
+  return {
+    term, months, items, rows, groups, cost, unpriced, unassigned, noCost: unpriced, price, discount, net,
+    noPrice: items.filter((x) => num(x.price) === null).map((x) => x.name), ownerTime, overhead, taxPct, tax, include: inc, margin,
+    monthly: net !== null && term ? net / term : null, timeline, shortMonths: timeline.filter((t) => t.position < 0).map((t) => t.month)
+  };
 }
 
-/** A quote from the form: one entry per service carried from Discovery, in the site's order. */
+const flag = (v) => v === true || v === 'on' || v === '1' || v === 'yes';
+/** A quote from the form. Every service carried from Discovery, in the site's order, with its rows. */
 export function cleanQuote(raw) {
-  const picked = new Set((raw.services || []).map((x) => x.id));
   const byId = Object.fromEntries((raw.services || []).map((x) => [x.id, x]));
-  const services = SERVICES.filter((x) => picked.has(x.id)).map((x) => {
+  const services = SERVICES.filter((x) => byId[x.id]).map((x) => {
     const r = byId[x.id];
-    return { id: x.id, name: x.name, specialist: clip(r.specialist, 160), cost: num(r.cost), price: num(r.price), month: Math.max(0, Math.min(12, Number(r.month) || 0)) };
+    const roles = (Array.isArray(r.roles) ? r.roles : templateRoles(x.id)).map((y, i) => {
+      const kind = ROLE_KINDS[y.kind] ? y.kind : 'role';
+      return {
+        rid: clip(y.rid, 30) || `r${i + 1}`, name: clip(y.name, 120), kind, billed: BILLED[y.billed] ? y.billed : KIND_DEFAULT_BILLED[kind], who: clip(y.who, 30),
+        rate: num(y.rate), qty: num(y.qty), hours: num(y.hours), months: num(y.months), out: flag(y.out), custom: flag(y.custom), std: num(y.std), stdPer: RATE_PER[y.stdPer] ? y.stdPer : '', ...(y.card ? { card: clip(y.card, 60) } : {})
+      };
+    }).filter((y) => y.name).slice(0, 60);
+    return { id: x.id, name: x.name, roles, price: num(r.price), month: Math.max(0, Math.min(12, Number(r.month) || 0)) };
   });
-  return { services, term: TERMS[raw.term] !== undefined ? Number(raw.term) : 0, months: Math.max(1, Math.min(24, Number(raw.months) || 1)), plan: PAY_PLANS[raw.plan] ? raw.plan : '', split: clip(raw.split, 40), rationale: clip(raw.rationale, 3000), title: clip(raw.title, 160) };
+  const pick = (v, list, d = '') => (list.includes(v) ? v : d);
+  return {
+    v: 3, services,
+    term: TERMS[raw.term] !== undefined ? Number(raw.term) : 0, months: Math.max(1, Math.min(24, Number(raw.months) || 1)), plan: PAY_PLANS[raw.plan] ? raw.plan : '', split: clip(raw.split, 40),
+    discount: { mode: pick(raw.discount?.mode, ['amount', 'pct'], 'amount'), value: num(raw.discount?.value) },
+    ownerPlan: { model: OWNER_MODELS[raw.ownerPlan?.model] ? raw.ownerPlan.model : '', who: clip(raw.ownerPlan?.who, 30), hours: num(raw.ownerPlan?.hours), rate: num(raw.ownerPlan?.rate), monthly: num(raw.ownerPlan?.monthly), share: num(raw.ownerPlan?.share) },
+    overhead: { mode: pick(raw.overhead?.mode, ['pct', 'amount'], 'pct'), value: num(raw.overhead?.value) },
+    taxReserve: num(raw.taxReserve),
+    include: { owner: flag(raw.include?.owner), overhead: flag(raw.include?.overhead), tax: flag(raw.include?.tax) },
+    rationale: clip(raw.rationale, 3000), title: clip(raw.title, 160)
+  };
 }
 export async function saveQuote(env, { key, quote, sample }, now = Date.now()) {
   const db = dbOf(env);
@@ -357,7 +525,8 @@ export function proposalDraft({ name, quote, discovery }) {
     termWords,
     '',
     'Investment',
-    m.price !== null ? `${usd(m.price)} in total. Payment: ${plan}.` : '(Set your client price on the quote.)',
+    // The client sees the price and any discount; never a role, a person, a rate, a cost or the margin.
+    m.net !== null ? `${usd(m.net)} in total${m.discount ? ` (${usd(m.price)} less a ${usd(m.discount)} discount)` : ''}. Payment: ${plan}.` : '(Set the client price on the quote.)',
     '',
     'Next step',
     'Reply to confirm and we will send the agreement for signature.'

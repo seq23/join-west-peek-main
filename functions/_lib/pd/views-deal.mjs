@@ -5,7 +5,7 @@
  */
 import { esc, isoDay, money, usDay, usTime } from './core.mjs';
 import { FUNNEL_STAGES, stageOptions } from './data.mjs';
-import { CASH_RULES, rulesWalk, CALL_NOTES, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, discoveryQuestions, quoteMath, quoteServices, servicesOf } from './deal.mjs';
+import { CASH_RULES, rulesWalk, CALL_NOTES, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, BILLED, BOX_WORDS, OWNER_MODELS, PERSON_TYPES, RATE_PER, ROLE_KINDS, catalogTiers, discoveryQuestions, quoteMath, quoteServices, roleCost, servicesOf, templateRoles } from './deal.mjs';
 import { EVENT_SERVICE, SERVICES, SERVICE_BY_ID, serviceFrom } from '../services.mjs';
 import { act, dayOr, empty, errorBox, gap, page, sec, val } from './views.mjs';
 
@@ -34,8 +34,8 @@ export function dealSections(j, ctx) {
   const picked = servicesOf(disc?.profile || {}).map((id) => SERVICE_BY_ID[id].name);
   const discLine = disc?.at ? `${picked.length ? `${esc(picked.join(', '))} · ` : ''}saved ${esc(usTime(disc.at, ctx.now))}` : 'Not started';
   const hold = moneyHold(ctx);
-  const qm = q && !q.unreadable ? quoteMath(q) : null;
-  const quoteLine = hold ? 'Held' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Specialists ${m$(qm.cost)}${qm.noCost.length ? ` + ${qm.noCost.length} not entered` : ''} · your price ${qm.price === null ? gap('not set') : m$(qm.price)}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
+  const qm = q && !q.unreadable ? quoteMath(q, ctx.directory || []) : null;
+  const quoteLine = hold ? 'Held' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Costs ${m$(qm.cost)}${qm.unpriced.length ? ` + ${qm.unpriced.length} not priced` : ''} · client price ${qm.net === null ? gap('not set') : m$(qm.net)}${qm.margin?.provisional.length ? ' · margin provisional' : ''}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
   const propLine = !p ? 'No proposal yet' : `${esc(PROPOSAL_STATUS[p.status] || p.status)} · version ${p.versions} · ${esc(usTime(p.at, ctx.now))}`;
   const delLine = del ? `${del.tasks.filter((t) => !t.done).length} open tasks · portal ${del.portalSince ? 'on' : 'off'}` : 'Starts once accepted';
   const gmail = `https://mail.google.com/mail/u/0/#search/${encodeURIComponent((j.deal?.email || j.inquiries.at(-1)?.email) ? `"${j.deal?.email || j.inquiries.at(-1)?.email}"` : `"${j.name}"`)}`;
@@ -130,10 +130,61 @@ function guessFrom(part, deal) {
 
 /* ------------------------------------------------------------------ the pricing builder */
 
+const val$ = (n) => (n === null || n === undefined ? '' : esc(n));
+const pct = (n) => (n === null || n === undefined ? '' : `${Math.round(n)}%`);
+const opts = (map, cur) => Object.entries(map).map(([v, l]) => `<option value="${esc(v)}"${String(cur) === v ? ' selected' : ''}>${esc(l)}</option>`).join('');
+/** "Assigned to": the directory by type, then "Add a new person…" (the new-person boxes below the row). */
+function whoSelect(id, name, cur, dir, { ownersOnly = false } = {}) {
+  const people = ownersOnly ? dir.filter((p) => p.type === 'owner') : dir;
+  const groups = Object.entries(PERSON_TYPES).map(([t, label]) => {
+    const list = people.filter((p) => p.type === t);
+    return list.length ? `<optgroup label="${esc(label)}">${list.map((p) => `<option value="${esc(p.id)}"${p.id === cur ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>` : '';
+  }).join('');
+  const gone = cur && !dir.some((p) => p.id === cur) ? '<option value="" selected>Not chosen (that person was removed)</option>' : '';
+  return `<select id="${id}" name="${name}">${gone}<option value=""${!cur ? ' selected' : ''}>Not chosen</option>${groups}${ownersOnly ? '' : '<option value="__new">+ Add a new person (below)</option>'}</select>`;
+}
+const rateWords = (r) => (r === null || r === undefined ? '' : esc(money(r)));
+
+/** One row on a service: a role (someone does it) or another cost. Phone first: a stacked card. */
+function roleRow(svcId, r, i, dir) {
+  const f = (k) => `rl_${svcId}_${i}_${k}`;
+  const idf = (k) => `rl-${svcId}-${i}-${k}`;
+  const b = BILLED[r.billed] || BILLED.job;
+  const c = roleCost(r, dir);
+  const keep = ['rid', 'kind', 'std', 'stdper', 'card'].map((k) => hidden(f(k), { rid: r.rid, kind: r.kind, std: r.std ?? '', stdper: r.stdPer || '', card: r.card || '' }[k])).join('') + (r.custom ? hidden(f('custom'), '1') : '');
+  const name = r.custom
+    ? `<label for="${idf('name')}">Role name <span class="d-role__tag">clear it to remove this row</span></label><input id="${idf('name')}" name="${f('name')}" maxlength="120" value="${esc(r.name)}">`
+    : `${hidden(f('name'), r.name)}<span class="d-role__name">${esc(r.name)}</span>`;
+  const tag = r.kind === 'cost' ? '<span class="d-role__tag">Other cost</span>' : '';
+  const card = r.card ? `<span class="d-role__tag">From the rate card · ${esc(r.card)}</span>` : '';
+  const std = c.from === 'directory' ? `${rateWords(c.rate)} ${RATE_PER[b.per]} (standard)` : c.from === 'card' ? `${rateWords(c.rate)} (rate card)` : 'not set';
+  const boxes = ['rate', 'qty', 'hours', 'months'];
+  const shown = boxes.filter((k) => b.needs.includes(k));
+  const box = (k) => {
+    const label = k === 'rate' ? `Rate ${RATE_PER[b.per]}` : k === 'hours' ? BOX_WORDS.hours[r.billed] : BOX_WORDS[k];
+    const ph = k === 'rate' ? std : k === 'months' ? 'months' : k === 'qty' ? 'how many' : 'hours';
+    return `<div><label for="${idf(k)}">${esc(label)}</label><input id="${idf(k)}" name="${f(k)}" inputmode="decimal" value="${val$(r[k])}" placeholder="${esc(ph)}"></div>`;
+  };
+  const hiddenBoxes = boxes.filter((k) => !shown.includes(k)).map((k) => hidden(f(k), r[k] ?? '')).join('');
+  const costLine = r.out ? 'Left out of this quote.'
+    : c.cost === null ? `<span class="d-gold">Not priced: ${esc(c.missing.map((k) => (k === 'rate' ? 'rate' : k === 'qty' ? 'how many' : k)).join(', '))} needed${c.mismatch ? ` (${esc(c.person.name)}'s standard rate is ${esc(RATE_PER[c.person.per])}; this role is billed ${esc(RATE_PER[b.per])})` : ''}</span>`
+      : `Cost ${esc(money(c.cost))}${c.from === 'quote' ? ' · rate set for this quote only' : ''}`;
+  const unassigned = r.kind !== 'cost' && !r.out && !c.person ? ' <span class="d-gold">· nobody assigned</span>' : '';
+  return `<div class="d-role${r.out ? ' d-role--out' : ''}">${keep}
+    <div class="d-role__head"><div>${name}${tag}${card}</div><label class="d-check"><input type="checkbox" name="${f('out')}" value="1"${r.out ? ' checked' : ''}> Leave out</label></div>
+    <div class="d-grid2"><div><label for="${idf('who')}">Assigned to</label>${whoSelect(idf('who'), f('who'), r.who, dir)}</div><div><label for="${idf('billed')}">Billed as</label><select id="${idf('billed')}" name="${f('billed')}">${Object.entries(BILLED).map(([v, x]) => `<option value="${v}"${r.billed === v ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select></div></div>
+    <div class="d-grid3">${shown.map(box).join('')}</div>${hiddenBoxes}
+    <p class="d-role__cost">${costLine}${unassigned}</p>
+    <details><summary>Add someone new to the team directory</summary><div class="d-grid2"><div><label for="${idf('newname')}">Name</label><input id="${idf('newname')}" name="${f('newname')}" maxlength="120"></div><div><label for="${idf('newtype')}">Type</label><select id="${idf('newtype')}" name="${f('newtype')}">${opts(PERSON_TYPES, 'contractor')}</select></div></div><div class="d-grid2"><div><label for="${idf('newrate')}">Standard rate (optional)</label><input id="${idf('newrate')}" name="${f('newrate')}" inputmode="decimal" placeholder="only if known"></div><div><label for="${idf('newper')}">Per</label><select id="${idf('newper')}" name="${f('newper')}">${opts(RATE_PER, b.per)}</select></div></div><p class="d-sub">Saved to the directory and assigned to this role when the quote is saved.</p></details>
+  </div>`;
+}
+
 /**
- * The quote, the way he makes it (Scooter, 15 Nov 2026): the services picked on Discovery, each with
- * the specialist's name and their cost (his only), and the client price HE types. No catalog lines,
- * no per-day maths, no markup and no formula: the page only adds up what he typed.
+ * The quote builder (Scooter, 15 Nov 2026; quote-builder-format.pdf): pick a service, its roles load,
+ * assign a person from the team directory, choose how each role is billed, see cost and margin. Client
+ * price is typed, never built from costs; a discount lowers price, not cost; an empty box is left out of
+ * the math and named, never counted as zero; margin is provisional until every role is priced and has
+ * someone assigned. Costs, pay and margin stay on this page: the proposal and portal never carry them.
  */
 export function renderQuote(j, ctx) {
   const k = encodeURIComponent(j.key);
@@ -141,40 +192,109 @@ export function renderQuote(j, ctx) {
   const hold = moneyHold(ctx);
   if (hold) return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${ctx.flash || ''}${holdBox(hold)}`, ctx);
   if (ctx.quote?.unreadable) return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${errorBox('The last quote could not be read back.', 'It was saved encrypted and the key that opens it is not the one this site has now. Build it again below; nothing else is affected.', back, 'Start again')}`, ctx);
+  const dir = ctx.directory || [];
   const q = ctx.quote || { services: [], term: 0, months: 1, plan: '', split: '', rationale: '', title: '' };
   const had = Object.fromEntries((Array.isArray(q.services) ? q.services : []).map((x) => [x.id, x]));
   // The services carried from Discovery, plus any already on this quote, in the site's order.
   const ids = SERVICES.map((x) => x.id).filter((id) => servicesOf(ctx.discovery?.profile || {}).includes(id) || had[id]);
   if (!ids.length) {
-    return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${ctx.flash || ''}${empty('Pick their services on Discovery first. Each one you pick shows here, ready for the specialist and your price.', `/dashboard/flow/${k}/discovery`, '← Pick services on Discovery', 'flow')}`, ctx);
+    return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${ctx.flash || ''}${empty('Pick their services on Discovery first. Each service you pick loads its roles here.', `/dashboard/flow/${k}/discovery`, '← Pick services on Discovery', 'flow')}`, ctx);
   }
-  const val$ = (n) => (n === null || n === undefined ? '' : esc(n));
-  const svc = (id) => {
-    const x = SERVICE_BY_ID[id];
-    const h = had[id] || {};
-    const rateCard = x.events ? '<p class="d-sub"><a href="/dashboard/catalog">Event rate card, if you use one ›</a></p>' : '';
-    return `<div class="d-qsvc">${hidden('svc', id)}<h3>${x.icon}${esc(x.name)}</h3>
-      <p class="d-mine">Yours only · never shown to the client</p>
-      <div class="d-grid2"><div><label for="sp-${id}">Specialist</label><input id="sp-${id}" name="sp_${id}" maxlength="160" value="${esc(h.specialist || '')}" placeholder="Name"></div><div><label for="cost-${id}">Their cost to you</label><input id="cost-${id}" name="cost_${id}" inputmode="decimal" value="${val$(h.cost)}" placeholder="$"></div></div>
-      <label for="price-${id}">Your client price</label><input id="price-${id}" name="price_${id}" inputmode="decimal" value="${val$(h.price)}" placeholder="You decide">${rateCard}</div>`;
+  // A service saved before the roles existed (one specialist and cost) opens with its roles loaded.
+  const services = ids.map((id) => ({ id, name: SERVICE_BY_ID[id].name, price: had[id]?.price ?? null, month: had[id]?.month || 0, roles: Array.isArray(had[id]?.roles) ? had[id].roles : templateRoles(id) }));
+  const m = quoteMath({ ...q, services }, dir);
+  const saved = Boolean(ctx.quote);
+
+  const svc = (x) => {
+    const s = SERVICE_BY_ID[x.id];
+    const item = m.items.find((y) => y.id === x.id) || {};
+    const tiers = catalogTiers(ctx.catalog, x.id);
+    const tierPick = s.events && tiers.length ? `<div><label for="tier-${x.id}">Load lines from the event rate card</label><select id="tier-${x.id}" name="tier_${x.id}"><option value="__none" selected>Don't load</option>${tiers.map((t) => `<option value="${esc(t)}">${esc(t || 'All lines (no tiers)')}</option>`).join('')}</select><p class="d-sub">Adds that tier's lines with their quantities and standard rates. <a href="/dashboard/catalog">The rate card ›</a></p></div>` : '';
+    return `<div class="d-qsvc">${hidden('svc', x.id)}${hidden(`rn_${x.id}`, x.roles.length)}<h3>${s.icon}${esc(s.name)}</h3>
+      <p class="d-sub">${x.roles.filter((r) => !r.out).length} rows · cost so far ${item.cost === null || item.cost === undefined ? gap('unknown') : esc(money(item.cost)) || '$0'}${item.unknown ? ` <span class="d-gold">· ${item.unknown} not priced</span>` : ''}</p>
+      ${x.roles.map((r, i) => roleRow(x.id, r, i, dir)).join('')}
+      <div class="d-role"><div class="d-grid2"><div><label for="nr-${x.id}">Add a role</label><input id="nr-${x.id}" name="nr_${x.id}_name" maxlength="120" placeholder="Role or cost name"></div><div><label for="nrk-${x.id}">It is</label><select id="nrk-${x.id}" name="nr_${x.id}_kind">${opts(ROLE_KINDS, 'role')}</select></div></div>${tierPick}</div>
+      <label for="price-${x.id}">Client price for ${esc(s.name)}</label><input id="price-${x.id}" name="price_${x.id}" inputmode="decimal" value="${val$(x.price)}" placeholder="Set by the value of the work">
+    </div>`;
   };
-  const m = quoteMath({ ...q, services: Array.isArray(q.services) ? q.services : [] });
-  const saved = ctx.quote && Array.isArray(ctx.quote.services);
-  const numbers = saved ? `<ul class="d-kv">
-      <li><span>Specialist costs<br><span class="d-sub">Yours only</span></span><span>${m$(m.cost)}${m.noCost.length ? ' <span class="d-gold">+ not entered</span>' : ''}</span></li>
-      <li><span>Your client price</span><span>${m.price === null ? gap('not set') : m$(m.price)}</span></li>
-      <li><span>Left after specialists<br><span class="d-sub">Yours only</span></span><span class="${m.margin?.belowCost ? 'd-red' : ''}">${!m.margin ? gap('set your price to see it') : `${m$(m.margin.amount)}${m.margin.atMost ? ' <span class="d-gold">at most</span>' : ''}${m.margin.belowCost ? ' · below your costs' : ''}`}</span></li>
-      ${m.term ? `<li><span>${esc(TERMS[m.term])}</span><span>${m.monthly === null ? gap('set your price') : `${m$(m.monthly)} a month for ${m.term} months`}</span></li>` : ''}
-    </ul>${m.noCost.length ? `<p class="d-sub d-gold">No cost entered yet: ${esc(m.noCost.join(', '))}.</p>` : ''}${m.noPrice.length && m.price !== null ? `<p class="d-sub d-gold">No client price yet: ${esc(m.noPrice.join(', '))}.</p>` : ''}<p class="d-src">Saved ${esc(usTime(ctx.quote._at, ctx.now))}. Every version is kept, encrypted.</p>` : '';
-  const timeline = saved && m.price !== null ? `<details class="d-fold"><summary><span>When money moves</span></summary><ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">${m.shortMonths.length ? `<span class="d-red">You are out of pocket in month ${m.shortMonths.join(', ')}: specialists are paid before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'}</p></details>` : '';
+
+  const mg = m.margin;
+  const strip = `<div class="d-strip">
+      <div><span>Client price</span><strong>${m.price === null ? gap('blank') : esc(money(m.price))}</strong></div>
+      <div><span>Discount</span><strong>${m.discount === null ? gap('blank') : esc(money(m.discount))}</strong></div>
+      <div><span>Costs so far</span><strong>${m.rows.length || m.cost ? esc(money(m.cost)) || '$0' : gap('blank')}</strong></div>
+      <div><span>Margin</span><strong class="${mg?.belowCost ? 'd-red' : ''}">${!mg ? gap('needs a price') : `${esc(money(mg.amount)) || '$0'}${mg.pct === null ? '' : ` · ${pct(mg.pct)}`}`}</strong>${mg?.provisional.length ? '<span class="d-gold">provisional</span>' : ''}</div>
+    </div>`;
+  const line = (label, v, note = '') => `<li><span>${label}${note ? `<br><span class="d-sub">${note}</span>` : ''}</span><span>${v}</span></li>`;
+  const notSet = (v, words = 'not set') => (v === null || v === undefined ? gap(words) : esc(money(v)) || '$0');
+  const breakdown = `<ul class="d-kv">
+      ${line('Roles: team and contractors', esc(money(m.groups.people)) || '$0')}
+      ${line('Roles assigned to an owner', esc(money(m.groups.ownerRoles)) || '$0')}
+      ${line('Other costs', esc(money(m.groups.other)) || '$0', 'Bookings, licences, tools, pass-through')}
+      ${line('Owner time (planned)', notSet(m.ownerTime), m.include.owner ? 'In the margin' : 'Not in the margin')}
+      ${line('Overhead', notSet(m.overhead), m.include.overhead ? 'In the margin' : 'Not in the margin')}
+      ${line('Tax reserve', m.taxPct === null ? gap('not set') : m.tax === null ? gap('needs a price') : esc(money(m.tax)) || '$0', m.include.tax ? `In the margin${m.taxPct === null ? '' : ` · ${esc(m.taxPct)}% of what is left before tax`}` : 'Not in the margin')}
+      ${line('Client price after discount', m.net === null ? gap('blank') : esc(money(m.net)))}
+    </ul>
+    <p class="d-sub">The margin is the price after discount minus ${esc(mg ? mg.includes.join(', ') : 'roles, other costs, owner time, overhead and tax reserve')}${mg?.leftOut.length ? `. Not included: ${esc(mg.leftOut.join(', '))}` : ''}. An empty box is left out of the math and never counted as zero.</p>
+    ${mg?.provisional.length ? `<p class="d-sub d-gold">Provisional: ${esc(mg.provisional.join(' · '))}.</p>` : ''}
+    ${m.unpriced.length ? `<p class="d-sub d-gold">Not priced yet: ${esc(m.unpriced.join(', '))}.</p>` : ''}
+    ${m.unassigned.length ? `<p class="d-sub d-gold">Nobody assigned: ${esc(m.unassigned.join(', '))}.</p>` : ''}
+    ${saved ? `<p class="d-src">Saved ${esc(usTime(ctx.quote._at, ctx.now))}. Every version is kept, encrypted. Internal only: none of these costs, rates, names or margins reach the proposal or the client portal.</p>` : '<p class="d-src">Not saved yet.</p>'}`;
+  const timeline = saved && m.net !== null ? `<details class="d-fold"><summary><span>When money moves</span></summary><ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">Out is the priced roles and other costs, spread over the engagement. ${m.shortMonths.length ? `<span class="d-red">Out of pocket in month ${m.shortMonths.join(', ')}: costs go out before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'}</p></details>` : '';
+
+  const o = q.ownerPlan || {};
+  const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: q.include?.tax !== false };
+  const owner = `<p class="d-sub">Owner time is a cost like any other. Plan only time that is not already on a role above. Only the boxes for the way you choose are used.</p>
+    <label for="own-model">How owner time is planned</label><select id="own-model" name="own_model"><option value="">Not planned yet</option>${opts(OWNER_MODELS, o.model || '')}</select>
+    <div class="d-grid2"><div><label for="own-who">Which owner</label>${whoSelect('own-who', 'own_who', o.who || '', dir, { ownersOnly: true })}</div><div><label for="own-hours">Hours</label><input id="own-hours" name="own_hours" inputmode="decimal" value="${val$(o.hours)}"></div></div>
+    <div class="d-grid3"><div><label for="own-rate">Hourly rate</label><input id="own-rate" name="own_rate" inputmode="decimal" value="${val$(o.rate)}" placeholder="the owner's standard"></div><div><label for="own-monthly">Each month</label><input id="own-monthly" name="own_monthly" inputmode="decimal" value="${val$(o.monthly)}"></div><div><label for="own-share">Share of price (%)</label><input id="own-share" name="own_share" inputmode="decimal" value="${val$(o.share)}"></div></div>`;
+  const ov = q.overhead || {};
+  const costsBelow = `<div class="d-grid2"><div><label for="ov-val">Overhead</label><input id="ov-val" name="ov_value" inputmode="decimal" value="${val$(ov.value)}"></div><div><label for="ov-mode">As</label><select id="ov-mode" name="ov_mode">${opts({ pct: '% of the client price', amount: 'An amount for this job' }, ov.mode || 'pct')}</select></div></div>
+    <label for="tax">Tax reserve (% of what is left before tax)</label><input id="tax" name="tax" inputmode="decimal" value="${val$(q.taxReserve)}">
+    <fieldset class="d-fieldset"><legend>The margin includes</legend><p class="d-sub">Roles and other costs, always. And:</p>
+    <label class="d-check"><input type="checkbox" name="inc_owner" value="1"${inc.owner ? ' checked' : ''}> Owner time</label>
+    <label class="d-check"><input type="checkbox" name="inc_overhead" value="1"${inc.overhead ? ' checked' : ''}> Overhead</label>
+    <label class="d-check"><input type="checkbox" name="inc_tax" value="1"${inc.tax ? ' checked' : ''}> Tax reserve</label></fieldset>`;
+  const d = q.discount || {};
+  const price = `<div class="d-grid2"><div><label for="disc">Discount</label><input id="disc" name="disc" inputmode="decimal" value="${val$(d.value)}"></div><div><label for="disc-mode">As</label><select id="disc-mode" name="disc_mode">${opts({ amount: 'An amount', pct: '% of the client price' }, d.mode || 'amount')}</select></div></div><p class="d-sub">A discount lowers the price, not the costs, so it comes out of the margin.</p>`;
   const terms = `<div class="d-grid2"><div><label for="q-term">Package</label><select id="q-term" name="term">${Object.entries(TERMS).map(([v, l]) => `<option value="${v}"${String(q.term) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div><div><label for="q-months">If one project: how many months it runs</label><input id="q-months" name="months" inputmode="numeric" value="${esc(q.months || 1)}"></div></div>
-    <div class="d-grid2"><div><label for="q-plan">Payment plan</label><select id="q-plan" name="plan"><option value="">Choose…</option>${Object.entries(PAY_PLANS).map(([v, l]) => `<option value="${v}"${q.plan === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div><div><label for="q-split">Your own split (percent)</label><input id="q-split" name="split" value="${esc(q.split || '')}" placeholder="30/30/20/20"></div></div>`;
+    <div class="d-grid2"><div><label for="q-plan">Payment plan</label><select id="q-plan" name="plan"><option value="">Choose…</option>${Object.entries(PAY_PLANS).map(([v, l]) => `<option value="${v}"${q.plan === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div><div><label for="q-split">Custom split (percent)</label><input id="q-split" name="split" value="${esc(q.split || '')}" placeholder="30/30/20/20"></div></div>
+    ${m.term ? `<p class="d-sub">${esc(TERMS[m.term])}: ${m.monthly === null ? 'set the client price to see the monthly figure' : `${esc(money(m.monthly))} a month for ${m.term} months`}. Each role keeps its own months.</p>` : '<p class="d-sub">Each role keeps its own hours, quantities and months, apart from the engagement length.</p>'}`;
+  const dirNote = dir.length ? `<p class="d-sub">${dir.length} ${dir.length === 1 ? 'person' : 'people'} in the <a href="/dashboard/team?back=${encodeURIComponent(back)}">team directory ›</a></p>` : `<p class="d-sub d-gold">The team directory is empty. Add people here on any role, or <a href="/dashboard/team?back=${encodeURIComponent(back)}">set up the directory ›</a></p>`;
+
   const form = `<form class="d-form" method="post" action="/dashboard/quote">${hidden('key', j.key)}${hidden('back', back)}
-    ${sec('services', `Services · ${ids.length}`, `<p class="d-sub">From Discovery. <a href="/dashboard/flow/${k}/discovery">Change the services ›</a></p>${ids.map(svc).join('')}`)}
+    ${sec('services', `Services · ${ids.length}`, `<p class="d-sub">From Discovery. <a href="/dashboard/flow/${k}/discovery">Change the services ›</a></p>${dirNote}${services.map(svc).join('')}`)}
+    ${sec('price', 'Discount', price)}
+    ${sec('owner', 'Owner time', owner)}
+    ${sec('costs', 'Overhead and tax reserve', costsBelow)}
     ${sec('terms', 'Term and payment', terms)}
-    ${sec('why', 'What the client reads', `<label for="q-title">Proposal title</label><input id="q-title" name="title" maxlength="160" value="${esc(q.title || '')}" placeholder="Proposal for ${esc(j.name)}"><label for="q-rat">Why this is worth it to them</label><textarea id="q-rat" name="rationale" maxlength="3000">${esc(q.rationale || '')}</textarea><p class="d-sub">The client sees these words, the services and your prices. Never a specialist or a cost.</p>`)}
+    ${sec('why', 'What the client reads', `<label for="q-title">Proposal title</label><input id="q-title" name="title" maxlength="160" value="${esc(q.title || '')}" placeholder="Proposal for ${esc(j.name)}"><label for="q-rat">Why this is worth it to them</label><textarea id="q-rat" name="rationale" maxlength="3000">${esc(q.rationale || '')}</textarea><p class="d-sub">The client sees these words, the services, the prices and any discount. Never a role, a person, a rate, a cost or the margin.</p>`)}
     <p><button type="submit" class="d-primary">Save quote</button></p></form>`;
-  return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1><p class="d-sub">${esc(j.name)}</p>${ctx.flash || ''}${numbers ? sec('numbers', 'The numbers', numbers + timeline) : ''}${form}`, ctx);
+  return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1><p class="d-sub">${esc(j.name)} · internal only</p>${ctx.flash || ''}${sec('numbers', 'The numbers', strip + `<details class="d-fold"><summary><span>What the costs and margin are made of</span></summary>${breakdown}</details>` + timeline)}${form}`, ctx);
+}
+
+/* ------------------------------------------------------------------ the team directory */
+
+/**
+ * People who do the work, kept apart from roles (Scooter, 15 Nov 2026): owner, team member or
+ * contractor, with a standard rate per hour, month or job only when it is known. Nobody is pre-filled
+ * and nobody is "You". A rate typed on a quote overrides this for that quote only.
+ */
+export function renderTeam(ctx) {
+  const back = ctx.back || '/dashboard';
+  const hold = moneyHold(ctx);
+  const head = `<p><a class="d-help" href="${esc(back)}">← Back</a></p><h1>Team directory</h1>`;
+  if (hold) return shell('Team directory', `${head}${ctx.flash || ''}${holdBox(hold)}`, ctx);
+  const dir = ctx.directory || [];
+  const row = (p, i) => `<li class="d-row"><div class="d-row__main">${hidden(`pid_${i}`, p.id || '')}<div class="d-grid2"><div><label for="tp-n${i}">Name</label><input id="tp-n${i}" name="pname_${i}" maxlength="120" value="${esc(p.name || '')}"${p.id ? '' : ' placeholder="Add a person"'}></div><div><label for="tp-t${i}">Type</label><select id="tp-t${i}" name="ptype_${i}">${opts(PERSON_TYPES, p.type || 'contractor')}</select></div></div><div class="d-grid2"><div><label for="tp-r${i}">Standard rate (optional)</label><input id="tp-r${i}" name="prate_${i}" inputmode="decimal" value="${val$(p.rate)}" placeholder="only if known"></div><div><label for="tp-p${i}">Per</label><select id="tp-p${i}" name="pper_${i}">${opts(RATE_PER, p.per || 'hour')}</select></div></div></div></li>`;
+  const n = dir.length;
+  const intro = n ? '' : '<div class="d-emptybox"><p>Nobody is in the directory yet. Add the owners, team members and contractors who do the work; each one can then be assigned to a role on any quote.</p></div>';
+  const body = `${head}<p class="d-sub">The people who do the work, kept apart from the roles they fill. Internal only, kept encrypted; a client never sees a name or a rate from here.</p>${ctx.flash || ''}${intro}
+    <form class="d-form" method="post" action="/dashboard/team">${hidden('back', back)}${hidden('n', n + 2)}
+    ${sec('people', `People · ${n}`, `<ul class="d-list">${dir.map(row).join('')}${row({}, n)}${row({}, n + 1)}</ul><p class="d-sub">The last two rows add people. Clear a name to remove that person. A rate is only filled in when it is known; a blank rate is unknown, never zero.</p>`)}
+    <p><button type="submit" class="d-primary">Save the directory</button></p></form>`;
+  return shell('Team directory', body, ctx);
 }
 
 /* ------------------------------------------------------------------ the catalog */

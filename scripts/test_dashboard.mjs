@@ -991,21 +991,91 @@ const realFetch = globalThis.fetch;
     const cs = await call(env, '/dashboard/catalog', { method: 'POST', cookie: s.cookie, form: catForm });
     const catRow = await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM catalog').first();
     check('catalog: saved, read back, and stored encrypted (no rate in plain)', /m=catalog_saved/.test(cs.location || '') && catRow && !/700|Discovery workshop/.test(catRow.data_enc));
+    // The quote builder (Scooter, 15 Nov 2026; quote-builder-format.pdf): a service loads its roles and
+    // cost categories; people come from a team directory; each role is billed its own way.
+    const formOf = (html) => {
+      const out = [];
+      const f = (html.match(/<form class="d-form" method="post" action="\/dashboard\/quote">([\s\S]*?)<\/form>/) || [])[1] || '';
+      for (const m of f.matchAll(/<input ([^>]*)>/g)) {
+        const a = m[1]; const name = (a.match(/name="([^"]*)"/) || [])[1]; if (!name) continue;
+        const value = ((a.match(/value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&');
+        if (/type="checkbox"/.test(a)) { if (/ checked/.test(a)) out.push([name, value]); } else out.push([name, value]);
+      }
+      for (const m of f.matchAll(/<select id="[^"]*" name="([^"]*)">([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
+      for (const m of f.matchAll(/<textarea id="[^"]*" name="([^"]*)"[^>]*>([\s\S]*?)<\/textarea>/g)) out.push([m[1], m[2]]);
+      return out;
+    };
+    const setF = (pairs, changes) => { const out = pairs.filter(([k]) => !(k in changes)); for (const [k, v] of Object.entries(changes)) if (v !== null) out.push([k, v]); return out; };
     const qp0 = await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie });
-    check('quote: the services picked on Discovery carry in, each with specialist, their cost and his client price; no catalog or per-day lines', /hybrid event production<\/h3>/.test(qp0.text) && /Brand strategy<\/h3>/.test(qp0.text) && /name="sp_brand-strategy"/.test(qp0.text) && /name="cost_brand-strategy"/.test(qp0.text) && /name="price_brand-strategy"/.test(qp0.text) && /name="price_virtual-hybrid-events"/.test(qp0.text) && !/name="sp_content-production"/.test(qp0.text) && !/Quantity|per day|qty_/.test(qp0.text) && qp0.text.indexOf('name="sp_virtual-hybrid-events"') < qp0.text.indexOf('name="sp_brand-strategy"'));
-    const qform = (extra) => [['key', 'org-k'], ['svc', 'brand-strategy'], ['svc', 'virtual-hybrid-events'], ['sp_brand-strategy', 'Specialist B'], ['cost_brand-strategy', '2000'], ['term', '6'], ['plan', 'monthly'], ['rationale', 'A story funders can repeat'], ['back', '/dashboard/flow/org-k/quote'], ...extra];
-    const q1 = await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: qform([['price_brand-strategy', ''], ['price_virtual-hybrid-events', '']]) });
-    const qp = await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie });
-    check('quote: his specialist and cost are kept, a blank cost is named not zero, and no client price is set for him', /m=quote_saved/.test(q1.location || '') && /value="Specialist B"/.test(qp.text) && /[$]2,000/.test(qp.text) && /No cost entered yet: Virtual/.test(qp.text) && /set your price to see it/.test(qp.text) && /name="price_brand-strategy" inputmode="decimal" value=""/.test(qp.text) && /name="price_virtual-hybrid-events" inputmode="decimal" value=""/.test(qp.text));
-    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: qform([['price_brand-strategy', '7500'], ['price_virtual-hybrid-events', '4500'], ['sp_virtual-hybrid-events', 'Specialist V'], ['cost_virtual-hybrid-events', '1500'], ['title', 'Proposal for Org K']]) });
+    check('quote: each service from Discovery loads its roles and cost categories (strategy, account management, coordination), every rate and box blank',
+      /hybrid event production<\/h3>/.test(qp0.text) && /Brand strategy<\/h3>/.test(qp0.text) && ['Brand lead', 'Strategy and planning', 'Account management', 'Coordination', 'Strategy and run of show', 'Production manager'].every((r) => qp0.text.includes(`>${r}</span>`)) && /Licences and fonts<\/span><span class="d-role__tag">Other cost/.test(qp0.text)
+      && !/name="rl_[^"]+_(rate|qty|hours|months)" inputmode="decimal" value="[^"]/.test(qp0.text) && /name="price_brand-strategy" inputmode="decimal" value=""/.test(qp0.text) && !/name="rl_content-production/.test(qp0.text)
+      && qp0.text.indexOf('name="rl_virtual-hybrid-events_0_who"') < qp0.text.indexOf('name="rl_brand-strategy_0_who"'));
+    check('quote: every role has Assigned to (with add a person) and Billed as with all six units, defaulting by role', ['Flat fee for the whole job', 'Flat fee per month', 'Flat fee per episode or event', 'Hourly, hours per month', 'Hourly, hours per episode or event', 'Hourly, total hours for the job'].every((l) => qp0.text.includes(l)) && /Not chosen<\/option>/.test(qp0.text) && /\+ Add a new person/.test(qp0.text)
+      && /name="rl_brand-strategy_0_billed">[\s\S]*?<option value="job" selected>/.test(qp0.text) && /name="rl_brand-strategy_2_billed">[\s\S]*?<option value="hourly_total" selected>/.test(qp0.text));
+    check('quote: nothing is hard-coded as "You" and nobody is pre-assigned', !/>You<|"You"|Your client price|Your price/.test(qp0.text) && !/name="rl_[^"]+_who">(?:(?!<\/select>)[\s\S])*<option value="p[A-Za-z0-9_-]{8}" selected>/.test(qp0.text));
+
+    // The team directory: owner, team member and contractor; rates per hour, month or job; add and remove.
+    const td = await call(env, '/dashboard/team', { method: 'POST', cookie: s.cookie, form: { n: '4', pname_0: 'Person A', ptype_0: 'owner', prate_0: '150', pper_0: 'hour', pname_1: 'Person C', ptype_1: 'contractor', prate_1: '2000', pper_1: 'job', pname_2: 'Person T', ptype_2: 'team', prate_2: '', pper_2: 'month', pname_3: 'Person Gone', ptype_3: 'team', back: '/dashboard/flow/org-k/quote' } });
+    const dirRow = await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM team_directory WHERE sample = 0').first();
+    const tdv = await call(env, '/dashboard/team', { cookie: second.cookie });
+    const goneId = (tdv.text.match(/name="pid_3" value="([^"]+)"/) || [])[1];
+    check('team directory: saved, read back on a second device, encrypted (no name or rate in plain), a blank rate stays blank', /m=team_dir_saved/.test(td.location || '') && dirRow && !/Person A|150/.test(dirRow.data_enc) && /value="Person A"/.test(tdv.text) && /value="Person T"/.test(tdv.text) && /name="prate_2" inputmode="decimal" value=""/.test(tdv.text) && /<option value="owner" selected>Owner/.test(tdv.text));
+    const keep = [...tdv.text.matchAll(/name="pid_(\d)" value="([^"]+)"/g)].map((x) => x[2]);
+    await call(env, '/dashboard/team', { method: 'POST', cookie: s.cookie, form: { n: '4', pid_0: keep[0], pname_0: 'Person A', ptype_0: 'owner', prate_0: '150', pper_0: 'hour', pid_1: keep[1], pname_1: 'Person C', ptype_1: 'contractor', prate_1: '2000', pper_1: 'job', pid_2: keep[2], pname_2: 'Person T', ptype_2: 'team', prate_2: '', pper_2: 'month', pid_3: goneId, pname_3: '', back: '/dashboard/team' } });
+    const tdv2 = await call(env, '/dashboard/team', { cookie: s.cookie });
+    check('team directory: clearing a name removes that person; the others keep their ids', !/Person Gone/.test(tdv2.text) && keep.slice(0, 3).every((id) => tdv2.text.includes(`value="${id}"`)));
+    const [idA, idC, idT] = keep;
+
+    const qp1 = await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie });
+    check('quote: the directory fills Assigned to, grouped by type', /<optgroup label="Owner"><option value="[^"]+">Person A</.test(qp1.text) && /<optgroup label="Contractor"><option value="[^"]+">Person C</.test(qp1.text));
+    const B = 'rl_brand-strategy_'; const E = 'rl_virtual-hybrid-events_';
+    const build = (extra) => setF(formOf(qp1.text), {
+      [`${B}0_who`]: idC, // Brand lead, flat for the job, Person C's standard 2000 a job
+      [`${B}1_who`]: idA, [`${B}1_hours`]: '10', // Strategy, hourly total, owner at 150 an hour = 1500
+      [`${B}2_who`]: idA, [`${B}2_hours`]: '5', [`${B}2_rate`]: '100', // Account management, rate for this quote only = 500
+      [`${B}3_out`]: '1', // Coordination left out
+      [`${B}4_newname`]: 'Person N', [`${B}4_newtype`]: 'contractor', [`${B}4_newrate`]: '800', [`${B}4_newper`]: 'job', // Designer: a new person, 800 a job
+      [`${E}3_qty`]: '2', [`${E}3_rate`]: '700', // Production manager, per event, nobody assigned = 1400
+      'price_brand-strategy': '7500', 'price_virtual-hybrid-events': '4500', disc: '1000', disc_mode: 'amount',
+      own_model: 'hours', own_who: idA, own_hours: '4', ov_value: '10', ov_mode: 'pct', tax: '20', term: '6', plan: 'monthly', rationale: 'A story funders can repeat', title: 'Proposal for Org K', ...extra
+    });
+    const q1 = await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: build({}) });
+    const qp = await call(env, '/dashboard/flow/org-k/quote', { cookie: second.cookie });
+    const strip = (qp.text.match(/<div class="d-strip">([\s\S]*?)<\/div>\s*<details/) || [])[1] || '';
+    check('quote: client price, discount, costs and margin together: price as typed, a discount lowers price not cost, costs from the billed units', /m=quote_saved/.test(q1.location || '') && /Client price<\/span><strong>[$]12,000/.test(strip) && /Discount<\/span><strong>[$]1,000/.test(strip) && /Costs so far<\/span><strong>[$]6,200/.test(strip), strip.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+    // net 11,000 − costs 6,200 − owner time 600 − overhead 1,100 = 3,100; tax reserve 20% = 620; margin 2,480.
+    check('quote: owner time, overhead and tax reserve are separate visible costs, and the margin says what it includes', /Margin<\/span><strong class="">[$]2,480 · 23%/.test(strip) && /Owner time \(planned\)<br><span class="d-sub">In the margin<\/span><\/span><span>[$]600/.test(qp.text) && /Overhead<br><span class="d-sub">In the margin<\/span><\/span><span>[$]1,100/.test(qp.text) && /[$]620/.test(qp.text) && /minus roles, other costs, owner time, overhead, tax reserve/.test(qp.text) && /Roles assigned to an owner<\/span><span>[$]2,000/.test(qp.text));
+    check('quote: unknown costs stay blank and flagged, never zero; margin provisional while a role is unpriced or unassigned', /provisional/.test(strip) && /Not priced yet: [^<]*Brand strategy · Licences and fonts/.test(qp.text) && /Nobody assigned: [^<]*Production manager/.test(qp.text) && /name="rl_brand-strategy_5_rate" inputmode="decimal" value=""/.test(qp.text) && /Not priced: rate needed/.test(qp.text));
+    check('quote: a rate typed on a quote is for that quote only; the standard rate is untouched', /name="rl_brand-strategy_2_rate" inputmode="decimal" value="100"/.test(qp.text) && /rate set for this quote only/.test(qp.text) && /name="prate_0" inputmode="decimal" value="150"/.test((await call(env, '/dashboard/team', { cookie: s.cookie })).text));
+    check('quote: a person added on a role is saved to the directory and assigned there', /<option value="[^"]+" selected>Person N</.test(qp.text) && /value="Person N"/.test((await call(env, '/dashboard/team', { cookie: second.cookie })).text) && /Cost [$]800/.test(qp.text));
+    check('quote: a left-out role stays listed but out of the math', /d-role d-role--out[\s\S]*?Coordination[\s\S]*?Left out of this quote/.test(qp.text));
+    check('quote: each role keeps its own hours, quantity and months, apart from the 6-month engagement', /name="rl_brand-strategy_1_hours" inputmode="decimal" value="10"/.test(qp.text) && /name="rl_virtual-hybrid-events_3_qty" inputmode="decimal" value="2"/.test(qp.text) && /[$]1,833 a month for 6 months/.test(qp.text));
+    // A custom role, and the margin without overhead.
+    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: setF(build({ 'nr_brand-strategy_name': 'Photo retoucher', 'nr_brand-strategy_kind': 'role' }), { inc_overhead: null }) });
+    const qpC = await call(env, '/dashboard/flow/org-k/quote', { cookie: s.cookie });
+    check('quote: a custom role can be added (and is billed by its kind\'s default); the margin can leave overhead out and says so', /value="Photo retoucher"/.test(qpC.text) && /name="rl_brand-strategy_6_billed">[\s\S]*?<option value="hourly_total" selected>/.test(qpC.text) && /Not included: overhead/.test(qpC.text) && /Margin<\/span><strong class="">[$]3,360/.test(qpC.text));
+    // The last save, with no discount and nothing custom, for the proposal below.
+    await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: build({ disc: '' }) });
     const qp2 = await call(env, '/dashboard/flow/org-k/quote', { cookie: second.cookie });
-    check('quote: his client price is exactly what he typed (no markup, no formula): total, what is left, the 6-month bundle', /value="7500"/.test(qp2.text) && /value="4500"/.test(qp2.text) && /[$]12,000/.test(qp2.text) && /[$]8,500/.test(qp2.text) && /[$]2,000 a month for 6 months/.test(qp2.text) && !/at most/.test(qp2.text));
-    check('quote: payment timing against when costs go out, month by month', /Month 1/.test(qp2.text) && /Month 6/.test(qp2.text));
+    check('quote: payment timing against when costs go out, month by month', /Month 1/.test(qp2.text) && /Month 6/.test(qp2.text) && /[$]2,000 a month for 6 months/.test(qp2.text));
+
+    const { roleCost, rolesFromCatalog, catalogTiers } = await import('../functions/_lib/pd/deal.mjs');
+    const rc = (billed, v) => roleCost({ billed, ...v }).cost;
+    check('billing units: flat job, per month, per episode, hourly per month, per episode, in total', rc('job', { rate: 900 }) === 900 && rc('month', { rate: 500, months: 3 }) === 1500 && rc('unit', { rate: 200, qty: 6 }) === 1200 && rc('hourly_month', { rate: 50, hours: 10, months: 3 }) === 1500 && rc('hourly_unit', { rate: 50, hours: 2, qty: 6 }) === 600 && rc('hourly_total', { rate: 50, hours: 7 }) === 350);
+    check('billing units: any box the unit needs that is empty leaves the cost unknown (never zero)', rc('hourly_month', { rate: 50, hours: 10 }) === null && rc('unit', { qty: 6 }) === null && roleCost({ billed: 'month', months: 2, who: 'x' }, [{ id: 'x', rate: 40, per: 'hour' }]).mismatch === true);
+    const card = [{ id: 'L1', service: 'virtual-hybrid-events', line: 'Stream crew', unit: 'day', cost: 300, tier: 'Gold', qty: 2 }, { id: 'L2', service: 'virtual-hybrid-events', line: 'Stream crew', unit: 'day', cost: 300, tier: 'Silver', qty: 1 }, { id: 'L3', service: 'virtual-hybrid-events', line: 'Producer time', unit: 'hour', cost: 80, tier: 'Gold', qty: 10 }];
+    const gold = rolesFromCatalog(card, 'virtual-hybrid-events', 'Gold');
+    check('event rate card: its tiers are offered and a tier loads its lines with their quantities and standard rates', catalogTiers(card, 'virtual-hybrid-events').join() === 'Gold,Silver' && gold.length === 2 && roleCost(gold[0]).cost === 600 && roleCost(gold[1]).cost === 800 && gold.every((r) => r.rate === null));
+    const qmD = quoteMath({ services: [{ id: 'a', name: 'A', price: 1000, roles: [{ name: 'R', billed: 'job', rate: 400, who: 'p' }] }], discount: { mode: 'pct', value: 10 }, include: { owner: false, overhead: false, tax: false } }, [{ id: 'p', type: 'team' }]);
+    check('discount: lowers the price, not the cost, so it comes out of margin; fully priced and assigned is no longer provisional', qmD.net === 900 && qmD.cost === 400 && qmD.margin.amount === 500 && qmD.margin.provisional.length === 0);
+    const qmO = (model, v) => quoteMath({ services: [{ id: 'a', name: 'A', price: 1000, roles: [] }], term: 3, ownerPlan: { model, ...v } }).ownerTime;
+    check('owner time: planned by hours at a rate, a monthly amount over the engagement, or a share of price; not planned is named', qmO('hours', { hours: 3, rate: 100 }) === 300 && qmO('monthly', { monthly: 200 }) === 600 && qmO('share', { share: 10 }) === 100 && quoteMath({ services: [{ id: 'a', name: 'A', price: 1000, roles: [] }] }).margin.provisional.includes('owner time not set'));
     const qm0 = quoteMath({ services: [{ name: 'x', cost: 2000, price: null }] });
     check('quote: nothing ever derives a client price from a cost', qm0.price === null && qm0.margin === null);
     const m = quoteMath({ services: [{ name: 'x', cost: 5000, price: 6000, month: 1 }], term: 3, plan: 'monthly' });
     check('quote: a month where costs go out before payment arrive is named', m.shortMonths.includes(1) && m.timeline[2].position === 1000);
-    check('quote: every quote is stored encrypted', !(await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM quote').all()).results.some((r) => /7500|Specialist B|funders/.test(r.data_enc)));
+    check('quote: every quote is stored encrypted', !(await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM quote').all()).results.some((r) => /7500|Person|Brand lead|funders/.test(r.data_enc)));
 
     // Quote to proposal: the draft carries price, scope and term; never the floor, a rate or the margin.
     await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'draft', back: '/dashboard/flow/org-k/proposal' } });
@@ -1013,7 +1083,7 @@ const realFetch = globalThis.fetch;
     const text = (pp.text.match(/<textarea id="pr-text"[^>]*>([\s\S]*?)<\/textarea>/) || [])[1] || '';
     check('proposal: drafted from the quote and discovery, editable: services with his prices, the event dates, his total', /Funders understand the grantee work/.test(text) && /[$]12,000 in total/.test(text) && /bundled over 6 months, [$]2,000 a month/.test(text) && /Brand strategy: [$]7,500/.test(text) && /hybrid event production: [$]4,500/.test(text) && /Event dates: 2027-03-04 to 2027-03-05/.test(text));
     // Internal costs never reach anything the client sees (Scooter, 15 Nov 2026).
-    check('proposal: never a specialist, a specialist cost, what is left, or the word cost', !/Specialist B|Specialist V|2,000[^ ]|\b2000\b|1,500|1500|8,500|margin|floor|cost/i.test(text.replace(/[$]2,000 a month/, '')));
+    check('proposal: never a role, a person, a rate, a cost or the margin', !/Person [ACTN]|Brand lead|Account management|Production manager|Designer|\b150\b|\b700\b|\b800\b|1,400|6,200|margin|floor|cost|overhead|tax reserve|owner time/i.test(text));
     await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', do: 'save', status: 'sent', text: `${text.replace(/&amp;/g, '&')}\nEdited by hand.`, back: '/dashboard/flow/org-k/proposal' } });
     const pp2 = await call(env, '/dashboard/flow/org-k/proposal', { cookie: second.cookie });
     check('proposal: his edit and its Sent status persist on a second device', /Edited by hand\./.test(pp2.text) && /Sent to the client · version 2/.test(pp2.text));
@@ -1024,7 +1094,7 @@ const realFetch = globalThis.fetch;
     const tokenK = new URL(`${PROD}${acc.location}`).searchParams.get('portal');
     check('accepted: the deal moves to Signed agreement in his tracker, read back', pipeline[11][5] === 'Signed agreement' && /m=accepted/.test(acc.location || ''));
     const dv = await call(env, acc.location, { cookie: s.cookie });
-    check('accepted: account team, a task per quoted service (never a specialist) and the portal link shown once', /Owner A: account lead/.test(dv.text) && />Brand strategy</.test(dv.text) && /hybrid event production</.test(dv.text) && !/Specialist B|Specialist V/.test(dv.text) && dv.text.includes(`/portal/${tokenK}`));
+    check('accepted: account team, a task per quoted service (never a specialist) and the portal link shown once', /Owner A: account lead/.test(dv.text) && />Brand strategy</.test(dv.text) && /hybrid event production</.test(dv.text) && !/Person [ACTN]|Brand lead|Production manager/.test(dv.text) && dv.text.includes(`/portal/${tokenK}`));
     check('accepted: no invoice is created', !(await env.PRODUCTIONS_DB.prepare("SELECT row_id FROM row_cache WHERE kind = 'invoices'").first()) && !Object.values(g.sheets).some((x) => x.tabs.Invoices));
     check('accepted: the portal link itself is never stored, only its hash', !JSON.stringify((await env.PRODUCTIONS_DB.prepare('SELECT * FROM portal').all()).results).includes(tokenK));
     await call(env, '/dashboard/delivery/task', { method: 'POST', cookie: s.cookie, form: { key: 'org-k', title: 'Internal budget check', owner: 'Owner A', back: '/dashboard/flow/org-k/delivery' } });
@@ -1043,7 +1113,7 @@ const realFetch = globalThis.fetch;
     const portal = async (t, host = PROD) => { const r = await handlePortal({ request: new Request(`${host}/portal/${t}`), env }); return { status: r.status, text: await r.text() }; };
     const pK = await portal(tokenK);
     check('portal: the client sees their own tasks (done marked) and shared files', pK.status === 200 && /Org K/.test(pK.text) && /<s>Brand strategy<\/s>/.test(pK.text) && /Shared folder K/.test(pK.text));
-    check('portal: never an internal task, another client, a note, a quote, a specialist, a cost, a price or money', !/Internal budget check|Org L|Venue walk-through L|Board|First note|12,000|7,500|7500|2000|2,000|1500|Specialist B|Specialist V|\$|Proposal|margin|floor|cost/i.test(pK.text.replace(/<style>[\s\S]*?<\/style>/, '')));
+    check('portal: never an internal task, another client, a note, a quote, a specialist, a cost, a price or money', !/Internal budget check|Org L|Venue walk-through L|Board|First note|12,000|7,500|7500|2000|2,000|1500|Specialist B|Specialist V|Person [ACTN]|Brand lead|\$|Proposal|margin|floor|cost/i.test(pK.text.replace(/<style>[\s\S]*?<\/style>/, '')));
     const pL = await portal(tokenL);
     check('portal: each client sees only their own', /Venue walk-through L/.test(pL.text) && !/Shared folder K|Org K/.test(pL.text) && !/<s>/.test(pL.text));
     check('portal: a made-up link opens nothing', (await portal('A'.repeat(32))).status === 404);

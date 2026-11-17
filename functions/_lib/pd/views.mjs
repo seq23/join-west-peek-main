@@ -180,6 +180,24 @@ code{overflow-wrap:anywhere}
 .d-mine{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:10px 0 0}
 .d-grid2{display:grid;grid-template-columns:1fr;gap:0 12px}
 @media (min-width:620px){.d-grid2{grid-template-columns:1fr 1fr}}
+.d-grid3{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+@media (min-width:620px){.d-grid3{grid-template-columns:repeat(4,1fr)}}
+.d-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 4px}
+@media (min-width:620px){.d-strip{grid-template-columns:repeat(4,1fr)}}
+.d-strip div{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--ink-2)}
+.d-strip span{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.d-strip strong{display:block;font-size:20px;font-variant-numeric:tabular-nums;margin-top:2px}
+.d-fieldset{border:0;padding:0;margin:12px 0 0}
+.d-fieldset legend{font-weight:700;padding:0}
+.d-role{border-top:1px solid var(--ink-3);padding:12px 0 6px}
+.d-role__head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.d-role__name{font-weight:700}
+.d-role__tag{font-size:12px;color:var(--muted);margin-left:6px;font-weight:400}
+.d-role .d-check{margin:0;min-height:36px;font-size:14px}
+.d-role--out>*:not(.d-role__head){opacity:.5}
+.d-role__cost{margin:6px 0 0;font-size:14px}
+.d-role details{margin:4px 0 0}
+.d-role details summary{cursor:pointer;color:var(--orange);font-size:14px;min-height:36px;display:flex;align-items:center}
 .d-helpdoc code{background:var(--ink-3);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
 @media (max-width:620px){.d-row{flex-wrap:wrap}.d-row__main{flex:1 1 70%}.d-row__act{flex:1 1 100%;justify-content:flex-start;padding-left:20px}.d-row--today{flex-wrap:nowrap;align-items:center}.d-row--today .d-row__main{flex:1 1 auto}.d-row--today .d-row__act{flex:none;flex-wrap:nowrap;justify-content:flex-end;align-items:center;padding-left:0}.d-row--today .d-row__act button,.d-row--today .d-row__act .d-btn{padding:9px 12px;white-space:nowrap}}
 @media (min-width:760px){body{font-size:16px}main{padding:0 24px 24px}}

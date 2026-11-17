@@ -86,11 +86,18 @@ export const MIGRATIONS = [
       'ALTER TABLE web_inquiry ADD COLUMN event_start TEXT',
       'ALTER TABLE web_inquiry ADD COLUMN event_end TEXT'
     ]
+  },
+  {
+    // The quote builder's team directory (Scooter, 15 Nov 2026: "a reusable team directory (owner, team
+    // member and contractor types; rates per hour, month or job; add and remove people)"). One encrypted
+    // list per mode, like the catalog. Additive only.
+    version: 6,
+    sql: ['CREATE TABLE IF NOT EXISTS team_directory (sample INTEGER PRIMARY KEY, data_enc TEXT NOT NULL, at INTEGER NOT NULL)']
   }
 ];
 
 /** Every table a backup carries (restore replaces each one whole). */
-export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'note', 'web_inquiry', 'intake', 'discovery', 'catalog', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal', 'schema_version'];
+export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'note', 'web_inquiry', 'intake', 'discovery', 'catalog', 'team_directory', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal', 'schema_version'];
 /** What each table keeps, in his words: the Access page lists every table a backup carries. */
 export const TABLE_WORDS = {
   owner: 'Your sign-in record: your work email, your name and a salted hash of your password (never the password itself)',
@@ -110,7 +117,8 @@ export const TABLE_WORDS = {
   intake: 'The owner and need you set on an inquiry that is not in your tracker yet',
   discovery: 'Your discovery answers on each deal, every saved version',
   catalog: 'Your service catalog and rates, encrypted',
-  quote: 'Each quote you built (each service\'s specialist and their cost, your client price, rationale), encrypted, every version',
+  team_directory: 'The team directory: names, owner / team / contractor, and a standard rate where one is known, encrypted',
+  quote: 'Each quote (the roles on each service, who is assigned, how each is billed, rates, client price, discount, owner time, overhead and tax reserve, rationale), encrypted, every version',
   proposal: 'Each proposal version and whether it was sent or accepted, encrypted',
   delivery: 'The account team on each accepted deal',
   task: 'Tasks on each accepted deal, and which ones the client sees',
