@@ -887,7 +887,7 @@ const realFetch = globalThis.fetch;
 // shows one client only and no money, the money hold, the Google grant withdrawn, and the cash rules.
 {
   const { onRequestPost } = await import('../functions/api/lead.js');
-  const { discoveryQuestions, quoteMath, cashPicture, proposalDraft } = await import('../functions/_lib/pd/deal.mjs');
+  const { discoveryQuestions, quoteMath, cleanQuote, cashPicture, proposalDraft } = await import('../functions/_lib/pd/deal.mjs');
   const g = fakeGoogle();
   const PIPE = 'PIPELINESHEETID00000000000001';
   const head = ['Opportunity', 'Organization', 'Contact', 'Service', 'Buyer type', 'Stage', 'Owner', 'Value', 'Probability', 'Expected close', 'Next step', 'Next step date', 'Notes', 'Flag'];
@@ -1100,6 +1100,10 @@ const realFetch = globalThis.fetch;
     const tNone = qT({ owner: false, overhead: false, tax: false });
     check('cash timeline: a cost left out of the margin is left out of cash out too', Math.abs(tNone.timeline.reduce((a, t) => a + t.cashOut, 0) - tNone.cost) < 1e-6);
     check('owner time on a monthly plan goes out each month', Math.abs(tAll.timeline[0].cashOut - tAll.timeline[1].cashOut) < 1e-6);
+    // Owner time and overhead can go out in a set month, like a service (review note 16 Nov 2026).
+    const tAt = quoteMath({ services: [{ id: 'a', name: 'A', price: 1200, roles: [] }], term: 3, ownerPlan: { model: 'monthly', monthly: 50, month: 2 }, overhead: { mode: 'amount', value: 90, month: 3 }, include: { owner: true, overhead: true, tax: false } });
+    check('owner time and overhead go out in the month set on each, and the total out is unchanged', Math.abs(tAt.timeline[0].cashOut) < 1e-6 && Math.abs(tAt.timeline[1].cashOut - 150) < 1e-6 && Math.abs(tAt.timeline[2].cashOut - 90) < 1e-6 && Math.abs(tAt.timeline[2].position - tAt.margin.amount) < 1e-6, JSON.stringify(tAt.timeline));
+    check('a saved quote keeps the month set on owner time and overhead', cleanQuote({ ownerPlan: { model: 'monthly', month: '2' }, overhead: { value: '5', month: '99' } }).ownerPlan.month === 2 && cleanQuote({ overhead: { value: '5', month: '3' } }).overhead.month === 3 && cleanQuote({ overhead: { value: '5', month: '99' } }).overhead.month === 24);
     check('a discount bigger than the price is flagged', quoteMath({ services: [{ id: 'a', name: 'A', price: 100, roles: [] }], discount: { mode: 'amount', value: 300 } }).overDiscount === true && tAll.overDiscount === false);
     const qm0 = quoteMath({ services: [{ name: 'x', cost: 2000, price: null }] });
     check('quote: nothing ever derives a client price from a cost', qm0.price === null && qm0.margin === null);

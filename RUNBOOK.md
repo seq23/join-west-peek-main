@@ -191,7 +191,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     the Virtual / hybrid card loads a tier of his event rate card (catalog `tier` + `qty` columns). Client
     price per service is typed, never built from costs; discount lowers price, not cost; owner time is its
     own cost (`OWNER_MODELS`: hours × rate, monthly, or share of price) apart from overhead and the tax
-    reserve, and the margin names what it includes. An empty box is left out of the math and named, never
+    reserve, and the margin names what it includes; the cash timeline carries each in the month set on it, else spread. An empty box is left out of the math and named, never
     zero; the margin is provisional until every row is priced and every role has someone assigned.
     `quoteMath` / `roleCost`. Nothing is labelled "You"), Proposal (drafted from quote + discovery: services and his prices, never a specialist, a cost or what is left; edit,
     draft/sent), Accept → his tracker's signed stage (read back), the work side (team, a task per scope

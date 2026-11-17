@@ -437,12 +437,12 @@ export function quoteMath(q, dir = []) {
     else for (let i = 0; i < months; i += 1) outflow[i] += num(x.cost) / months;
   }
   // The other costs the margin includes go out too, so the cash position never reads higher than the
-  // margin: owner time (monthly plan per month, hours or a share spread over the engagement), overhead
-  // spread evenly, and the tax reserve set aside from each payment as it arrives. A cost left out of
+  // margin: owner time and overhead (in the month set on each, else spread over the engagement), and the tax reserve set aside from each payment as it arrives. A cost left out of
   // the margin is left out here; one not set is not counted (the quote already says it is not set).
-  const spread = (v) => { for (let i = 0; i < months; i += 1) outflow[i] += v / months; };
-  if (inc.owner && ownerTime !== null) spread(ownerTime);
-  if (inc.overhead && overhead !== null) spread(overhead);
+  // Owner time and overhead may be set to go out in one month, like a service; blank spreads them.
+  const place = (v, at) => { const m = Math.min(months, Math.max(0, Number(at) || 0)); if (m) outflow[m - 1] += v; else for (let i = 0; i < months; i += 1) outflow[i] += v / months; };
+  if (inc.owner && ownerTime !== null) place(ownerTime, o.month);
+  if (inc.overhead && overhead !== null) place(overhead, ov.month);
   if (inc.tax && tax !== null && tax > 0 && net) inflow.forEach((cashIn, i) => { outflow[i] += (tax * cashIn) / net; });
   let running = 0;
   const timeline = inflow.map((cashIn, i) => { running += cashIn - outflow[i]; return { month: i + 1, cashIn, cashOut: outflow[i], position: running }; });
@@ -474,8 +474,8 @@ export function cleanQuote(raw) {
     v: 3, services,
     term: TERMS[raw.term] !== undefined ? Number(raw.term) : 0, months: Math.max(1, Math.min(24, Number(raw.months) || 1)), plan: PAY_PLANS[raw.plan] ? raw.plan : '', split: clip(raw.split, 40),
     discount: { mode: pick(raw.discount?.mode, ['amount', 'pct'], 'amount'), value: num(raw.discount?.value) },
-    ownerPlan: { model: OWNER_MODELS[raw.ownerPlan?.model] ? raw.ownerPlan.model : '', who: clip(raw.ownerPlan?.who, 30), hours: num(raw.ownerPlan?.hours), rate: num(raw.ownerPlan?.rate), monthly: num(raw.ownerPlan?.monthly), share: num(raw.ownerPlan?.share) },
-    overhead: { mode: pick(raw.overhead?.mode, ['pct', 'amount'], 'pct'), value: num(raw.overhead?.value) },
+    ownerPlan: { model: OWNER_MODELS[raw.ownerPlan?.model] ? raw.ownerPlan.model : '', who: clip(raw.ownerPlan?.who, 30), hours: num(raw.ownerPlan?.hours), rate: num(raw.ownerPlan?.rate), monthly: num(raw.ownerPlan?.monthly), share: num(raw.ownerPlan?.share), month: Math.max(0, Math.min(24, Number(raw.ownerPlan?.month) || 0)) },
+    overhead: { mode: pick(raw.overhead?.mode, ['pct', 'amount'], 'pct'), value: num(raw.overhead?.value), month: Math.max(0, Math.min(24, Number(raw.overhead?.month) || 0)) },
     taxReserve: num(raw.taxReserve),
     include: { owner: flag(raw.include?.owner), overhead: flag(raw.include?.overhead), tax: flag(raw.include?.tax) },
     rationale: clip(raw.rationale, 3000), title: clip(raw.title, 160)

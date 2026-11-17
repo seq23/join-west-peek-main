@@ -547,8 +547,8 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
     const raw = {
       services, term: field(form, 'term'), months: field(form, 'months'), plan: field(form, 'plan'), split: field(form, 'split'), rationale: field(form, 'rationale'), title: field(form, 'title'),
       discount: { mode: field(form, 'disc_mode'), value: field(form, 'disc') },
-      ownerPlan: { model: field(form, 'own_model'), who: field(form, 'own_who'), hours: field(form, 'own_hours'), rate: field(form, 'own_rate'), monthly: field(form, 'own_monthly'), share: field(form, 'own_share') },
-      overhead: { mode: field(form, 'ov_mode'), value: field(form, 'ov_value') }, taxReserve: field(form, 'tax'),
+      ownerPlan: { model: field(form, 'own_model'), who: field(form, 'own_who'), hours: field(form, 'own_hours'), rate: field(form, 'own_rate'), monthly: field(form, 'own_monthly'), share: field(form, 'own_share'), month: field(form, 'own_month') },
+      overhead: { mode: field(form, 'ov_mode'), value: field(form, 'ov_value'), month: field(form, 'ov_month') }, taxReserve: field(form, 'tax'),
       include: { owner: field(form, 'inc_owner'), overhead: field(form, 'inc_overhead'), tax: field(form, 'inc_tax') }
     };
     const r = await saveQuote(env, { key, quote: cleanQuote(raw), sample: s }, now);
