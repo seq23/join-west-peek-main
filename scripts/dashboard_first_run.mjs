@@ -53,6 +53,9 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
   // results and highlighted work together, no nested toggles), Client / Project labels sit in the summary,
   // the copy Scooter is writing is a marked data-copy-slot (his words: "leave placeholders until I send
   // it"), and "Get in touch" stays the page's main call to action.
+  // The homepage case list is held to the same rule: every placeholder is a marked copy slot.
+  const home = (await get('/')).text;
+  if (/to confirm with Scooter/i.test(home) || /class="[^"]*wpp-tag-placeholder[^"]*"(?![^>]*data-copy-slot="[a-z0-9-]+\.[a-z0-9-]+")/.test(home)) fail('page /', 'a case placeholder on the homepage has no data-copy-slot');
   const work = (await get('/work')).text;
   const cases = work.match(/<details class="wpp-acc" id="[a-z0-9-]+">[\s\S]*?<\/details>/g) || [];
   if (cases.length === 0) fail('page /work', 'no case studies');
@@ -61,7 +64,7 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
     if (/<details/.test(c.slice(8))) fail('page /work', `${id} has a nested toggle; one + must open it all`);
     if (!/wpp-acc__client">Client:/.test(c) || !/wpp-acc__project">Project:/.test(c)) fail('page /work', `${id} lacks the Client / Project labels`);
     for (const h of ['The problem', 'What we did', 'Results', 'Highlighted work']) if (!c.includes(`>${h}</h3>`)) fail('page /work', `${id} lacks "${h}"`);
-    if (/Copy to come from Scooter/.test(c.replace(/<p class="wpp-tag-placeholder" data-copy-slot="[^"]+">Copy to come from Scooter<\/p>/g, ''))) fail('page /work', `${id} has an unmarked copy placeholder`);
+    if (/Copy to come from Scooter/.test(c.replace(/<(p|span) class="[^"]*wpp-tag-placeholder[^"]*" data-copy-slot="[^"]+">Copy to come from Scooter<\/\1>/g, ''))) fail('page /work', `${id} has an unmarked copy placeholder`);
     // Every placeholder in a case, whatever its wording, is a marked slot so his copy has one place to land.
     if (/class="wpp-tag-placeholder"(?! data-copy-slot="[a-z0-9-]+\.[a-z0-9-]+")/.test(c)) fail('page /work', `${id} has a placeholder with no data-copy-slot`);
     if (/wpp-tag-placeholder(?![^"]*" data-copy-slot=")/.test(c.replace(/class="wpp-tag-placeholder" data-copy-slot="[^"]+"/g, '').replace(/class="[^"]*wpp-tag-placeholder[^"]*" data-copy-slot="[a-z0-9-]+\.[a-z0-9-]+"/g, ''))) fail('page /work', `${id} has a placeholder with no data-copy-slot`);
