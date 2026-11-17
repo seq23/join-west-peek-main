@@ -158,22 +158,23 @@ function roleRow(svcId, r, i, dir) {
   const tag = r.kind === 'cost' ? '<span class="d-role__tag">Other cost</span>' : '';
   const card = r.card ? `<span class="d-role__tag">From the rate card · ${esc(r.card)}</span>` : '';
   const std = c.from === 'directory' ? `${rateWords(c.rate)} ${RATE_PER[b.per]} (standard)` : c.from === 'card' ? `${rateWords(c.rate)} (rate card)` : 'not set';
+  // Every box is on the page; the shell's CSS shows only the ones the chosen "Billed as" needs, so
+  // changing it on the row swaps the boxes at once, before any save (the CSP allows no script).
   const boxes = ['rate', 'qty', 'hours', 'months'];
-  const shown = boxes.filter((k) => b.needs.includes(k));
+  const only = (words) => Object.entries(words).map(([v, w]) => `<span data-only="${esc(v)}">${esc(w)}</span>`).join('');
   const box = (k) => {
-    const label = k === 'rate' ? `Rate ${RATE_PER[b.per]}` : k === 'hours' ? BOX_WORDS.hours[r.billed] : BOX_WORDS[k];
+    const label = k === 'rate' ? `Rate ${only(Object.fromEntries(Object.entries(BILLED).map(([v, x]) => [v, RATE_PER[x.per]])))}` : k === 'hours' ? only(BOX_WORDS.hours) : esc(BOX_WORDS[k]);
     const ph = k === 'rate' ? std : k === 'months' ? 'months' : k === 'qty' ? 'how many' : 'hours';
-    return `<div><label for="${idf(k)}">${esc(label)}</label><input id="${idf(k)}" name="${f(k)}" inputmode="decimal" value="${val$(r[k])}" placeholder="${esc(ph)}"></div>`;
+    return `<div class="d-box" data-box="${k}"><label for="${idf(k)}">${label}</label><input id="${idf(k)}" name="${f(k)}" inputmode="decimal" value="${val$(r[k])}" placeholder="${esc(ph)}"></div>`;
   };
-  const hiddenBoxes = boxes.filter((k) => !shown.includes(k)).map((k) => hidden(f(k), r[k] ?? '')).join('');
   const costLine = r.out ? 'Left out of this quote.'
     : c.cost === null ? `<span class="d-gold">Not priced: ${esc(c.missing.map((k) => (k === 'rate' ? 'rate' : k === 'qty' ? 'how many' : k)).join(', '))} needed${c.mismatch ? ` (${esc(c.person.name)}'s standard rate is ${esc(RATE_PER[c.person.per])}; this role is billed ${esc(RATE_PER[b.per])})` : ''}</span>`
       : `Cost ${esc(money(c.cost))}${c.from === 'quote' ? ' · rate set for this quote only' : ''}`;
   const unassigned = r.kind !== 'cost' && !r.out && !c.person ? ' <span class="d-gold">· nobody assigned</span>' : '';
   return `<div class="d-role${r.out ? ' d-role--out' : ''}">${keep}
     <div class="d-role__head"><div>${name}${tag}${card}</div><label class="d-check"><input type="checkbox" name="${f('out')}" value="1"${r.out ? ' checked' : ''}> Leave out</label></div>
-    <div class="d-grid2"><div><label for="${idf('who')}">Assigned to</label>${whoSelect(idf('who'), f('who'), r.who, dir)}</div><div><label for="${idf('billed')}">Billed as</label><select id="${idf('billed')}" name="${f('billed')}">${Object.entries(BILLED).map(([v, x]) => `<option value="${v}"${r.billed === v ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select></div></div>
-    <div class="d-grid3">${shown.map(box).join('')}</div>${hiddenBoxes}
+    <div class="d-grid2"><div><label for="${idf('who')}">Assigned to</label>${whoSelect(idf('who'), f('who'), r.who, dir)}</div><div><label for="${idf('billed')}">Billed as</label><select class="d-billed" id="${idf('billed')}" name="${f('billed')}">${Object.entries(BILLED).map(([v, x]) => `<option value="${v}"${r.billed === v ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select></div></div>
+    <div class="d-grid3">${boxes.map(box).join('')}</div>
     <p class="d-role__cost">${costLine}${unassigned}</p>
     <details><summary>Add someone new to the team directory</summary><div class="d-grid2"><div><label for="${idf('newname')}">Name</label><input id="${idf('newname')}" name="${f('newname')}" maxlength="120"></div><div><label for="${idf('newtype')}">Type</label><select id="${idf('newtype')}" name="${f('newtype')}">${opts(PERSON_TYPES, 'contractor')}</select></div></div><div class="d-grid2"><div><label for="${idf('newrate')}">Standard rate (optional)</label><input id="${idf('newrate')}" name="${f('newrate')}" inputmode="decimal" placeholder="only if known"></div><div><label for="${idf('newper')}">Per</label><select id="${idf('newper')}" name="${f('newper')}">${opts(RATE_PER, b.per)}</select></div></div><p class="d-sub">Saved to the directory and assigned to this role when the quote is saved.</p></details>
   </div>`;
@@ -227,7 +228,8 @@ export function renderQuote(j, ctx) {
     </div>`;
   const line = (label, v, note = '') => `<li><span>${label}${note ? `<br><span class="d-sub">${note}</span>` : ''}</span><span>${v}</span></li>`;
   const notSet = (v, words = 'not set') => (v === null || v === undefined ? gap(words) : esc(money(v)) || '$0');
-  const breakdown = `<ul class="d-kv">
+  const over = m.overDiscount ? `<p class="d-red">The discount is bigger than the client price, so the price after discount is below zero. Lower the discount or raise the price.</p>` : '';
+  const breakdown = `${over}<ul class="d-kv">
       ${line('Roles: team and contractors', esc(money(m.groups.people)) || '$0')}
       ${line('Roles assigned to an owner', esc(money(m.groups.ownerRoles)) || '$0')}
       ${line('Other costs', esc(money(m.groups.other)) || '$0', 'Bookings, licences, tools, pass-through')}
@@ -241,7 +243,7 @@ export function renderQuote(j, ctx) {
     ${m.unpriced.length ? `<p class="d-sub d-gold">Not priced yet: ${esc(m.unpriced.join(', '))}.</p>` : ''}
     ${m.unassigned.length ? `<p class="d-sub d-gold">Nobody assigned: ${esc(m.unassigned.join(', '))}.</p>` : ''}
     ${saved ? `<p class="d-src">Saved ${esc(usTime(ctx.quote._at, ctx.now))}. Every version is kept, encrypted. Internal only: none of these costs, rates, names or margins reach the proposal or the client portal.</p>` : '<p class="d-src">Not saved yet.</p>'}`;
-  const timeline = saved && m.net !== null ? `<details class="d-fold"><summary><span>When money moves</span></summary><ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">Out is the priced roles and other costs, spread over the engagement. ${m.shortMonths.length ? `<span class="d-red">Out of pocket in month ${m.shortMonths.join(', ')}: costs go out before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'}</p></details>` : '';
+  const timeline = saved && m.net !== null ? `<details class="d-fold"><summary><span>When money moves</span></summary><ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">Out is the priced roles and other costs (in the month set on the service, else spread), plus ${esc(['owner time','overhead'].filter((x, i) => (i ? m.include.overhead && m.overhead !== null : m.include.owner && m.ownerTime !== null)).concat(m.include.tax && m.tax ? ['the tax reserve, set aside from each payment as it arrives'] : []).join(', ') || 'nothing else yet')}${m.include.owner || m.include.overhead ? ' spread over the engagement' : ''}: the same costs the margin includes. ${m.shortMonths.length ? `<span class="d-red">Out of pocket in month ${m.shortMonths.join(', ')}: costs go out before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'}</p></details>` : '';
 
   const o = q.ownerPlan || {};
   const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: q.include?.tax !== false };

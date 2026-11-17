@@ -436,11 +436,20 @@ export function quoteMath(q, dir = []) {
     if (m) outflow[m - 1] += num(x.cost);
     else for (let i = 0; i < months; i += 1) outflow[i] += num(x.cost) / months;
   }
+  // The other costs the margin includes go out too, so the cash position never reads higher than the
+  // margin: owner time (monthly plan per month, hours or a share spread over the engagement), overhead
+  // spread evenly, and the tax reserve set aside from each payment as it arrives. A cost left out of
+  // the margin is left out here; one not set is not counted (the quote already says it is not set).
+  const spread = (v) => { for (let i = 0; i < months; i += 1) outflow[i] += v / months; };
+  if (inc.owner && ownerTime !== null) spread(ownerTime);
+  if (inc.overhead && overhead !== null) spread(overhead);
+  if (inc.tax && tax !== null && tax > 0 && net) inflow.forEach((cashIn, i) => { outflow[i] += (tax * cashIn) / net; });
   let running = 0;
   const timeline = inflow.map((cashIn, i) => { running += cashIn - outflow[i]; return { month: i + 1, cashIn, cashOut: outflow[i], position: running }; });
   return {
     term, months, items, rows, groups, cost, unpriced, unassigned, noCost: unpriced, price, discount, net,
     noPrice: items.filter((x) => num(x.price) === null).map((x) => x.name), ownerTime, overhead, taxPct, tax, include: inc, margin,
+    overDiscount: net !== null && net < 0,
     monthly: net !== null && term ? net / term : null, timeline, shortMonths: timeline.filter((t) => t.position < 0).map((t) => t.month)
   };
 }

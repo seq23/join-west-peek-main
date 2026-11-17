@@ -64,6 +64,9 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
     if (/Copy to come from Scooter/.test(c.replace(/<p class="wpp-tag-placeholder" data-copy-slot="[^"]+">Copy to come from Scooter<\/p>/g, ''))) fail('page /work', `${id} has an unmarked copy placeholder`);
     // Every placeholder in a case, whatever its wording, is a marked slot so his copy has one place to land.
     if (/class="wpp-tag-placeholder"(?! data-copy-slot="[a-z0-9-]+\.[a-z0-9-]+")/.test(c)) fail('page /work', `${id} has a placeholder with no data-copy-slot`);
+    if (/wpp-tag-placeholder(?![^"]*" data-copy-slot=")/.test(c.replace(/class="wpp-tag-placeholder" data-copy-slot="[^"]+"/g, '').replace(/class="[^"]*wpp-tag-placeholder[^"]*" data-copy-slot="[a-z0-9-]+\.[a-z0-9-]+"/g, ''))) fail('page /work', `${id} has a placeholder with no data-copy-slot`);
+    if (/to confirm with Scooter/i.test(c)) fail('page /work', `${id} has an unmarked "to confirm" line`);
+    for (const h of ['problem', 'what-we-did', 'results', 'highlighted-work']) if (!c.includes(`data-copy-slot="${id}.${h}"`)) fail('page /work', `${id} has no copy slot for ${h}`);
   }
   if (!/class="wpp-btn" href="\/get-in-touch">Get in touch/.test(work)) fail('page /work', '"Get in touch" is not the main call to action');
 }
@@ -233,7 +236,7 @@ const formOf = (html) => {
     const value = ((a.match(/value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&');
     if (/type="checkbox"/.test(a)) { if (/ checked/.test(a)) out.push([name, value]); } else out.push([name, value]);
   }
-  for (const m of f.matchAll(/<select id="[^"]*" name="([^"]*)">([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
+  for (const m of f.matchAll(/<select [^>]*?name="([^"]*)"[^>]*>([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
   return out;
 };
 const q0 = await get(`${deal}/quote`, A);

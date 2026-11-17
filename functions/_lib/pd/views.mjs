@@ -8,7 +8,7 @@ import { CHOICES, COLD_EMAIL_SENDING, COLD_EMAIL_WEEKLY_CAP, GROUPS, KINDS, NOTE
 import { GOOGLE_SCOPE_WORDS, KEY_FIELDS, PROVIDERS, RETIRED_GOOGLE_SCOPES, wideGoogleScopes } from './providers.mjs';
 import { BACKUP_TABLES, TABLE_WORDS } from './schema.mjs';
 import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
-import { cashPicture } from './deal.mjs';
+import { BILLED, cashPicture } from './deal.mjs';
 import { cashRulesSection, rulesWalkSection, dealSections, eventOf, eventWords, inquiriesBody } from './views-deal.mjs';
 import { SERVICE_BY_ID } from '../services.mjs';
 
@@ -196,6 +196,7 @@ code{overflow-wrap:anywhere}
 .d-role .d-check{margin:0;min-height:36px;font-size:14px}
 .d-role--out>*:not(.d-role__head){opacity:.5}
 .d-role__cost{margin:6px 0 0;font-size:14px}
+${Object.entries(BILLED).map(([v, x]) => { const on = `.d-role:has(.d-billed option[value="${v}"]:checked)`; return `${on} .d-box:not(${x.needs.map((k) => `[data-box="${k}"]`).join(',')}){display:none}${on} [data-only]:not([data-only="${v}"]){display:none}`; }).join('\n')}
 .d-role details{margin:4px 0 0}
 .d-role details summary{cursor:pointer;color:var(--orange);font-size:14px;min-height:36px;display:flex;align-items:center}
 .d-helpdoc code{background:var(--ink-3);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}

@@ -133,11 +133,14 @@
     var SPEED = 32; // px a second, close to the CSS slide
     var hover = false, held = false, focused = false, resumeAt = 0, pos = 0, last = 0, ours = false;
     function loopWidth() { return row.getBoundingClientRect().width; }
+    // Our own writes are marked only when they really move the strip: a write that changes nothing
+    // fires no scroll event, and a mark left set would swallow the next real scroll by a person.
+    function setScroll(v) { var before = track.scrollLeft; track.scrollLeft = v; if (track.scrollLeft !== before) ours = true; }
     function wrap() {
       var w = loopWidth();
       if (w <= 0) return;
-      if (track.scrollLeft >= w) { ours = true; track.scrollLeft -= w; }
-      else if (track.scrollLeft <= 0) { ours = true; track.scrollLeft += w; }
+      if (track.scrollLeft >= w) setScroll(track.scrollLeft - w);
+      else if (track.scrollLeft <= 0) setScroll(track.scrollLeft + w);
       pos = track.scrollLeft;
     }
     function frame(t) {
@@ -145,8 +148,7 @@
       last = t;
       if (!hover && !held && !focused && !document.hidden && Date.now() >= resumeAt) {
         pos += SPEED * dt;
-        ours = true;
-        track.scrollLeft = pos;
+        setScroll(pos);
         if (track.scrollLeft >= loopWidth()) wrap();
       }
       requestAnimationFrame(frame);
@@ -193,7 +195,7 @@
     track.addEventListener('touchend', release, { passive: true });
     track.addEventListener('lostpointercapture', function () { if (dragX !== null) release(); });
     // Start one loop in, so a drag to the left has logos to show straight away.
-    requestAnimationFrame(function () { ours = true; track.scrollLeft = loopWidth(); pos = track.scrollLeft; requestAnimationFrame(frame); });
+    requestAnimationFrame(function () { setScroll(loopWidth()); pos = track.scrollLeft; requestAnimationFrame(frame); });
   });
 
   // Capabilities: a tap opens what each one is (hover does the same on a laptop).

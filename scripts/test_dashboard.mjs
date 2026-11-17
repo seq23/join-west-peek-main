@@ -1017,7 +1017,7 @@ const realFetch = globalThis.fetch;
         const value = ((a.match(/value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&');
         if (/type="checkbox"/.test(a)) { if (/ checked/.test(a)) out.push([name, value]); } else out.push([name, value]);
       }
-      for (const m of f.matchAll(/<select id="[^"]*" name="([^"]*)">([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
+      for (const m of f.matchAll(/<select [^>]*?name="([^"]*)"[^>]*>([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
       for (const m of f.matchAll(/<textarea id="[^"]*" name="([^"]*)"[^>]*>([\s\S]*?)<\/textarea>/g)) out.push([m[1], m[2]]);
       return out;
     };
@@ -1056,6 +1056,10 @@ const realFetch = globalThis.fetch;
       'price_brand-strategy': '7500', 'price_virtual-hybrid-events': '4500', disc: '1000', disc_mode: 'amount',
       own_model: 'hours', own_who: idA, own_hours: '4', ov_value: '10', ov_mode: 'pct', tax: '20', term: '6', plan: 'monthly', rationale: 'A story funders can repeat', title: 'Proposal for Org K', ...extra
     });
+    // Billed as swaps a row's boxes the moment it changes, before a save (review 16 Nov 2026): every box is
+    // on the row and the page's CSS shows only the ones the checked choice needs.
+    const row0 = (qp1.text.match(/<div class="d-role">[\s\S]*?name="rl_brand-strategy_0_billed"[\s\S]*?<p class="d-role__cost">/) || [''])[0];
+    check('quote: Billed as swaps the row\'s boxes without a save', ['rate', 'qty', 'hours', 'months'].every((k) => row0.includes(`data-box="${k}"`)) && /class="d-billed"/.test(row0) && qp1.text.includes('.d-role:has(.d-billed option[value="job"]:checked) .d-box:not([data-box="rate"]){display:none}') && qp1.text.includes('.d-role:has(.d-billed option[value="hourly_month"]:checked) .d-box:not([data-box="rate"],[data-box="hours"],[data-box="months"]){display:none}'));
     const q1 = await call(env, '/dashboard/quote', { method: 'POST', cookie: s.cookie, form: build({}) });
     const qp = await call(env, '/dashboard/flow/org-k/quote', { cookie: second.cookie });
     const strip = (qp.text.match(/<div class="d-strip">([\s\S]*?)<\/div>\s*<details/) || [])[1] || '';
@@ -1087,6 +1091,16 @@ const realFetch = globalThis.fetch;
     check('discount: lowers the price, not the cost, so it comes out of margin; fully priced and assigned is no longer provisional', qmD.net === 900 && qmD.cost === 400 && qmD.margin.amount === 500 && qmD.margin.provisional.length === 0);
     const qmO = (model, v) => quoteMath({ services: [{ id: 'a', name: 'A', price: 1000, roles: [] }], term: 3, ownerPlan: { model, ...v } }).ownerTime;
     check('owner time: planned by hours at a rate, a monthly amount over the engagement, or a share of price; not planned is named', qmO('hours', { hours: 3, rate: 100 }) === 300 && qmO('monthly', { monthly: 200 }) === 600 && qmO('share', { share: 10 }) === 100 && quoteMath({ services: [{ id: 'a', name: 'A', price: 1000, roles: [] }] }).margin.provisional.includes('owner time not set'));
+    // The cash timeline carries every cost the margin includes (review 16 Nov 2026): roles, owner time,
+    // overhead and the tax reserve; its total out equals price after discount minus the margin.
+    const qT = (include) => quoteMath({ services: [{ id: 'a', name: 'A', price: 1200, roles: [{ name: 'R', billed: 'job', rate: 300, who: 'p' }] }], term: 3, ownerPlan: { model: 'monthly', monthly: 50 }, overhead: { mode: 'pct', value: 10 }, taxReserve: 20, include }, [{ id: 'p', type: 'team' }]);
+    const tAll = qT({ owner: true, overhead: true, tax: true });
+    const outAll = tAll.timeline.reduce((a, t) => a + t.cashOut, 0);
+    check('cash timeline: total out equals the costs the margin includes (roles, owner time, overhead, tax reserve)', Math.abs(outAll - (tAll.net - tAll.margin.amount)) < 1e-6 && Math.abs(tAll.timeline[2].position - tAll.margin.amount) < 1e-6 && outAll > tAll.cost, `out ${outAll}, net ${tAll.net}, margin ${tAll.margin.amount}`);
+    const tNone = qT({ owner: false, overhead: false, tax: false });
+    check('cash timeline: a cost left out of the margin is left out of cash out too', Math.abs(tNone.timeline.reduce((a, t) => a + t.cashOut, 0) - tNone.cost) < 1e-6);
+    check('owner time on a monthly plan goes out each month', Math.abs(tAll.timeline[0].cashOut - tAll.timeline[1].cashOut) < 1e-6);
+    check('a discount bigger than the price is flagged', quoteMath({ services: [{ id: 'a', name: 'A', price: 100, roles: [] }], discount: { mode: 'amount', value: 300 } }).overDiscount === true && tAll.overDiscount === false);
     const qm0 = quoteMath({ services: [{ name: 'x', cost: 2000, price: null }] });
     check('quote: nothing ever derives a client price from a cost', qm0.price === null && qm0.margin === null);
     const m = quoteMath({ services: [{ name: 'x', cost: 5000, price: 6000, month: 1 }], term: 3, plan: 'monthly' });
