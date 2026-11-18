@@ -123,6 +123,22 @@
   }
 
   /**
+   * Tells the page a submission was CONFIRMED, for the GA4 form events in
+   * wp-analytics.js (17 Nov 2026). Called only from the success guard below.
+   * The signal carries the form's lead_type and nothing else - never a field
+   * value - and a failure never sends it.
+   */
+  function announceSuccess(form) {
+    try {
+      if (typeof document === 'undefined' || typeof document.dispatchEvent !== 'function') return;
+      if (typeof CustomEvent !== 'function') return;
+      var input = form.querySelector('input[name="lead_type"], input[name="lead_source"]');
+      var leadType = input ? String(input.value || '') : '';
+      document.dispatchEvent(new CustomEvent('westpeek:form-success', { detail: { lead_type: leadType } }));
+    } catch (e) { /* analytics must never break a confirmed submission */ }
+  }
+
+  /**
    * A failure has to be legible and actionable, so it names a real address and
    * makes it clickable. Built from DOM nodes rather than innerHTML so nothing
    * on the page can inject markup through the status line.
@@ -270,6 +286,7 @@
               // The single guard. Everything above this line is presentation.
               if (response.ok && body && body.ok === true) {
                 setSuccess(form);
+                announceSuccess(form);
                 form.reset();
               } else {
                 setError(form, 'We could not send that just now.');
