@@ -452,6 +452,10 @@ table.data tr:last-child td { border-bottom: 0; }
 .wpp-acc__media { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .wpp-acc__media .wpp-case__media { margin-top: 0; }
 @media (max-width: 600px) { .wpp-acc__media { grid-template-columns: 1fr; } }
+/* Real case images (Scooter, 18 Nov 2026): shown whole at their own shape, never cropped by the frame. */
+.wpp-acc__media--wide { grid-template-columns: 1fr; }
+.wpp-acc__shot { margin: 0; border-radius: var(--radius); overflow: hidden; background: var(--ink-2); border: 1px solid var(--line); }
+.wpp-acc__shot img { display: block; width: 100%; height: auto; }
 
 /* ------------------------------------------------------------ Reveal on scroll (JS adds .wpp-in) */
 .wpp-js [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
