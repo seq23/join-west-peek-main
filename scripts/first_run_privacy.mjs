@@ -19,6 +19,10 @@
  * Prints one line starting `FIRST_RUN OK` when every step passed; exits 1 on
  * any failure. Read-only: it sends nothing to a form or to Google.
  */
+import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
 const SITES = {
   "westpeek.ventures": { key: "ventures", email: "info@westpeek.ventures", names: ["Google Analytics", "Cloudflare Turnstile"] },
   "joinwestpeek.com": { key: "community", email: "os@joinwestpeek.com", names: ["Google Analytics"] },
@@ -84,6 +88,17 @@ for (const base of bases) {
     if (failures.length === before) ok += 1;
   }
   summary.push(`${site.key} ${ok}/${checks.length} pages`);
+}
+
+// The GA4 job (PR #39) brings its own first-run, scripts/first_run.mjs. Both
+// own the one `first-run` npm name, so this runs that one too when it exists:
+// the privacy check never displaces the analytics check, or the reverse.
+const ga = fileURLToPath(new URL("./first_run.mjs", import.meta.url));
+if (existsSync(ga)) {
+  const r = spawnSync(process.execPath, [ga, ...bases.flatMap((b) => ["--url", b])], { encoding: "utf8" });
+  const out = `${r.stdout || ""}${r.stderr || ""}`.trim();
+  if (r.status !== 0) failures.push(`analytics first-run (scripts/first_run.mjs) exited ${r.status}: ${out.split("\n").slice(-3).join(" | ")}`);
+  else summary.push(out.split("\n").filter((l) => l.startsWith("FIRST_RUN OK")).join(" ").replace(/^FIRST_RUN OK\s*/, "analytics: "));
 }
 
 if (failures.length) {

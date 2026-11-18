@@ -304,45 +304,6 @@ const outAssets = path.join(out, "assets");
 fs.mkdirSync(outAssets, { recursive: true });
 copyRecursive(sharedAssets, outAssets);
 
-// Privacy (Scooter, 17 Nov 2026: "Privacy pages naming Google Analytics (and
-// Clarity)"; risk rule R-PRV-04). Runs last, over what was actually built, so it
-// sees every tag the build added (Clarity above, GA4 when it lands) and every
-// generated page (404, episodes, workshops). It fails the build when:
-//   - the site has no /privacy page;
-//   - any built page carries no link to /privacy;
-//   - the build put a tool on the site that its privacy page does not name.
-// One direction only: a page may name a tool before the tag arrives, so this
-// and a tag change can land in either order, but a tool can never go live
-// undisclosed.
-const PRIVACY_TOOLS = [
-  { name: "Google Analytics", loaded: /googletagmanager\.com\/gtag\/js/ },
-  { name: "Microsoft Clarity", loaded: /clarity\.ms\/tag\// },
-  { name: "Cloudflare Turnstile", loaded: /data-bot-check\s*=\s*["']turnstile["']/ },
-];
-(function guardPrivacy() {
-  const pages = htmlFiles(out);
-  if (!pages.length) fail(`privacy: no pages found for ${target}`);
-  const privacyPath = path.join(out, "privacy.html");
-  if (!exists(privacyPath)) fail(`privacy: ${target} has no privacy page (sites/${target}/privacy.html)`);
-  const privacyText = fs.readFileSync(privacyPath, "utf8").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-  const linkRe = new RegExp(`<a\\b[^>]*href\\s*=\\s*["'](?:${site.origin.replace(/[.]/g, "\\.")})?/privacy/?["']`, "i");
-  const unlinked = [];
-  const loaded = new Map();
-  for (const abs of pages) {
-    const html = fs.readFileSync(abs, "utf8");
-    const rel = path.relative(out, abs).split(path.sep).join("/");
-    if (!linkRe.test(html)) unlinked.push(rel);
-    for (const tool of PRIVACY_TOOLS) if (tool.loaded.test(html) && !loaded.has(tool.name)) loaded.set(tool.name, rel);
-  }
-  const unnamed = [...loaded].filter(([name]) => !privacyText.includes(name));
-  const problems = [
-    ...unlinked.map((rel) => `${rel}: no link to /privacy (put it in the footer)`),
-    ...unnamed.map(([name, rel]) => `${name} is loaded (first seen on ${rel}) but sites/${target}/privacy.html does not name it`),
-  ];
-  if (problems.length) fail(`privacy: ${target} build refused:\n  ${problems.join("\n  ")}`);
-  console.log(`privacy: ${pages.length} page(s) link /privacy; tools loaded and named: ${[...loaded.keys()].join(", ") || "none"}`);
-})();
-
 const required = {
   ventures: [
     path.join(outAssets, "base.css"),
@@ -386,6 +347,45 @@ if (!required[target]) fail(`Unknown target: ${target}`);
 for (const f of required[target]) {
   if (!exists(f)) fail(`Build contract failed for ${target}. Missing: ${f}`);
 }
+
+// Privacy (Scooter, 17 Nov 2026: "Privacy pages naming Google Analytics (and
+// Clarity)"; risk rule R-PRV-04). Runs last, over what was actually built, so it
+// sees every tag the build added (Clarity above, GA4 when it lands) and every
+// generated page (404, episodes, workshops). It fails the build when:
+//   - the site has no /privacy page;
+//   - any built page carries no link to /privacy;
+//   - the build put a tool on the site that its privacy page does not name.
+// One direction only: a page may name a tool before the tag arrives, so this
+// and a tag change can land in either order, but a tool can never go live
+// undisclosed.
+const PRIVACY_TOOLS = [
+  { name: "Google Analytics", loaded: /googletagmanager\.com\/gtag\/js/ },
+  { name: "Microsoft Clarity", loaded: /clarity\.ms\/tag\// },
+  { name: "Cloudflare Turnstile", loaded: /data-bot-check\s*=\s*["']turnstile["']/ },
+];
+(function guardPrivacy() {
+  const pages = htmlFiles(out);
+  if (!pages.length) fail(`privacy: no pages found for ${target}`);
+  const privacyPath = path.join(out, "privacy.html");
+  if (!exists(privacyPath)) fail(`privacy: ${target} has no privacy page (sites/${target}/privacy.html)`);
+  const privacyText = fs.readFileSync(privacyPath, "utf8").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const linkRe = new RegExp(`<a\\b[^>]*href\\s*=\\s*["'](?:${site.origin.replace(/[.]/g, "\\.")})?/privacy/?["']`, "i");
+  const unlinked = [];
+  const loaded = new Map();
+  for (const abs of pages) {
+    const html = fs.readFileSync(abs, "utf8");
+    const rel = path.relative(out, abs).split(path.sep).join("/");
+    if (!linkRe.test(html)) unlinked.push(rel);
+    for (const tool of PRIVACY_TOOLS) if (tool.loaded.test(html) && !loaded.has(tool.name)) loaded.set(tool.name, rel);
+  }
+  const unnamed = [...loaded].filter(([name]) => !privacyText.includes(name));
+  const problems = [
+    ...unlinked.map((rel) => `${rel}: no link to /privacy (put it in the footer)`),
+    ...unnamed.map(([name, rel]) => `${name} is loaded (first seen on ${rel}) but sites/${target}/privacy.html does not name it`),
+  ];
+  if (problems.length) fail(`privacy: ${target} build refused:\n  ${problems.join("\n  ")}`);
+  console.log(`privacy: ${pages.length} page(s) link /privacy; tools loaded and named: ${[...loaded.keys()].join(", ") || "none"}`);
+})();
 
 console.log(`Built ${target}: ${src} -> ${out}`);
 
