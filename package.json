@@ -17,6 +17,7 @@
     "portfolio:status": "node scripts/portfolio_status.mjs --write",
     "validate:community-site": "node scripts/validate_community_site.mjs",
     "mailer:deploy": "cd workers/forms-mailer && npx wrangler@4.151.0 deploy",
-    "test:lead": "node scripts/test_lead_delivery.mjs"
+    "test:lead": "node scripts/test_lead_delivery.mjs",
+    "first-run": "node scripts/first_run_privacy.mjs"
   }
 }

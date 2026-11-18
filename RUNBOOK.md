@@ -58,6 +58,16 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   on `sites/ventures/companies.html`. Each company: logo on a cream tile, founder photo, name,
   founders, Website + Instagram links (`target="_blank" rel="noopener noreferrer"`). Assets in
   `sites/ventures/assets/img/portfolio/`, registered in the build contract in `scripts/build.mjs`.
+- **Every site has a `/privacy` page that names every tool the build puts on it** (Scooter,
+  17 Nov 2026: "Privacy pages naming Google Analytics (and Clarity)"; risk rule R-PRV-04):
+  `sites/<site>/privacy.html`, linked from the footer of every page (nav lists unchanged), one page
+  per site because the sites may not link to each other. Today: Google Analytics on all three,
+  Microsoft Clarity on productions, Cloudflare Turnstile on ventures. Contacts:
+  info@westpeek.ventures (ventures), os@joinwestpeek.com (community, productions). The wording is
+  legal copy: a change to it is asked, never decided. Guard: the privacy pass at the end of
+  `scripts/build.mjs` refuses the build when a built page has no `/privacy` link or the build loads
+  a tool (`gtag.js`, Clarity, Turnstile) the site's privacy page does not name. Adding a tool means
+  adding it to `PRIVACY_TOOLS` there and naming it on the page in the same PR.
 - **Retired pages redirect, never 404**: `sites/ventures/_redirects`.
 - **Every form defaults to the master network sheet** (Sequoia, 22 Sep 2026): *"make all forms
   automatically default to adding names to our master network sheet."* A new transmitting form needs
@@ -183,6 +193,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
+| `scripts/build.mjs` (privacy pass) | every built page links `/privacy`; every tool the build loads is named on that site's privacy page |
 | `.github/workflows/entity-validation.yml` | runs the build and the guards above on every push and PR |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
@@ -201,6 +212,7 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
 - `validate:disclosure` — `node scripts/validate_disclosure.mjs`
 - `validate:forms` — `node scripts/validate_forms.mjs`
 - `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
+- `first-run` — `node scripts/first_run_privacy.mjs --url <preview>`: loads `/privacy` and every sitemap page plus the 404 on each preview given; fails on a missing footer link, an unnamed tool, a missing contact or date, a placeholder or a bad status; prints `FIRST_RUN OK`.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
