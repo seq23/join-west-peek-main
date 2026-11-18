@@ -4,7 +4,8 @@
  * three sites and fails loudly when the Google Analytics 4 setup is wrong.
  *
  *   npm run first-run -- --url https://<branch>.<project>.pages.dev [--url …]
- *   (or FIRST_RUN_URL, comma-separated)
+ *   (or FIRST_RUN_URL; a value may list several URLs, separated by
+ *   " · ", commas or spaces)
  *
  * For each URL it:
  *   1. reads the homepage and tells which site it is from its GA4 ID;
@@ -39,12 +40,17 @@ const REQUIRED_CTAS = {
   productions: [],
 };
 
+// A value may carry several URLs: the West Peek OS passes one --url per job
+// with every site's preview joined by " · ", others use commas or spaces.
+// Every http(s) URL in the value is taken; anything else in it is ignored.
+const urlsIn = (value) => String(value || "").match(/https?:\/\/[^\s,·]+/g) || [];
 const urls = [];
 for (let i = 2; i < process.argv.length; i += 1) {
-  if (process.argv[i] === "--url" && process.argv[i + 1]) urls.push(process.argv[++i]);
-  else if (process.argv[i].startsWith("--url=")) urls.push(process.argv[i].slice(6));
+  if (process.argv[i] === "--url" && process.argv[i + 1]) urls.push(...urlsIn(process.argv[++i]));
+  else if (process.argv[i].startsWith("--url=")) urls.push(...urlsIn(process.argv[i].slice(6)));
 }
-if (!urls.length && process.env.FIRST_RUN_URL) urls.push(...process.env.FIRST_RUN_URL.split(",").map((s) => s.trim()).filter(Boolean));
+if (!urls.length) urls.push(...urlsIn(process.env.FIRST_RUN_URL));
+urls.splice(0, urls.length, ...new Set(urls));
 if (!urls.length) {
   console.error("FIRST_RUN FAIL no URL: pass --url <preview> or set FIRST_RUN_URL");
   process.exit(1);
