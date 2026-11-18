@@ -62,8 +62,12 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   17 Nov 2026: "Privacy pages naming Google Analytics (and Clarity)"; risk rule R-PRV-04):
   `sites/<site>/privacy.html`, linked from the footer of every page (nav lists unchanged), one page
   per site because the sites may not link to each other. Today: Google Analytics on all three,
-  Microsoft Clarity on productions, Cloudflare Turnstile on ventures. Contacts:
-  info@westpeek.ventures (ventures), os@joinwestpeek.com (community, productions). The wording is
+  Microsoft Clarity on productions, Cloudflare Turnstile on ventures. Contact on all three:
+  info@westpeek.ventures (Scooter, 18 Nov 2026). The wording describes what the forms really do
+  (`functions/api/lead.js`): every form is emailed (Cloudflare email, Resend as well); ventures and
+  community forms also go to the network list (Google Sheet); productions forms email only. No
+  public fallback shows a personal address (`forms.js` default and `community-assessment.js` use
+  info@westpeek.ventures). The wording is
   legal copy: a change to it is asked, never decided. Guard: the privacy pass at the end of
   `scripts/build.mjs` refuses the build when a built page has no `/privacy` link or the build loads
   a tool (`gtag.js`, Clarity, Turnstile) the site's privacy page does not name. Adding a tool means

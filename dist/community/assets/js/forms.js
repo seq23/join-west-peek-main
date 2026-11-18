@@ -44,8 +44,8 @@
   // (Scooter, 22 Sep 2026: no personal address as the public backup line), and
   // community forms with data-fallback-email="os@joinwestpeek.com" (the West
   // Peek OS inbox, 28 Sep 2026 - scripts/validate_community_site.mjs pins it).
-  // This default still covers productions, whose enquiries go to Scooter.
-  var DEFAULT_FALLBACK_EMAIL = 'scooter@westpeek.ventures';
+  // The default is the firm inbox too (Scooter, 18 Nov 2026: no personal address public).
+  var DEFAULT_FALLBACK_EMAIL = 'info@westpeek.ventures';
 
   function status(form) {
     return form.querySelector('[data-form-status]');

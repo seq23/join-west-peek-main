@@ -25,8 +25,8 @@ import { fileURLToPath } from "node:url";
 
 const SITES = {
   "westpeek.ventures": { key: "ventures", email: "info@westpeek.ventures", names: ["Google Analytics", "Cloudflare Turnstile"] },
-  "joinwestpeek.com": { key: "community", email: "os@joinwestpeek.com", names: ["Google Analytics"] },
-  "westpeekproductions.com": { key: "productions", email: "os@joinwestpeek.com", names: ["Google Analytics", "Microsoft Clarity"] },
+  "joinwestpeek.com": { key: "community", email: "info@westpeek.ventures", names: ["Google Analytics"] },
+  "westpeekproductions.com": { key: "productions", email: "info@westpeek.ventures", names: ["Google Analytics", "Microsoft Clarity"] },
 };
 const TOOLS = [
   { name: "Google Analytics", loaded: /googletagmanager\.com\/gtag\/js/ },
