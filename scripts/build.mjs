@@ -304,10 +304,68 @@ const outAssets = path.join(out, "assets");
 fs.mkdirSync(outAssets, { recursive: true });
 copyRecursive(sharedAssets, outAssets);
 
+// Google Analytics 4 (Scooter, 17 Nov 2026: "Standard gtag.js in the <head> of
+// every page, one tag per page"). Written by the build, like Clarity above, so
+// the pages the build generates (404, episodes, workshops) are covered and no
+// source file can carry a second copy. What the tag sends is cut down to what
+// GA needs and nothing personal: page_location is origin + path plus only the
+// campaign/click keys (a value that looks like an email address is dropped),
+// the referrer loses its query string and hash, Google signals and ad
+// personalisation are off. On any host that is not the site's own domain
+// (*.pages.dev previews, localhost) Google's own opt-out flag is set, so test
+// visits never reach the counts; events still land in dataLayer for checking.
+// The CTA and form events live in shared/assets/js/wp-analytics.js.
+const GA4 = {
+  productions: { id: "G-17BHLS1RWJ", hosts: ["westpeekproductions.com", "www.westpeekproductions.com"] },
+  community: { id: "G-X0CDKY3DXT", hosts: ["joinwestpeek.com", "www.joinwestpeek.com"] },
+  ventures: { id: "G-Y7371XLG0L", hosts: ["westpeek.ventures", "www.westpeek.ventures", "ventures.joinwestpeek.com"] },
+};
+(function injectGa4() {
+  const ga = GA4[target];
+  if (!ga) fail(`No GA4 measurement ID for target: ${target}`);
+  const keep = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id", "gclid", "gbraid", "wbraid"];
+  const snippet = [
+    `<!-- Google tag (gtag.js) -->`,
+    `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga.id}" data-wp-ga></script>`,
+    `<script data-wp-ga-config>`,
+    `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}`,
+    `(function(id,hosts,keep){var l=window.location;if(hosts.indexOf(l.hostname.toLowerCase())<0)window["ga-disable-"+id]=true;var q="";try{var i=new URLSearchParams(l.search),o=new URLSearchParams();keep.forEach(function(k){var v=i.get(k);if(v&&!/@|%40/.test(v))o.set(k,v)});q=o.toString()}catch(e){}var r="";try{if(document.referrer){var u=new URL(document.referrer);r=u.origin+u.pathname}}catch(e){}`,
+    `gtag("js",new Date());gtag("set",{page_location:l.origin+l.pathname+(q?"?"+q:""),page_referrer:r,allow_google_signals:false,allow_ad_personalization_signals:false});gtag("config",id)})(${JSON.stringify(ga.id)},${JSON.stringify(ga.hosts)},${JSON.stringify(keep)});`,
+    `</script>`,
+    `<script src="/assets/js/wp-analytics.js" defer data-wp-analytics data-site="${target}"></script>`,
+  ].join("\n");
+  const headOpen = /<head(?:\s[^>]*)?>/i;
+  const allIds = Object.values(GA4).map((g) => g.id);
+  const problems = [];
+  let tagged = 0;
+  for (const abs of htmlFiles(out)) {
+    let html = fs.readFileSync(abs, "utf8");
+    const rel = path.relative(out, abs);
+    if (!headOpen.test(html)) { problems.push(`${rel}: no <head> to put the tag in`); continue; }
+    if (!html.includes("data-wp-ga-config")) {
+      html = html.replace(headOpen, (m) => `${m}\n${snippet}`);
+      fs.writeFileSync(abs, html);
+      tagged += 1;
+    }
+    // Exactly one Google tag per page, and only this site's ID.
+    const loaders = (html.match(/googletagmanager\.com\/gtag\/js/g) || []).length;
+    const configs = (html.match(/gtag\(\s*["']config["']/g) || []).length;
+    const gtm = /googletagmanager\.com\/gtm\.js|GTM-[A-Z0-9]+/.test(html);
+    const foreign = allIds.filter((id) => id !== ga.id && html.includes(id));
+    if (loaders !== 1 || configs !== 1 || gtm || foreign.length) {
+      problems.push(`${rel}: ${loaders} gtag.js loader(s), ${configs} config call(s)${gtm ? ", a GTM container" : ""}${foreign.length ? `, foreign ID ${foreign.join(" ")}` : ""}`);
+    }
+  }
+  if (!tagged && !htmlFiles(out).length) fail(`ga4: no pages found for ${target}`);
+  if (problems.length) fail(`ga4: every ${target} page must carry exactly one Google tag (${ga.id}):\n  ${problems.join("\n  ")}`);
+  console.log(`ga4: tagged ${tagged} page(s) for ${target} with ${ga.id}; every page has exactly one tag`);
+})();
+
 const required = {
   ventures: [
     path.join(outAssets, "base.css"),
     path.join(outAssets, "js", "forms.js"),
+    path.join(outAssets, "js", "wp-analytics.js"),
     // 20 Sep 2026 update: shared nav, the WP monogram, the two portfolio companies.
     path.join(outAssets, "ventures.css"),
     path.join(outAssets, "ventures.js"),
@@ -324,11 +382,13 @@ const required = {
     path.join(outAssets, "img", "productions-hero.jpg"),
     path.join(outAssets, "img", "productions-logo.jpg"),
     path.join(outAssets, "js", "forms.js"),
+    path.join(outAssets, "js", "wp-analytics.js"),
   ],
   community: [
     // 23 Sep 2026 redesign: black/orange visual system, self-hosted Maax, and
     // the data files the episode/winner/history pages read at runtime.
     path.join(outAssets, "js", "forms.js"),
+    path.join(outAssets, "js", "wp-analytics.js"),
     path.join(outAssets, "community.css"),
     path.join(outAssets, "community.js"),
     path.join(outAssets, "img", "community-monogram.png"),

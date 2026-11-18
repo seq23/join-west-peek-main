@@ -137,6 +137,20 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+- **Google Analytics 4: exactly one tag per page, written by the build** (Scooter, 17 Nov 2026).
+  `scripts/build.mjs` (`GA4`, next to Clarity) puts the standard gtag.js pair at the top of every
+  built page's `<head>`: productions `G-17BHLS1RWJ`, community `G-X0CDKY3DXT`, ventures
+  `G-Y7371XLG0L`. Never paste a Google tag into a page under `sites/`: the build fails on any page
+  with zero or two tags, a GTM container or another site's ID. No personal data leaves: page_location
+  is origin + path plus only `utm_*`/`gclid`/`gbraid`/`wbraid`, the referrer loses its query, Google
+  signals and ad personalisation are off, and any non-production host (`*.pages.dev`, localhost) sets
+  `ga-disable-<ID>`. CTA and form events (`cta_*`, `form_submit_*`; names and `page_path` only) are in
+  `shared/assets/js/wp-analytics.js`, matched by a link's or button's visible label (never a form's
+  submit button); form events fire only from forms.js's confirmed-success guard
+  (`westpeek:form-success`, lead_type only). A new CTA label or tracked form is one line in that
+  file. Productions' Clarity setup is separate and untouched. Guard: the build itself, plus
+  `npm run first-run -- --url <preview>`.
+
 ## Lead delivery and alarms
 **A lead has two independent ways out** (outage 2 Nov to 6 Nov 2026: the Resend key behind every
 form was deleted, every submission failed with 502, and only `console.error` knew). Code and the
@@ -212,7 +226,8 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
 - `validate:disclosure` — `node scripts/validate_disclosure.mjs`
 - `validate:forms` — `node scripts/validate_forms.mjs`
 - `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
-- `first-run` — `node scripts/first_run_privacy.mjs --url <preview>`: loads `/privacy` and every sitemap page plus the 404 on each preview given; fails on a missing footer link, an unnamed tool, a missing contact or date, a placeholder or a bad status; prints `FIRST_RUN OK`.
+- `first-run` — `node scripts/first_run_privacy.mjs --url <preview>`: loads `/privacy` and every sitemap page plus the 404 on each preview given; fails on a missing footer link, an unnamed tool, a missing contact or date, a placeholder or a bad status; then runs `scripts/first_run.mjs` (the GA4 first-run) on the same previews; prints `FIRST_RUN OK` only when both pass.
+  GA4 first-run alone: `node scripts/first_run.mjs --url <preview>` (repeatable; or `FIRST_RUN_URL`): loads every sitemap page and the 404 on that host, fails on a page without exactly one GA4 tag with its site's ID or with a placeholder, runs the deployed `wp-analytics.js`/`forms.js` against every link and button (each CTA sends one event carrying only `page_path`; submit buttons send none) and against a stubbed `/api/lead` (form event on success only). Prints `FIRST_RUN OK`. Sends nothing to Google or `/api/lead`.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
