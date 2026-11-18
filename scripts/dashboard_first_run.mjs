@@ -72,6 +72,16 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
     for (const h of ['problem', 'what-we-did', 'results', 'highlighted-work']) if (!c.includes(`data-copy-slot="${id}.${h}"`)) fail('page /work', `${id} has no copy slot for ${h}`);
   }
   if (!/class="wpp-btn" href="\/get-in-touch">Get in touch/.test(work)) fail('page /work', '"Get in touch" is not the main call to action');
+  // Scooter, 18 Nov 2026: his four cases, as written, in his order; the Mid-South webinar series replaces
+  // Mercury; every problem / what we did / results is his copy (no placeholder), and every case image loads.
+  const ids = cases.map((c) => c.match(/id="([^"]+)"/)[1]).join(',');
+  if (ids !== 'ncta,elc,fms,tntp') fail('page /work', `cases are ${ids}, expected ncta,elc,fms,tntp`);
+  for (const c of cases) for (const h of ['problem', 'what-we-did', 'results']) {
+    const m = c.match(new RegExp(`<p data-copy-slot="[a-z]+\\.${h}">([^<]{40,})</p>`));
+    if (!m) fail('page /work', `${c.match(/id="([^"]+)"/)[1]} ${h} is not Scooter's copy`);
+  }
+  for (const src of work.match(/\/assets\/img\/work\/[a-z0-9-]+\.webp/g) || []) if ((await get(src)).status !== 200) fail('page /work', `${src} does not load`);
+  if ((work.match(/\/assets\/img\/work\//g) || []).length < 5) fail('page /work', 'the five case images are not all on the page');
 }
 ok('public pages load with no placeholder text');
 
