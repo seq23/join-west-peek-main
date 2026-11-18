@@ -141,10 +141,23 @@ async function checkSite(base) {
   if (paths.size < 2) failures.push(`${site}: sitemap.xml lists no pages`);
 
   const pages = [];
-  for (const p of paths) {
+  const loaded = new Set();
+  const load = async (p, linkedFrom) => {
+    if (loaded.has(p)) return;
+    loaded.add(p);
     const page = p === "/" ? home : await get(origin + p);
-    if (page.status !== 200) { failures.push(`${site} ${p}: HTTP ${page.status}`); continue; }
+    if (page.status !== 200) { failures.push(`${site} ${p}: HTTP ${page.status}${linkedFrom ? ` (linked from ${linkedFrom})` : ""}`); return; }
     pages.push({ path: p, html: page.text });
+  };
+  for (const p of paths) await load(p);
+  // Pages kept out of the sitemap (noindex) are still pages: follow every
+  // same-site page link once. Function-served private screens are skipped.
+  for (const { path: from, html } of [...pages]) {
+    for (const m of html.matchAll(/href=["'](\/[^"'#?]*)/g)) {
+      const p = m[1];
+      if (/^\/(assets|api|dashboard|portal|cdn-cgi)(\/|$)|\.[a-z0-9]{2,5}$/i.test(p) && !p.endsWith(".html")) continue;
+      await load(p, from);
+    }
   }
   const nf = await get(`${origin}/first-run-no-such-page-${Date.now()}`);
   if (nf.status !== 404) failures.push(`${site}: a missing page answered ${nf.status}, not 404`);
