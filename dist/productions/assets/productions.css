@@ -456,6 +456,9 @@ table.data tr:last-child td { border-bottom: 0; }
 .wpp-acc__media--wide { grid-template-columns: 1fr; }
 .wpp-acc__shot { margin: 0; border-radius: var(--radius); overflow: hidden; background: var(--ink-2); border: 1px solid var(--line); }
 .wpp-acc__shot img { display: block; width: 100%; height: auto; }
+/* Portrait pairs line up; a landscape shot in a two-column case spans the row. */
+.wpp-acc__media:not(.wpp-acc__media--wide) .wpp-acc__shot:not(.wpp-acc__shot--span) img { aspect-ratio: 4 / 5; object-fit: cover; }
+.wpp-acc__shot--span { grid-column: 1 / -1; }
 
 /* ------------------------------------------------------------ Reveal on scroll (JS adds .wpp-in) */
 .wpp-js [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }

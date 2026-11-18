@@ -81,7 +81,22 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
     if (!m) fail('page /work', `${c.match(/id="([^"]+)"/)[1]} ${h} is not Scooter's copy`);
   }
   for (const src of work.match(/\/assets\/img\/work\/[a-z0-9-]+\.webp/g) || []) if ((await get(src)).status !== 200) fail('page /work', `${src} does not load`);
-  if ((work.match(/\/assets\/img\/work\//g) || []).length < 5) fail('page /work', 'the five case images are not all on the page');
+  if ((work.match(/\/assets\/img\/work\//g) || []).length < 11) fail('page /work', 'the eleven case images are not all on the page');
+  // Scooter, 18 Nov 2026 (second email): every case shows images under Highlighted work; none is left pending.
+  for (const c of cases) {
+    const id = c.match(/id="([^"]+)"/)[1];
+    const hw = c.split(`data-copy-slot="${id}.highlighted-work"`)[1] || '';
+    if (!/^[^]*?<img src="\/assets\/img\/work\//.test(hw) || /wpp-case__media--pending/.test(hw)) fail('page /work', `${id} has no images under Highlighted work`);
+  }
+}
+// Scooter, 18 Nov 2026: top menu and footer read Case studies, Capabilities, About; Get in touch stays last.
+for (const p of ['/', '/work', '/about']) {
+  const navs = (await get(p)).text.match(/<nav[^>]*aria-label="(?:Main|Explore)"[^]*?<\/nav>/g) || [];
+  if (navs.length !== 2) fail(`page ${p}`, `expected the top menu and the footer links, found ${navs.length}`);
+  for (const nav of navs) {
+    const order = [...nav.matchAll(/>(Case studies|Capabilities|About|Get in touch)</g)].map((m) => m[1]).join(',');
+    if (order !== 'Case studies,Capabilities,About,Get in touch') fail(`page ${p}`, `menu reads ${order}`);
+  }
 }
 ok('public pages load with no placeholder text');
 

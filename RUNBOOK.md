@@ -124,6 +124,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+- **Productions menu order** (Scooter, 18 Nov 2026): the top menu and the footer "Explore" links read Case studies, Capabilities, About, then Get in touch, on every page; `first-run` checks it. Case images live in `sites/productions/assets/img/work/` as metadata-stripped webp; every case shows images under Highlighted work.
 - **Productions site polish** (Scooter, 15 Nov 2026): the WP mark is 34px in the header; the logo strip is "Who we work with" (said once on the page), his order, each logo's width/height attributes set by visual weight (equal area adjusted for ink density); `logoStrip` in `productions.js` makes it a real scroller (hover, focus or touch-and-hold pauses; drag, swipe or trackpad moves it); reduced motion keeps it static and wrapped.
 
 - **The Productions dashboard v1.0 is at westpeekproductions.com/dashboard, Scooter only**
