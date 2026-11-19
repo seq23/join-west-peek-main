@@ -365,8 +365,9 @@ export const OWNER_MODELS = { hours: 'Hours at an hourly rate', monthly: 'A set 
  * by the value of the work and never built from costs; costs are roles at their billed unit plus other
  * costs, internal only; a discount lowers the price, not the cost, so it comes out of margin; margin is
  * price minus the costs it includes, provisional while anything it includes is unpriced or unassigned.
- * Owner time is its own visible cost (planned one of three ways), apart from overhead and the tax
- * reserve; which of those the margin includes is shown and chosen on the quote.
+ * Owner time is its own visible cost (planned one of three ways), apart from overhead; which of those
+ * the margin includes is shown and chosen on the quote. The tax reserve is a separate cash hold and never
+ * reduces the margin (Scooter, 19 Nov 2026: "It must not reduce the displayed company profit or margin").
  */
 export function quoteMath(q, dir = []) {
   const term = TERMS[q.term] !== undefined ? Number(q.term) : 0;
@@ -395,7 +396,7 @@ export function quoteMath(q, dir = []) {
   const discount = price === null || dv === null ? null : d.mode === 'pct' ? (price * dv) / 100 : dv;
   const net = price === null ? null : price - (discount || 0);
 
-  const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: q.include?.tax !== false };
+  const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: false };
   const o = q.ownerPlan || {};
   const ownerPerson = dir.find((p) => p.id === o.who) || null;
   const ownerRate = num(o.rate) ?? (ownerPerson && ownerPerson.per === 'hour' ? num(ownerPerson.rate) : null);
@@ -409,13 +410,12 @@ export function quoteMath(q, dir = []) {
   const notSet = [];
   if (inc.owner && ownerTime === null) notSet.push('owner time');
   if (inc.overhead && overhead === null) notSet.push('overhead');
-  if (inc.tax && taxPct === null) notSet.push('tax reserve');
   const beforeTax = net === null ? null : net - cost - (inc.owner ? ownerTime || 0 : 0) - (inc.overhead ? overhead || 0 : 0);
   const tax = beforeTax === null || taxPct === null ? null : (Math.max(0, beforeTax) * taxPct) / 100;
-  const amount = beforeTax === null ? null : beforeTax - (inc.tax ? tax || 0 : 0);
+  const amount = beforeTax;
   const provisional = [...(unpriced.length ? [`${unpriced.length} not priced`] : []), ...(unassigned.length ? [`${unassigned.length} with nobody assigned`] : []), ...notSet.map((x) => `${x} not set`)];
-  const includes = ['roles', 'other costs', ...(inc.owner ? ['owner time'] : []), ...(inc.overhead ? ['overhead'] : []), ...(inc.tax ? ['tax reserve'] : [])];
-  const leftOut = [...(inc.owner ? [] : ['owner time']), ...(inc.overhead ? [] : ['overhead']), ...(inc.tax ? [] : ['tax reserve'])];
+  const includes = ['roles', 'other costs', ...(inc.owner ? ['owner time'] : []), ...(inc.overhead ? ['overhead'] : [])];
+  const leftOut = [...(inc.owner ? [] : ['owner time']), ...(inc.overhead ? [] : ['overhead'])];
   const margin = net === null ? null : { amount, pct: net ? (amount / net) * 100 : null, provisional, belowCost: amount < 0, includes, leftOut, atMost: provisional.length > 0 };
 
   const inflow = new Array(months).fill(0);
@@ -444,7 +444,8 @@ export function quoteMath(q, dir = []) {
   const place = (v, at) => { const m = Math.min(months, Math.max(0, Number(at) || 0)); if (m) outflow[m - 1] += v; else for (let i = 0; i < months; i += 1) outflow[i] += v / months; };
   if (inc.owner && ownerTime !== null) place(ownerTime, o.month);
   if (inc.overhead && overhead !== null) place(overhead, ov.month);
-  if (inc.tax && tax !== null && tax > 0 && net) inflow.forEach((cashIn, i) => { outflow[i] += (tax * cashIn) / net; });
+  // The tax reserve is held from each payment as it arrives: a cash hold, never inside the margin.
+  if (tax !== null && tax > 0 && net) inflow.forEach((cashIn, i) => { outflow[i] += (tax * cashIn) / net; });
   let running = 0;
   const timeline = inflow.map((cashIn, i) => { running += cashIn - outflow[i]; return { month: i + 1, cashIn, cashOut: outflow[i], position: running }; });
   return {

@@ -28,6 +28,15 @@ async function cf(path, init = {}) {
   if (!res.ok || body.success === false) throw new Error(`${init.method || 'GET'} ${path.split('?')[0]} answered ${res.status} ${(body.errors || []).map((e) => e.code).join(',')}`);
   return body.result;
 }
+async function emailObfuscation() {
+  try {
+    const base = process.env.CLOUDFLARE_API_BASE || 'https://api.cloudflare.com/client/v4';
+    const get = async (path) => { const r = await fetch(`${base}${path}`, { headers: { authorization: `Bearer ${token}` } }); const j = await r.json().catch(() => ({})); if (!r.ok || j.success === false) throw new Error(`${r.status}`); return j.result; };
+    const zone = (await get('/zones?name=westpeekproductions.com'))?.[0];
+    if (!zone) return 'unknown (the token cannot see the zone)';
+    return String((await get(`/zones/${zone.id}/settings/email_obfuscation`))?.value || 'unknown');
+  } catch (err) { return `unknown (zone settings answered ${err.message})`; }
+}
 const dbName = `west-peek-productions-dashboard-${env}`;
 let db;
 try { db = (await cf(`/d1/database?name=${encodeURIComponent(dbName)}`) || []).find((d) => d.name === dbName); } catch (err) { console.error(`dashboard:status env=${env}: ${err.message}`); process.exit(1); }
@@ -42,7 +51,11 @@ try {
   const rep = await statusReport(query);
   console.log(`dashboard:status env=${env} d1=${dbName}`);
   for (const l of rep.lines) console.log(`  ${l}`);
-  console.log(`OUTPUT dashboard:status env=${env} ${rep.output}`);
+  // Why "[email protected]" shows on the live Inquiries page: the production zone's Email Address
+  // Obfuscation. Read only; the dashboard opts out of it (Cache-Control no-transform + email_off markers).
+  const obf = env === 'production' ? await emailObfuscation() : 'n/a (pages.dev is not proxied)';
+  console.log(`  email obfuscation on westpeekproductions.com: ${obf}; dashboard pages opt out with no-transform and email_off markers`);
+  console.log(`OUTPUT dashboard:status env=${env} ${rep.output} email_obfuscation=${obf.split(' ')[0]}`);
   if (!rep.ownerPresent) stop(`NAMED STOP dashboard:status owner_missing: ${dbName} has no owner row; run npm run dashboard:setup -- --env ${env}`);
 } catch (err) {
   console.error(`dashboard:status env=${env}: ${err.message}`);
