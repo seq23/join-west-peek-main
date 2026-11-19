@@ -1314,8 +1314,12 @@ const realFetch = globalThis.fetch;
   check('flags: below the starting number names the lowest-value lines to cut; nothing is blocked', below.flags.some((f) => f.id === 'below') && below.suggestCuts[0]?.name === 'Small');
   check('flags: a margin under the warning line is a note', pv(agreedV, { lines: [line('agreed')], price: 1100 }).flags.some((f) => f.id === 'warn'));
   check('catalog: the brief\'s 36 services, names, categories and units only, every one empty', SEED_SERVICES.length === 36 && SEED_SERVICES.every((x) => x.components.length === 0 && x.legacy === null) && SEED_SERVICES.filter((x) => x.pass).map((x) => x.name).join('|') === 'Event platform license (pass-through)|Attendee processing (pass-through)');
+  // Open in the brief (section 10): contingency on his own hours is his choice, never a fixed rule.
+  const noPad = priceQuote({ settings: { ...S, contingencyOwner: 'no' }, people: guessV, quote: { lines: [line('guess')], extraHours: 3, extraStatus: 'guess' } });
+  const yesPad = priceQuote({ settings: { ...S, contingencyOwner: 'yes' }, people: guessV, quote: { lines: [line('guess')] } });
+  check('contingency on your own hours is a Settings choice: not chosen and Yes match the brief (968.00); No leaves his guessed hours unpadded (946.00, extra hours 330.00), and the line is still tagged estimate', at(yesPad.lines[0].loaded, 968) && at(full.lines[0].loaded, 968) && at(noPad.lines[0].guessed, 600) && at(noPad.lines[0].loaded, 946) && at(noPad.extra.loaded, 330) && noPad.lines[0].guess && noPad.estimate && PQ.cleanSettings({ contingencyOwner: 'maybe' }).contingencyOwner === null && PQ.cleanSettings({ contingencyOwner: 'no' }).contingencyOwner === 'no' && !noPad.notSet.includes('Contingency on your own hours'), `${noPad.lines[0].loaded} ${noPad.extra?.loaded}`);
   const nothing = priceQuote({ settings: {}, people: [], quote: {} });
-  check('settings: nothing is set by default, and a blank setting is named, never a sample number', PQ.SETTINGS.length <= 12 && Object.values(PQ.cleanSettings({})).every((x) => x === null) && nothing.notSet.length === PQ.SETTINGS.length - 1 && nothing.start === 0 && !nothing.flags.length);
+  check('settings: nothing is set by default, and a blank setting is named, never a sample number', PQ.SETTINGS.length <= 12 && Object.values(PQ.cleanSettings({})).every((x) => x === null) && nothing.notSet.length === PQ.SETTINGS.filter((x) => x.unit !== 'choice').length - 1 && nothing.start === 0 && !nothing.flags.length);
 
   // The screens, as the owner on production.
   const { recordWebInquiry } = await import('../functions/_lib/pd/deal.mjs');
@@ -1344,6 +1348,7 @@ const realFetch = globalThis.fetch;
   const setR = await call(env, '/dashboard/quote-settings', { method: 'POST', cookie: s.cookie, form: put(posted(set0.text, '/dashboard/quote-settings'), { ownerPay: '100000', ownerHours: '1000', overheadPct: '10', contingencyPct: '10', targetMarginPct: '35', warnMarginPct: '25', passMarkupPct: '15', taxPct: '20', depositPct: '50' }) });
   const set1 = await call(env, '/dashboard/quote-settings', { cookie: two.cookie });
   check('settings: saved, read back, and there on a second device; the hourly cost is calculated', /m=pricing_saved/.test(setR.location || '') && /name="ownerPay" inputmode="decimal" value="100000"/.test(set1.text) && /Your hourly cost: <strong>[$]100\.00/.test(set1.text) && /Saved and checked/.test(set1.text));
+  check('settings: contingency on your own hours is asked, not assumed: a choice that starts "Not chosen yet"', /<select id="qs-contingencyOwner" name="contingencyOwner"><option value="" selected>Not chosen yet/.test(set0.text));
   check('settings: stored encrypted, no figure in plain', !(await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM pricing').all()).results.some((r) => /100000|ownerPay/.test(r.data_enc)));
 
   const r0 = await call(env, '/dashboard/rates', { cookie: s.cookie });

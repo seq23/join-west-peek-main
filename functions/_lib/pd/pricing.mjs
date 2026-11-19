@@ -41,11 +41,14 @@ export const SETTINGS = [
   { id: 'warnMarginPct', label: 'Warning line', unit: '%', help: 'A margin under this shows a note. It never blocks a quote.' },
   { id: 'passMarkupPct', label: 'Pass-through handling markup', unit: '%', help: 'On pass-through costs only, such as a platform license.' },
   { id: 'taxPct', label: 'Tax set-aside', unit: '%', help: 'Shown beside the price as cash held. Your accountant sets it.' },
-  { id: 'depositPct', label: 'Default deposit', unit: '%', help: 'Fills the deposit on a new quote. Change it on any quote.' }
+  { id: 'depositPct', label: 'Default deposit', unit: '%', help: 'Fills the deposit on a new quote. Change it on any quote.' },
+  // Open in the brief (section 10): "whether contingency should also pad the owner's own hours". His choice, never a
+  // fixed rule. Not chosen follows the brief's own test numbers (yes) until he picks; the screen says so.
+  { id: 'contingencyOwner', label: 'Contingency on your own hours', unit: 'choice', choices: { yes: 'Yes', no: 'No' }, help: 'When your own hours are marked Guess, should contingency pad them too? Not chosen yet counts as yes, which is what the brief\'s test numbers assume. No: contingency pads team, vendor and other costs only.' }
 ];
 const PCT_SETTINGS = new Set(['overheadPct', 'contingencyPct', 'targetMarginPct', 'warnMarginPct', 'passMarkupPct', 'taxPct', 'depositPct']);
 export function cleanSettings(raw = {}) {
-  return Object.fromEntries(SETTINGS.map((s) => [s.id, PCT_SETTINGS.has(s.id) ? pctOk(raw[s.id]) : nonNeg(raw[s.id])]));
+  return Object.fromEntries(SETTINGS.map((s) => [s.id, s.unit === 'choice' ? (Object.hasOwn(s.choices, String(raw[s.id] ?? '')) ? String(raw[s.id]) : null) : PCT_SETTINGS.has(s.id) ? pctOk(raw[s.id]) : nonNeg(raw[s.id])]));
 }
 /** Pay divided by billable hours, or null when either is blank (never typed). */
 export function ownerHourly(settings = {}) {
@@ -201,7 +204,8 @@ export function roundUp(x) {
 /**
  * Prices one quote. Full precision inside; screens round for display only.
  *   component cost  = quantity x rate (owner hours at the owner hourly cost), x the line's quantity
- *   loaded cost     = (direct + contingency% x guessed part) x (1 + overhead%)
+ *   loaded cost     = (direct + contingency% x guessed part) x (1 + overhead%); his own guessed hours are in
+ *                     the guessed part unless Settings says No to "Contingency on your own hours"
  *   starting number = loaded / (1 - target margin)
  *   pass-through    = cost x (1 + markup); no overhead, contingency or margin
  *   your pay        = owner hours x owner hourly cost (already inside total cost)
@@ -218,7 +222,8 @@ export function priceQuote({ settings = {}, people = [], quote = {} }) {
   const c = pct('contingencyPct');
   const t = pct('targetMarginPct');
   const mk = pct('passMarkupPct');
-  const notSet = SETTINGS.filter((s) => s.id !== 'depositPct' && S[s.id] === null).map((s) => s.label);
+  const padOwner = S.contingencyOwner !== 'no';
+  const notSet = SETTINGS.filter((s) => s.id !== 'depositPct' && s.unit !== 'choice' && S[s.id] === null).map((s) => s.label);
   const byId = Object.fromEntries((people || []).map((p) => [p.id, p]));
   const loadOf = (direct, guessed) => (direct + (c || 0) * guessed) * (1 + (o || 0));
   const startOf = (loaded) => (t === null ? null : loaded / (1 - t));
@@ -238,7 +243,7 @@ export function priceQuote({ settings = {}, people = [], quote = {} }) {
       if (why) { missing += 1; return { ...cp, person, isOwner, rate, rateStatus, cost: null, why, guess: g }; }
       const cost = qty * rate * lq;
       direct += cost;
-      if (g) { guessed += cost; guess = true; }
+      if (g) { guess = true; if (!isOwner || padOwner) guessed += cost; }
       if (isOwner) ownerHours += qty * lq; else rawOut += cost;
       return { ...cp, person, isOwner, rate, rateStatus, cost, why: '', guess: g };
     });
@@ -267,7 +272,7 @@ export function priceQuote({ settings = {}, people = [], quote = {} }) {
   const extra = xh === null || xh === 0 ? null : (() => {
     const guess = quote.extraStatus === 'guess';
     if (rate0 === null) return { hours: xh, loaded: null, start: null, missing: 1, guess };
-    const loaded = xh * rate0 * (1 + (guess ? c || 0 : 0)) * (1 + (o || 0));
+    const loaded = xh * rate0 * (1 + (guess && padOwner ? c || 0 : 0)) * (1 + (o || 0));
     return { hours: xh, loaded, start: startOf(loaded), missing: 0, guess };
   })();
 

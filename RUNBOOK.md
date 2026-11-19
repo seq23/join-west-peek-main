@@ -242,8 +242,9 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     version. The client view (and a proposal drafted from it, `proposalFromEstimate`) carries the included services,
     their descriptions and the price only. Payment timing is information only. **The quote tool never reads or writes
     `cashPicture`, Money or his Money sheet** (pinned: a quote save leaves the synced rows, settings, sync state and action
-    log unchanged). Open in the brief, decided by its own tests: contingency pads the owner's hours too (they are inside
-    the guessed part). A monthly cost counts in full before the second payment (planning view). The 15 Nov roles builder
+    log unchanged). Open in the brief (section 10), so it is HIS choice, never a fixed rule: Settings → "Contingency on
+    your own hours" (Not chosen yet / Yes / No). Not chosen counts as yes, matching the brief's test numbers; No leaves his
+    guessed hours out of the padded part (pinned both ways in `test:dashboard`). A monthly cost counts in full before the second payment (planning view). The 15 Nov roles builder
     stays at `/dashboard/flow/<key>/quote-roles` for any quote made there and is linked from the deal only when one exists.
   - **Addresses are never obfuscated** (Scooter, 19 Nov 2026: Inquiries showed "[email protected]"): Cloudflare's Email
     Address Obfuscation rewrites addresses on westpeekproductions.com and decodes them with a script the dashboard CSP

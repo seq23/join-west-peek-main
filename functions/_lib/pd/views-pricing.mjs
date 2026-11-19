@@ -44,7 +44,8 @@ export function renderPricingSettings(ctx) {
   const s = ctx.pricing.settings;
   if (s?.unreadable) return unreadable(title, ctx, 'quote-settings');
   const rate = ownerHourly(s);
-  const field = (d) => `<label for="qs-${d.id}">${esc(d.label)}${d.unit === '%' ? ' (%)' : d.unit === '$' ? ' ($)' : ''}</label><input id="qs-${d.id}" name="${d.id}" inputmode="decimal" value="${v(s[d.id])}" placeholder="not set"><p class="d-sub">${esc(d.help)}</p>`;
+  const choice = (d) => `<label for="qs-${d.id}">${esc(d.label)}</label><select id="qs-${d.id}" name="${d.id}"><option value=""${s[d.id] ? '' : ' selected'}>Not chosen yet (counts as yes)</option>${Object.entries(d.choices).map(([k, l]) => `<option value="${k}"${s[d.id] === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><p class="d-sub">${esc(d.help)}</p>`;
+  const field = (d) => d.unit === 'choice' ? choice(d) : `<label for="qs-${d.id}">${esc(d.label)}${d.unit === '%' ? ' (%)' : d.unit === '$' ? ' ($)' : ''}</label><input id="qs-${d.id}" name="${d.id}" inputmode="decimal" value="${v(s[d.id])}" placeholder="not set"><p class="d-sub">${esc(d.help)}</p>`;
   const first = Object.values(s).every((x) => x === null) ? '<div class="d-emptybox"><p>Nothing is set yet. Start with your pay target and billable hours: that gives your hourly cost, so your own time is priced on every quote.</p></div>' : '';
   const body = `${head(title, ctx, 'quote-settings', intro)}${first}
     <form class="d-form" method="post" action="/dashboard/quote-settings">${hidden('back', '/dashboard/quote-settings')}
