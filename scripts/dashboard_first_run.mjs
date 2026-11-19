@@ -337,7 +337,9 @@ const put = (pairs, over) => [...pairs.filter(([k]) => !(k in over)), ...Object.
   if (s0.status !== 200 || !/Leave anything you do not know yet blank/.test(s0.text) || /name="ownerPay" inputmode="decimal" value="\d/.test(s0.text)) fail('quote settings', 'the first screen does not say what it is, or a box is not blank');
   const sv = await post('/dashboard/quote-settings', put(formFor(s0.text, '/dashboard/quote-settings'), { ownerPay: '100000', ownerHours: '1000', overheadPct: '10', contingencyPct: '10', targetMarginPct: '35', depositPct: '50' }), A);
   if (!/m=pricing_saved/.test(sv.location || '')) fail('quote settings', `not saved (${sv.location || sv.status})`);
-  if (!/Your hourly cost: <strong>[$]100\.00/.test((await get('/dashboard/quote-settings', B)).text)) fail('quote settings', 'the saved settings and the hourly cost do not show on a second device');
+  const s1 = (await get('/dashboard/quote-settings', B)).text;
+  if (!/Your hourly cost: <strong>[$]100\.00/.test(s1)) fail('quote settings', 'the saved settings and the hourly cost do not show on a second device');
+  if (!/<select id="qs-contingencyOwner" name="contingencyOwner"><option value="" selected>Not chosen yet/.test(s1)) fail('quote settings', 'contingency on your own hours is not offered as his choice (brief section 10 leaves it open)');
   const r0 = await get('/dashboard/rates', A);
   await post('/dashboard/rates', put(formFor(r0.text, '/dashboard/rates'), { p_0_name: 'Sample Person T', p_0_rate: '50', p_0_unit: 'hour', p_0_status: 'guess' }), A);
   const r1 = (await get('/dashboard/rates', B)).text;

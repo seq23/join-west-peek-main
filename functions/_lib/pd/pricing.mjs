@@ -37,14 +37,15 @@ export const SETTINGS = [
   { id: 'ownerHours', label: 'Your billable hours in a year', unit: 'hours', help: 'With the pay target, this makes your hourly cost.' },
   { id: 'overheadPct', label: 'Overhead', unit: '%', help: 'Added to direct cost on every line.' },
   { id: 'contingencyPct', label: 'Contingency', unit: '%', help: 'Added only to the part of a cost marked Guess.' },
+  // Open in the brief (section 10): "whether contingency should also pad the owner's own hours". His choice, never a
+  // fixed rule. Not chosen follows the brief's own test numbers (yes) until he picks; the screen says so.
+  { id: 'contingencyOwner', label: 'Contingency on your own hours', unit: 'choice', choices: { yes: 'Yes', no: 'No' }, help: 'When your own hours are marked Guess, should contingency pad them too? Not chosen yet counts as yes, which is what the brief\'s test numbers assume. No: contingency pads team, vendor and other costs only.' },
   { id: 'targetMarginPct', label: 'Target margin', unit: '%', help: 'Margin on price. Sets the starting number.' },
   { id: 'warnMarginPct', label: 'Warning line', unit: '%', help: 'A margin under this shows a note. It never blocks a quote.' },
   { id: 'passMarkupPct', label: 'Pass-through handling markup', unit: '%', help: 'On pass-through costs only, such as a platform license.' },
   { id: 'taxPct', label: 'Tax set-aside', unit: '%', help: 'Shown beside the price as cash held. Your accountant sets it.' },
   { id: 'depositPct', label: 'Default deposit', unit: '%', help: 'Fills the deposit on a new quote. Change it on any quote.' },
-  // Open in the brief (section 10): "whether contingency should also pad the owner's own hours". His choice, never a
-  // fixed rule. Not chosen follows the brief's own test numbers (yes) until he picks; the screen says so.
-  { id: 'contingencyOwner', label: 'Contingency on your own hours', unit: 'choice', choices: { yes: 'Yes', no: 'No' }, help: 'When your own hours are marked Guess, should contingency pad them too? Not chosen yet counts as yes, which is what the brief\'s test numbers assume. No: contingency pads team, vendor and other costs only.' }
+
 ];
 const PCT_SETTINGS = new Set(['overheadPct', 'contingencyPct', 'targetMarginPct', 'warnMarginPct', 'passMarkupPct', 'taxPct', 'depositPct']);
 export function cleanSettings(raw = {}) {
