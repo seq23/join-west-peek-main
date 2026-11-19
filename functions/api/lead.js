@@ -561,6 +561,20 @@ export function eventDatesFrom(fields) {
   return { start, end, words: start && end && start !== end ? `${say(start)} to ${say(end)}` : say(start || end) };
 }
 
+/**
+ * Where an inquiry email's "Open in the dashboard" goes (Scooter, 19 Nov 2026: "Please confirm new
+ * inquiry emails link to the live dashboard, not the preview address"). Every production host (the
+ * apex, www, the aliases, the project's own pages.dev name) links to the live dashboard; only a
+ * Pages preview of a branch, or a local run, links to itself, and those emails are marked TEST.
+ */
+export const LIVE_DASHBOARD_ORIGIN = 'https://westpeekproductions.com';
+export function inquiryDashboardOrigin(requestUrl) {
+  const u = new URL(requestUrl);
+  const host = u.hostname.toLowerCase();
+  const preview = host.endsWith('.west-peek-productions.pages.dev') || host === 'localhost' || host === '127.0.0.1';
+  return preview ? u.origin : LIVE_DASHBOARD_ORIGIN;
+}
+
 export function productionsInquiryMail(fields, requestUrl, now = new Date()) {
   const v = (k) => clean(fields[k]);
   const name = v('name');
@@ -569,7 +583,7 @@ export function productionsInquiryMail(fields, requestUrl, now = new Date()) {
   const choice = v('need_type') === 'Other' ? (v('need_other') ? `Something else: ${v('need_other')}` : 'Something else') : v('need_type');
   const needs = [choice, v('initiative') || v('message')].filter(Boolean).join(' — ');
   const heard = [v('heard_about'), v('heard_about_detail')].filter(Boolean).join(' · ');
-  const dashboard = `${new URL(requestUrl).origin}/dashboard/inquiries`;
+  const dashboard = `${inquiryDashboardOrigin(requestUrl)}/dashboard/inquiries`;
   const test = isTestInquiry(fields, requestUrl);
   const events = eventDatesFrom(fields);
   const rows = [

@@ -7,7 +7,8 @@ import { esc, isoDay, money, usDay, usTime } from './core.mjs';
 import { FUNNEL_STAGES, stageOptions } from './data.mjs';
 import { CASH_RULES, rulesWalk, CALL_NOTES, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, BILLED, BOX_WORDS, OWNER_MODELS, PERSON_TYPES, RATE_PER, ROLE_KINDS, catalogTiers, discoveryQuestions, quoteMath, quoteServices, roleCost, servicesOf, templateRoles } from './deal.mjs';
 import { EVENT_SERVICE, SERVICES, SERVICE_BY_ID, serviceFrom } from '../services.mjs';
-import { act, dayOr, empty, errorBox, gap, page, sec, val } from './views.mjs';
+import { priceQuote, pricingFor } from './pricing.mjs';
+import { EMAIL_OFF, act, dayOr, empty, errorBox, gap, mailto, page, sec, val } from './views.mjs';
 
 const shell = (title, body, ctx) => page(title, body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 const backTo = (j) => `<p><a class="d-help" href="/dashboard/flow/${encodeURIComponent(j.key)}">← ${esc(j.name)}</a></p>`;
@@ -36,12 +37,17 @@ export function dealSections(j, ctx) {
   const hold = moneyHold(ctx);
   const qm = q && !q.unreadable ? quoteMath(q, ctx.directory || []) : null;
   const quoteLine = hold ? 'Held' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Costs ${m$(qm.cost)}${qm.unpriced.length ? ` + ${qm.unpriced.length} not priced` : ''} · client price ${qm.net === null ? gap('not set') : m$(qm.net)}${qm.margin?.provisional.length ? ' · margin provisional' : ''}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
+  const est = ctx.estimate;
+  const pq = est && !est.unreadable && ctx.pricing ? priceQuote({ ...pricingFor(est, ctx.pricing), quote: est }) : null;
+  const estLine = hold ? 'Held' : !est ? 'No quote yet' : est.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Version ${est.version} · ${est.status === 'sent' ? 'sent' : 'draft'} · ${est.lines.filter((l) => !l.cut).length} lines · price ${pq.net === null ? gap('not set') : esc(money(pq.net))}${pq.missing ? ` · <span class="d-gold">${pq.missing} costs missing</span>` : ''}`;
   const propLine = !p ? 'No proposal yet' : `${esc(PROPOSAL_STATUS[p.status] || p.status)} · version ${p.versions} · ${esc(usTime(p.at, ctx.now))}`;
   const delLine = del ? `${del.tasks.filter((t) => !t.done).length} open tasks · portal ${del.portalSince ? 'on' : 'off'}` : 'Starts once accepted';
   const gmail = `https://mail.google.com/mail/u/0/#search/${encodeURIComponent((j.deal?.email || j.inquiries.at(-1)?.email) ? `"${j.deal?.email || j.inquiries.at(-1)?.email}"` : `"${j.name}"`)}`;
   const rows = [
     ['Discovery', `/dashboard/flow/${k}/discovery`, discLine],
-    ['Quote', `/dashboard/flow/${k}/quote`, quoteLine],
+    ['Quote', `/dashboard/flow/${k}/quote`, estLine],
+    // The earlier roles builder (15 Nov 2026), only where a quote was made there.
+    ...(q ? [['Earlier quote (roles builder)', `/dashboard/flow/${k}/quote-roles`, quoteLine]] : []),
     ['Proposal', `/dashboard/flow/${k}/proposal`, propLine],
     ['Delivery and client portal', `/dashboard/flow/${k}/delivery`, delLine]
   ];
@@ -59,7 +65,7 @@ export function inquiriesBody(view, ctx, journeysByKey) {
   const list = rows.length ? `<ul class="d-list">${rows.map((r) => {
     const j = journeysByKey[orgOf(r, journeysByKey)];
     const owner = j?.deal?.owner || ctx.intake?.[j?.key]?.owner || '';
-    return `<li class="d-row"><div class="d-row__main">${j ? `<a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(r.org || r.name || 'Inquiry')} ›</a>` : `<span class="d-row__title">${esc(r.org || r.name || 'Inquiry')}</span>`}<span class="d-row__sub">${esc(r.name || '')}${r.email ? ` · ${esc(r.email)}` : ''} · ${dayOr(r.at)}${r.from_site ? ' · your site' : ''}</span>${r.service ? `<span class="d-row__sub">Service: ${esc(SERVICE_BY_ID[r.service]?.name || r.service)}${eventWords({ start: r.event_start, end: r.event_end }) ? ` · event ${esc(eventWords({ start: r.event_start, end: r.event_end }))}` : ''}</span>` : ''}${r.initiative ? `<span class="d-row__sub">Needs: ${esc(String(r.initiative).slice(0, 140))}</span>` : ''}<span class="d-row__sub">Owner: ${owner ? esc(owner) : gap('nobody yet')} · ${j?.deal ? 'in your tracker' : 'not in your tracker yet'}</span></div></li>`;
+    return `<li class="d-row"><div class="d-row__main">${j ? `<a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(r.org || r.name || 'Inquiry')} ›</a>` : `<span class="d-row__title">${esc(r.org || r.name || 'Inquiry')}</span>`}<span class="d-row__sub">${esc(r.name || '')}${r.email ? ` · ${mailto(r.email)}` : ''} · ${dayOr(r.at)}${r.from_site ? ' · your site' : ''}</span>${r.service ? `<span class="d-row__sub">Service: ${esc(SERVICE_BY_ID[r.service]?.name || r.service)}${eventWords({ start: r.event_start, end: r.event_end }) ? ` · event ${esc(eventWords({ start: r.event_start, end: r.event_end }))}` : ''}</span>` : ''}${r.initiative ? `<span class="d-row__sub">Needs: ${esc(String(r.initiative).slice(0, 140))}</span>` : ''}<span class="d-row__sub">Owner: ${owner ? esc(owner) : gap('nobody yet')} · ${j?.deal ? 'in your tracker' : 'not in your tracker yet'}</span></div></li>`;
   }).join('')}</ul>` : '';
   const add = `<details class="d-fold"${rows.length ? '' : ' open'}><summary><span>Add a researched lead</span></summary>
     <form class="d-form" method="post" action="/dashboard/lead/add">${hidden('back', '/dashboard/inquiries')}
@@ -189,7 +195,7 @@ function roleRow(svcId, r, i, dir) {
  */
 export function renderQuote(j, ctx) {
   const k = encodeURIComponent(j.key);
-  const back = `/dashboard/flow/${k}/quote`;
+  const back = `/dashboard/flow/${k}/quote-roles`;
   const hold = moneyHold(ctx);
   if (hold) return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${ctx.flash || ''}${holdBox(hold)}`, ctx);
   if (ctx.quote?.unreadable) return shell(`Quote · ${j.name}`, `${backTo(j)}<h1>Quote</h1>${errorBox('The last quote could not be read back.', 'It was saved encrypted and the key that opens it is not the one this site has now. Build it again below; nothing else is affected.', back, 'Start again')}`, ctx);
@@ -235,15 +241,15 @@ export function renderQuote(j, ctx) {
       ${line('Other costs', esc(money(m.groups.other)) || '$0', 'Bookings, licences, tools, pass-through')}
       ${line('Owner time (planned)', notSet(m.ownerTime), m.include.owner ? 'In the margin' : 'Not in the margin')}
       ${line('Overhead', notSet(m.overhead), m.include.overhead ? 'In the margin' : 'Not in the margin')}
-      ${line('Tax reserve', m.taxPct === null ? gap('not set') : m.tax === null ? gap('needs a price') : esc(money(m.tax)) || '$0', m.include.tax ? `In the margin${m.taxPct === null ? '' : ` · ${esc(m.taxPct)}% of what is left before tax`}` : 'Not in the margin')}
+      ${line('Tax reserve', m.taxPct === null ? gap('not set') : m.tax === null ? gap('needs a price') : esc(money(m.tax)) || '$0', `Cash to hold; never in the margin${m.taxPct === null ? '' : ` · ${esc(m.taxPct)}% of what is left before tax`}`)}
       ${line('Client price after discount', m.net === null ? gap('blank') : esc(money(m.net)))}
     </ul>
-    <p class="d-sub">The margin is the price after discount minus ${esc(mg ? mg.includes.join(', ') : 'roles, other costs, owner time, overhead and tax reserve')}${mg?.leftOut.length ? `. Not included: ${esc(mg.leftOut.join(', '))}` : ''}. An empty box is left out of the math and never counted as zero.</p>
+    <p class="d-sub">The margin is the price after discount minus ${esc(mg ? mg.includes.join(', ') : 'roles, other costs, owner time and overhead')}${mg?.leftOut.length ? `. Not included: ${esc(mg.leftOut.join(', '))}` : ''}. The tax reserve is held as cash and never reduces the margin. An empty box is left out of the math and never counted as zero.</p>
     ${mg?.provisional.length ? `<p class="d-sub d-gold">Provisional: ${esc(mg.provisional.join(' · '))}.</p>` : ''}
     ${m.unpriced.length ? `<p class="d-sub d-gold">Not priced yet: ${esc(m.unpriced.join(', '))}.</p>` : ''}
     ${m.unassigned.length ? `<p class="d-sub d-gold">Nobody assigned: ${esc(m.unassigned.join(', '))}.</p>` : ''}
     ${saved ? `<p class="d-src">Saved ${esc(usTime(ctx.quote._at, ctx.now))}. Every version is kept, encrypted. Internal only: none of these costs, rates, names or margins reach the proposal or the client portal.</p>` : '<p class="d-src">Not saved yet.</p>'}`;
-  const timeline = saved && m.net !== null ? `<details class="d-fold"><summary><span>When money moves</span></summary><ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">Out is the priced roles and other costs (in the month set on the service, else spread), plus ${esc(['owner time','overhead'].filter((x, i) => (i ? m.include.overhead && m.overhead !== null : m.include.owner && m.ownerTime !== null)).concat(m.include.tax && m.tax ? ['the tax reserve, set aside from each payment as it arrives'] : []).join(', ') || 'nothing else yet')}${m.include.owner || m.include.overhead ? ' (in the month set on each, else spread over the engagement)' : ''}: the same costs the margin includes. ${m.shortMonths.length ? `<span class="d-red">Out of pocket in month ${m.shortMonths.join(', ')}: costs go out before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'}</p></details>` : '';
+  const timeline = saved && m.net !== null ? `<details class="d-fold"><summary><span>When money moves</span></summary><ul class="d-kv">${m.timeline.map((t) => `<li><span>Month ${t.month}<br><span class="d-sub">in ${esc(money(t.cashIn)) || '$0'} · out ${esc(money(t.cashOut)) || '$0'}</span></span><span class="${t.position < 0 ? 'd-red' : ''}">${esc(money(t.position)) || '$0'}</span></li>`).join('')}</ul><p class="d-sub">Out is the priced roles and other costs (in the month set on the service, else spread), plus ${esc(['owner time','overhead'].filter((x, i) => (i ? m.include.overhead && m.overhead !== null : m.include.owner && m.ownerTime !== null)).concat(m.tax ? ['the tax reserve, held from each payment as it arrives'] : []).join(', ') || 'nothing else yet')}${m.include.owner || m.include.overhead ? ' (in the month set on each, else spread over the engagement)' : ''}: the costs the margin includes, plus the tax hold. ${m.shortMonths.length ? `<span class="d-red">Out of pocket in month ${m.shortMonths.join(', ')}: costs go out before the client's payments arrive.</span>` : 'Payments arrive ahead of costs in every month.'}</p></details>` : '';
 
   const o = q.ownerPlan || {};
   const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: q.include?.tax !== false };
@@ -258,8 +264,7 @@ export function renderQuote(j, ctx) {
     <label for="tax">Tax reserve (% of what is left before tax)</label><input id="tax" name="tax" inputmode="decimal" value="${val$(q.taxReserve)}">
     <fieldset class="d-fieldset"><legend>The margin includes</legend><p class="d-sub">Roles and other costs, always. And:</p>
     <label class="d-check"><input type="checkbox" name="inc_owner" value="1"${inc.owner ? ' checked' : ''}> Owner time</label>
-    <label class="d-check"><input type="checkbox" name="inc_overhead" value="1"${inc.overhead ? ' checked' : ''}> Overhead</label>
-    <label class="d-check"><input type="checkbox" name="inc_tax" value="1"${inc.tax ? ' checked' : ''}> Tax reserve</label></fieldset>`;
+    <label class="d-check"><input type="checkbox" name="inc_overhead" value="1"${inc.overhead ? ' checked' : ''}> Overhead</label></fieldset>`;
   const d = q.discount || {};
   const price = `<div class="d-grid2"><div><label for="disc">Discount</label><input id="disc" name="disc" inputmode="decimal" value="${val$(d.value)}"></div><div><label for="disc-mode">As</label><select id="disc-mode" name="disc_mode">${opts({ amount: 'An amount', pct: '% of the client price' }, d.mode || 'amount')}</select></div></div><p class="d-sub">A discount lowers the price, not the costs, so it comes out of the margin.</p>`;
   const terms = `<div class="d-grid2"><div><label for="q-term">Package</label><select id="q-term" name="term">${Object.entries(TERMS).map(([v, l]) => `<option value="${v}"${String(q.term) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div><div><label for="q-months">If one project: how many months it runs</label><input id="q-months" name="months" inputmode="numeric" value="${esc(q.months || 1)}"></div></div>
@@ -323,9 +328,9 @@ export function renderProposal(j, ctx) {
   const back = `/dashboard/flow/${encodeURIComponent(j.key)}/proposal`;
   const p = ctx.proposal;
   const hold = moneyHold(ctx);
-  const draftBtn = ctx.quote && !ctx.quote.unreadable && !hold ? `<form method="post" action="/dashboard/proposal" class="d-inline">${hidden('key', j.key)}${hidden('back', back)}${hidden('do', 'draft')}<button type="submit"${p ? '' : ' class="d-primary"'}>${p ? 'Start again from the latest quote' : 'Write it from the quote'}</button></form>` : '';
+  const draftBtn = ((ctx.estimate && !ctx.estimate.unreadable) || (ctx.quote && !ctx.quote.unreadable)) && !hold ? `<form method="post" action="/dashboard/proposal" class="d-inline">${hidden('key', j.key)}${hidden('back', back)}${hidden('do', 'draft')}<button type="submit"${p ? '' : ' class="d-primary"'}>${p ? 'Start again from the latest quote' : 'Write it from the quote'}</button></form>` : '';
   if (!p) {
-    const why = hold ? holdBox(hold) : !ctx.quote ? empty('A proposal starts from a saved quote. Build the quote first.', `/dashboard/flow/${encodeURIComponent(j.key)}/quote`, 'Build the quote', 'flow') : `<p class="d-sub">Writes a first draft from your quote and discovery answers: scope, term, your price, the payment plan and your rationale. Never your costs or margin. You edit every word.</p>${draftBtn}`;
+    const why = hold ? holdBox(hold) : !ctx.quote && !ctx.estimate ? empty('A proposal starts from a saved quote. Build the quote first.', `/dashboard/flow/${encodeURIComponent(j.key)}/quote`, 'Build the quote', 'flow') : `<p class="d-sub">Writes a first draft from your quote and discovery answers: scope, term, your price, the payment plan and your rationale. Never your costs or margin. You edit every word.</p>${draftBtn}`;
     return shell(`Proposal · ${j.name}`, `${backTo(j)}<h1>Proposal</h1>${ctx.flash || ''}${why}`, ctx);
   }
   if (p.text === null) return shell(`Proposal · ${j.name}`, `${backTo(j)}<h1>Proposal</h1>${errorBox('This proposal could not be read back.', 'Write it again from the quote; nothing else is affected.', back, 'Back')}${draftBtn}`, ctx);
@@ -364,7 +369,7 @@ export function renderPortal(pv, name) {
   const css = 'body{margin:0;background:#0b0b0c;color:#f4f1ea;font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}main{max-width:720px;margin:0 auto;padding:24px 18px 48px}h1{font-size:26px;margin:8px 0 4px}h2{font-size:18px;margin:28px 0 8px;color:#ff8500}ul{list-style:none;padding:0;margin:0}li{padding:12px 0;border-bottom:1px solid #2a2a2e}a{color:#ffb15c}.s{color:#b9b4aa;font-size:14px}s{color:#8d887f}';
   const tasks = pv.tasks.length ? `<ul>${pv.tasks.map((t) => `<li>${t.done ? `<s>${esc(t.title)}</s> <span class="s">done</span>` : esc(t.title)}${t.due && !t.done ? ` <span class="s">· ${esc(usDay(t.due))}</span>` : ''}</li>`).join('')}</ul>` : '<p class="s">Nothing listed yet. Your West Peek Productions team adds the work here as it is planned.</p>';
   const assets = pv.assets.length ? `<ul>${pv.assets.map((a) => `<li><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.label)} ↗</a></li>`).join('')}</ul>` : '<p class="s">No files shared here yet.</p>';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${esc(name)} · West Peek Productions</title><style>${css}</style></head><body><main><p class="s">West Peek Productions · your project page</p><h1>${esc(name)}</h1><p class="s">This page is private to your organization. Keep the link to yourselves; ask your West Peek Productions lead for a new one at any time.</p><h2>The work</h2>${tasks}<h2>Files and links</h2>${assets}${pv.sample ? '<p class="s">Sample page on a preview: nothing here is real.</p>' : ''}</main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${esc(name)} · West Peek Productions</title><style>${css}</style></head><body>${EMAIL_OFF[0]}<main><p class="s">West Peek Productions · your project page</p><h1>${esc(name)}</h1><p class="s">This page is private to your organization. Keep the link to yourselves; ask your West Peek Productions lead for a new one at any time.</p><h2>The work</h2>${tasks}<h2>Files and links</h2>${assets}${pv.sample ? '<p class="s">Sample page on a preview: nothing here is real.</p>' : ''}</main>${EMAIL_OFF[1]}</body></html>`;
 }
 export function portalGone() {
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>West Peek Productions</title></head><body style="margin:0;background:#0b0b0c;color:#f4f1ea;font:16px/1.5 system-ui,sans-serif"><main style="max-width:640px;margin:0 auto;padding:32px 18px"><h1 style="font-size:24px">This link does not open a project page</h1><p>It may have been replaced with a newer one. Ask your West Peek Productions lead for the current link.</p></main></body></html>';

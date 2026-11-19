@@ -199,6 +199,19 @@ code{overflow-wrap:anywhere}
 ${Object.entries(BILLED).map(([v, x]) => { const on = `.d-role:has(.d-billed option[value="${v}"]:checked)`; return `${on} .d-box:not(${x.needs.map((k) => `[data-box="${k}"]`).join(',')}){display:none}${on} [data-only]:not([data-only="${v}"]){display:none}`; }).join('\n')}
 .d-role details{margin:4px 0 0}
 .d-role details summary{cursor:pointer;color:var(--orange);font-size:14px;min-height:36px;display:flex;align-items:center}
+.d-green{color:var(--green)}
+.d-tag{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:0 7px;margin-left:6px;vertical-align:middle}
+.d-strip .d-tag{display:inline-block;margin:4px 0 0}
+.d-strip .d-strip__sub{display:block;text-transform:none;letter-spacing:0;font-size:13px;color:var(--muted);margin-top:2px;font-style:normal}
+.d-strip strong.d-red{color:var(--red)}
+.d-strip strong span{display:inline;font-size:inherit;text-transform:none;letter-spacing:0}
+.d-form .d-check input{flex:none;width:22px;height:22px;min-height:0;padding:0}
+.d-qsvc .d-role__head .d-check{margin:0}
+.d-cut .d-qline__name{text-decoration:line-through;color:var(--muted)}
+.d-cut>*:not(.d-role__head){opacity:.55}
+.d-flags{margin:8px 0 0;padding-left:20px}
+.d-flags li{margin:4px 0}
+.d-client{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--ink-2)}
 .d-helpdoc code{background:var(--ink-3);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
 @media (max-width:620px){.d-row{flex-wrap:wrap}.d-row__main{flex:1 1 70%}.d-row__act{flex:1 1 100%;justify-content:flex-start;padding-left:20px}.d-row--today{flex-wrap:nowrap;align-items:center}.d-row--today .d-row__main{flex:1 1 auto}.d-row--today .d-row__act{flex:none;flex-wrap:nowrap;justify-content:flex-end;align-items:center;padding-left:0}.d-row--today .d-row__act button,.d-row--today .d-row__act .d-btn{padding:9px 12px;white-space:nowrap}}
 @media (min-width:760px){body{font-size:16px}main{padding:0 24px 24px}}
@@ -206,13 +219,24 @@ ${Object.entries(BILLED).map(([v, x]) => { const on = `.d-role:has(.d-billed opt
 `;
 
 const TABS = [['pipeline', '/dashboard', 'Pipeline'], ['inquiries', '/dashboard/inquiries', 'Inquiries'], ['work', '/dashboard/work', 'Clients'], ['money', '/dashboard/money', 'Money'], ['agents', '/dashboard/agents', 'Agents']];
+/**
+ * Cloudflare's Email Address Obfuscation (on for westpeekproductions.com) rewrites every address in a
+ * page into "[email protected]" and decodes it with a script; the dashboard's CSP allows no script, so the
+ * address never came back (Scooter, 19 Nov 2026: "Inquiries shows [email protected] instead of the
+ * submitter's address"). Every page body sits inside Cloudflare's own markers, which tell the edge to
+ * leave the text alone; the CSP is unchanged and no script is added. Responses also carry
+ * Cache-Control no-transform. Pinned in scripts/test_dashboard.mjs.
+ */
+export const EMAIL_OFF = ['<!--email_off-->', '<!--/email_off-->'];
+/** A clickable address (mailto), plain text in the page. */
+export const mailto = (email) => (email ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : '');
 export function page(title, body, { tab = null, counts = null, sample = false, signedIn = false, head = '' } = {}) {
   // Plain labelled tabs, no "to look at" counts (Scooter, 15 Nov 2026: "I don't need it to figure out
   // what needs my attention ... Less on the screen, clear labels").
   void counts;
   const tabs = signedIn ? `<nav class="d-tabs" aria-label="Dashboard">${TABS.map(([k, h, l]) => `<a href="${h}"${tab === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>` : '';
   const top = signedIn ? `<header class="d-head"><p class="d-brand">West Peek Productions</p><nav class="d-headlinks" aria-label="Settings"><a href="/dashboard/connections"${tab === 'connections' ? ' aria-current="page"' : ''}>Connections</a><a href="${HELP}"${tab === 'help' ? ' aria-current="page"' : ''}>Help</a></nav></header>${sample ? '<p class="d-sample">Sample mode (preview only): every row here is made up. Nothing is real and nothing reaches a client.</p>' : ''}` : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0b0c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="WPP Dashboard"><meta name="apple-mobile-web-app-status-bar-style" content="black"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/img/dashboard-icon-180.png"><title>${esc(title)} · West Peek Productions</title><style>${CSS}</style>${head}</head><body><main>${top}${body}</main>${tabs}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0b0c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="WPP Dashboard"><meta name="apple-mobile-web-app-status-bar-style" content="black"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/img/dashboard-icon-180.png"><title>${esc(title)} · West Peek Productions</title><style>${CSS}</style>${head}</head><body>${EMAIL_OFF[0]}<main>${top}${body}</main>${tabs}${EMAIL_OFF[1]}</body></html>`;
 }
 
 export function flashBox(a) {
@@ -446,7 +470,7 @@ export function renderFlowRecord(view, j, ctx) {
   // No Source here (Scooter, 15 Nov 2026: "Remove 'Source' from the deal view"); his tracker keeps it.
   const service = SERVICE_BY_ID[inq.service]?.name || '';
   const evWords = eventWords(eventOf(j, ctx.discovery));
-  const contactKv = `${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${inq.title ? `<li><span>Title</span><span>${esc(inq.title)}</span></li>` : ''}${email ? `<li><span>Email</span><span><a href="mailto:${esc(email)}">${esc(email)}</a></span></li>` : ''}${service ? `<li><span>Service</span><span>${esc(service)}</span></li>` : ''}${evWords ? `<li><span>Event dates</span><span>${esc(evWords)}</span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Form request</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}`;
+  const contactKv = `${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${inq.title ? `<li><span>Title</span><span>${esc(inq.title)}</span></li>` : ''}${email ? `<li><span>Email</span><span>${mailto(email)}</span></li>` : ''}${service ? `<li><span>Service</span><span>${esc(service)}</span></li>` : ''}${evWords ? `<li><span>Event dates</span><span>${esc(evWords)}</span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Form request</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}`;
   const contact = contactKv ? sec('contact', 'Contact', `<ul class="d-kv">${contactKv}</ul>`) : '';
 
   const envs = ctx.settings.envelopes || {};
