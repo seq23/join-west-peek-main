@@ -160,9 +160,15 @@ export function lineFromService(s, qty = 1) {
 export function customLine(name = '') {
   return { lid: `l${randomToken(5)}`, sid: '', name: clip(name, 160), description: '', unit: 'each', pass: false, legacy: null, qty: 1, cut: false, due: 'before', actual: null, components: [] };
 }
+/**
+ * A new quote's payments: the brief's deposit (its % prefilled from Settings) and the second client payment it
+ * measures timing against (section 8). When each falls is his to write on the quote: no trigger is assumed
+ * (Scooter, 19 Nov 2026: "My approved direction is the email and brief I sent, not additional decisions taken
+ * on my behalf"; the brief: "accepts any deposit terms the owner sets").
+ */
 export function defaultMilestones(settings = {}) {
   const dep = num(settings.depositPct);
-  return [{ mid: 'm1', label: 'Deposit', pct: dep, amount: null, trigger: 'On signing', date: '' }, { mid: 'm2', label: 'Balance', pct: dep === null ? null : 100 - dep, amount: null, trigger: 'On delivery', date: '' }];
+  return [{ mid: 'm1', label: 'Deposit', pct: dep, amount: null, trigger: '', date: '' }, { mid: 'm2', label: 'Second payment', pct: dep === null ? null : 100 - dep, amount: null, trigger: '', date: '' }];
 }
 export function newQuote(settings = {}) {
   return { v: 1, client: '', project: '', lines: [], others: [], extraHours: null, extraStatus: 'guess', price: null, discount: { mode: 'amount', value: null }, reason: '', milestones: defaultMilestones(settings) };
