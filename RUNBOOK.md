@@ -58,6 +58,24 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   on `sites/ventures/companies.html`. Each company: logo on a cream tile, founder photo, name,
   founders, Website + Instagram links (`target="_blank" rel="noopener noreferrer"`). Assets in
   `sites/ventures/assets/img/portfolio/`, registered in the build contract in `scripts/build.mjs`.
+- **Every site has a `/privacy` page that names every tool the build puts on it** (Scooter,
+  17 Nov 2026: "Privacy pages naming Google Analytics (and Clarity)"; risk rule R-PRV-04):
+  `sites/<site>/privacy.html`, linked from the footer of every page (nav lists unchanged), one page
+  per site because the sites may not link to each other. Today: Google Analytics on all three and
+  Cloudflare Turnstile on ventures; nothing else (Scooter, 19 Nov 2026: "Google Analytics only.
+  Remove Microsoft Clarity and leave other tracking off" — `guardTrackers` in `scripts/build.mjs`
+  fails the build on Clarity, GTM, Meta, Hotjar, LinkedIn, TikTok, Plausible or Segment tags). Contact on all three:
+  info@westpeek.ventures (Scooter, 18 Nov 2026). The wording describes what the forms really do
+  (`functions/api/lead.js`): every form is emailed (Cloudflare email, Resend as well); ventures and
+  community forms also go to the network list (Google Sheet); productions forms email Scooter and
+  land in the dashboard's private D1 (`web_inquiry`), never a network list. The productions page was
+  rewritten for the new site's Get in touch form and with Clarity removed (19 Nov 2026). No
+  public fallback shows a personal address (`forms.js` default and `community-assessment.js` use
+  info@westpeek.ventures). The wording is
+  legal copy: a change to it is asked, never decided. Guard: the privacy pass at the end of
+  `scripts/build.mjs` refuses the build when a built page has no `/privacy` link or the build loads
+  a tool (`gtag.js`, Turnstile) the site's privacy page does not name. Adding a tool means
+  adding it to `PRIVACY_TOOLS` there and naming it on the page in the same PR.
 - **Retired pages redirect, never 404**: `sites/ventures/_redirects`.
 - **Every form defaults to the master network sheet** (Sequoia, 22 Sep 2026): *"make all forms
   automatically default to adding names to our master network sheet."* A new transmitting form needs
@@ -127,6 +145,167 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+- **Productions favicon and link preview** (Scooter, 19 Nov 2026: "WP mark for the favicon. WP logo and 'We make people care' for the link preview, not Peggy Kim or another case-study image"): every page's icon is `assets/img/favicon-32.png` / `favicon-192.png` / `apple-touch-icon.png` (his WP mark), and every page's `og:image` and `twitter:image` is `assets/img/og-we-make-people-care.png` (1200×630). Case images stay inside the cases only. Guard: `guardProductionsShare` in `scripts/build.mjs`. The preview/client-permission line on /work is gone (permission confirmed, 19 Nov 2026).
+- **Publish approved** (Scooter, 19 Nov 2026: "Approved. Please publish the new Productions site and the privacy pages with Google Analytics on Productions, Ventures and Community … Keep Clarity off and close the older analytics-only update without publishing it. This does not approve publishing the Top Barz voting site."): PR #37 lands the new Productions site plus `/privacy` and GA4 on all three sites as one merge. The older analytics-only PR #39 (and the separate privacy-only PR #40) stay closed and unmerged; Clarity stays off (`live-links` fails on it). The Top Barz voting site is another repo and not part of this publish. After the deploy, `npm run live-links` (no `--url`) is the live proof and its lines are the links sent to Scooter.
+- **Productions menu order** (Scooter, 18 Nov 2026): the top menu and the footer "Explore" links read Case studies, Capabilities, About, then Get in touch, on every page; `first-run` checks it. Case images live in `sites/productions/assets/img/work/` as metadata-stripped webp; every case shows images under Highlighted work.
+- **Productions site polish** (Scooter, 15 Nov 2026): the WP mark is 34px in the header; the logo strip is "Who we work with" (said once on the page), his order, each logo's width/height attributes set by visual weight (equal area adjusted for ink density); `logoStrip` in `productions.js` makes it a real scroller (hover, focus or touch-and-hold pauses; drag, swipe or trackpad moves it); reduced motion keeps it static and wrapped.
+
+- **The Productions dashboard v1.0 is at westpeekproductions.com/dashboard, Scooter only**
+  (Scooter, 13 Nov 2026: "No dashboard page or data without the password. Private figures never in
+  the repo or any public file"; "The Productions dashboard is for Scooter only ... the owners list is
+  Scooter alone"; v1.0, Sequoia's go 13 Nov 2026: "his working phone screen onto his own Google
+  files"). Code: `functions/_lib/productions-dashboard.mjs` (routes) and `functions/_lib/pd/`
+  (`auth`, `providers`, `data`, `views`, `schema`, `core`). Productions hosts and their Pages
+  previews only (404 elsewhere).
+  - **Source of truth = his Google Sheets.** Work sheet (Projects, Waiting on client, Deals, Agent
+    drafts, Agent activity, Cold email log), Money sheet (Invoices, Expected receipts, Vendor
+    obligations, Project margin, Cash, Tracker; Scooter only) plus the same-named Finance tabs of
+    each binder the Projects tab links, and his inquiry Form response sheet (read only; never any
+    West Peek network sheet). He names each on Connections or presses "Create it for me". Quick
+    actions (Mark received, Move to next stage, Mark paid, Approve/Changes/Skip) write the row found
+    by its `ID` column, re-read it, and only a re-read that shows the change is "Saved and checked".
+    Chase / reminders are `mail.google.com` compose LINKS that open in his own Gmail (`composeLink`);
+    the dashboard holds no Gmail permission and has no email code for clients.
+  - **His own deal tracker, as it is** (Scooter, 14 Nov 2026: "read and update that tracker without
+    creating a second pipeline or changing the original records"): Connections → "Your deal tracker"
+    (`GROUPS.tracker`; once named it wins over the Work sheet's Deals tab, `groupFor`). The deals tab is
+    found by its columns (`pickTab`: an organization (or Opportunity) column and a stage column, a
+    recognised tab with rows beats an empty one, tabs claimed by other kinds are skipped), the header
+    row may sit anywhere in the top forty and a summary block above it never wins (`parseGrid`; his
+    Pipeline tab has its column names on row 11, Opportunity through Flag, A to N), and a tracker with no ID column is keyed by organization (`keyFrom`,
+    `k:<orgKey>`). Stages are his dropdown's, else his rows' words. A change writes only the cells
+    that differ on that one row and re-reads them; "Add them to my tracker" appends ONE row; nothing
+    ever adds a column. Connections → Your sheets shows "How your tracker is read" (column names only,
+    setting `layout:deals`); the Pipeline shows the columns it saw only when the layout is not recognised.
+  - **Pipeline is the first screen** (`/dashboard`, `renderPipeline`; `/dashboard/deals` and
+    `/dashboard/flow` show the same; Scooter, 15 Nov 2026: "I don't need it to figure out what needs my
+    attention. I need organized, clearly labeled lists of what's in the sales funnel and where each deal
+    sits ... Less on the screen, clear labels, quick to click in and out"). Form requests (people who sent a form; renamed from New inquiries 15 Nov 2026) not yet in his
+    tracker, then one labelled list per stage in his tracker's order (`Stage · n`, empty stages one
+    line), each row the organization, owner and next action with a Next stage button. No triage list,
+    no tab counts; only sync or connection faults show above the lists. **Productions only** (Scooter, 15 Nov 2026):
+    Top Barz rows (SoundCloud, Overtime Elite, Sagaboy, Wendy's, Top Barz; `NOT_PRODUCTIONS` / `productionsOnly` in
+    `data.mjs`) are dropped at READ time in `loadView` and refused by `currentRow`, so they are never shown or written;
+    they stay in his tracker and in the synced copy unchanged, and the Pipeline says how many are not shown. Tabs: Pipeline, Inquiries,
+    Clients (Projects), Money, Agents. Waiting-on-client items live on each client page; drafts on Agents.
+  - **A deal record** (`/dashboard/flow/<key>`, `renderFlowRecord`): one record per organization joining
+    inquiry → tracker deal → signed (DocuSign or a signed stage) → project → invoices → paid
+    (`journeys`). One screen, no explanations or help links, "← Pipeline" back: Deal (stage, owner,
+    next action, next date in ONE form → his tracker; or Add to my tracker + owner/need for a new
+    inquiry), his NOTES, written into his tracker's Notes cell on that row (only
+    that cell, read back; Scooter, 14 Nov 2026: "they need to live where I can see and edit them");
+    D1 table `note` keeps every version. No Notes column → kept in D1 and said so; never a new column.
+    Then Contact (person, title, email, service, event dates, need, timing, form request dates; no Source, 15 Nov 2026), Discovery to delivery (the four steps
+    plus Documents and Emails in Gmail), and Agreement and work / Invoices and cash only once they exist.
+  - **Lead to delivery** (`functions/_lib/pd/deal.mjs`, `views-deal.mjs`; Scooter, 14 Nov 2026, "the whole
+    vision"): the Get in touch form (`/get-in-touch`, was /start; `/api/lead`, productions hosts) also lands in D1 `web_inquiry` and
+    shows on Inquiries (email to Scooter unchanged; never a network sheet); "Add a researched lead"
+    appends ONE row he picks. **The six services are ONE list** (`functions/_lib/services.mjs`; Scooter,
+    15 Nov 2026): the build writes them into the site (`<!--SERVICES:grid-->` / `<!--SERVICES:options-->`
+    markers in `sites/productions/*.html`), and Discovery, Quote and the form handler read the same list.
+    Per deal: Discovery (services first as the site's icon tiles, several at once; Organization type,
+    objective, scale; his six sales-call notes; guided questions per service; event start/end dates for
+    Virtual / hybrid, carried from the Get in touch form),
+    Quote (Scooter, 15 Nov 2026, built to his quote-builder-format.pdf: each Discovery service loads its roles
+    and cost categories from `SERVICE_ROLES` in `deal.mjs`, structure only, every box blank; each row has
+    Assigned to (from the team directory, `/dashboard/team`, D1 `team_directory`, encrypted; owner / team
+    member / contractor, a rate per hour, month or job only when known; "Add a new person" on a row saves to
+    the directory), Billed as (`BILLED`: six units, defaulting by role, changeable on the row), its own
+    hours / quantity / months; rows can be left out, custom rows added, a rate typed for one quote only;
+    the Virtual / hybrid card loads a tier of his event rate card (catalog `tier` + `qty` columns). Client
+    price per service is typed, never built from costs; discount lowers price, not cost; owner time is its
+    own cost (`OWNER_MODELS`: hours × rate, monthly, or share of price) apart from overhead and the tax
+    reserve, and the margin names what it includes; the cash timeline carries each in the month set on it, else spread. An empty box is left out of the math and named, never
+    zero; the margin is provisional until every row is priced and every role has someone assigned.
+    `quoteMath` / `roleCost`. Nothing is labelled "You"), Proposal (drafted from quote + discovery: services and his prices, never a specialist, a cost or what is left; edit,
+    draft/sent), Accept → his tracker's signed stage (read back), the work side (team, a task per scope
+    line, assets) and a client portal `/portal/<token>` (`functions/portal/[[path]].js`: one client's
+    tasks and files marked "client sees"; token stored only as a hash; New link / Turn off). Catalog,
+    quotes and proposals are AES-GCM encrypted. Money inputs are refused while Google holds a wider
+    grant or Keep money out is on. No invoice or billing feature (Scooter's hold).
+  - **Cash rules** (`cashPicture`): "paid" without a Settled on date is neither cash nor forecast;
+    actual and forecast are separate; a payment dated on/before the balance date (or a receipt matching
+    an open invoice) is counted once; open invoices date by their terms (Net N from Issued; a
+    condition holds them out of the forecast); an unpaid overdue invoice stays forecast.
+  - **The rules are walked before any money figure shows** (Scooter, 14 Nov 2026: "We will walk the
+    rules before any money view ships"): `CASH_RULES` / `rulesWalk` in `deal.mjs`. Money opens on "The
+    cash rules, walked first" (`rulesWalkSection`): each rule, a worked example and how many of his rows
+    it decides (counts only); he presses That's right, or writes how it should work (`POST
+    /dashboard/cash-rule` → setting `cash_rule:<id>` with the rule's `v`, plus the action log; refused in
+    sample mode). Until every rule is marked right (`ctx.moneyHidden`), no money figure shows anywhere:
+    Money shows only the walk, invoice rows are held, a deal record shows no invoiced/paid
+    sums. Rewording a rule = bump its `v`, which asks him again. While Google still holds the wider grant,
+    no money figure shows anywhere either (`moneyHidden` covers both).
+  - **A rule change reaches Porter on its own** (review, 14 Nov 2026: he must never say it twice): a
+    "Save how it should work" answer sends ONE email to `os@joinwestpeek.com` (`RULE_CHANGE_TO`,
+    `ruleChangeEmail` in `data.mjs`: rule number, id, `v`, its current words, his words) through the
+    forms mailer, Resend as backup. The setting records `sent` / `sent_at`; the rule shows "sent to
+    Porter · waiting on the new wording", or "change kept · sending to Porter" when the send failed, and
+    the 15-minute cron (`resendRuleChanges`) sends every unsent current change again, never one that
+    arrived. Porter's follow-up: reword that rule in `CASH_RULES` and bump its `v`. Once all rules are
+    right the walk folds into one closed line on Money; until then Money opens on the walk.
+  - **Who can see what** (`/dashboard/access`): the Google scopes in words (`GOOGLE_SCOPE_WORDS`:
+    openid, email, spreadsheets, drive.metadata.readonly, calendar.events.readonly — no Gmail, no
+    Drive contents; the first sync that sees a connection still holding a wider grant revokes it at
+    Google and the Pipeline asks for a narrow reconnect, setting `google_narrowed`), live sharing of every connected sheet and binder, every D1 table in words with
+    counts (`TABLE_WORDS`, one per `BACKUP_TABLES` entry), and the limits: "Narrow Google's access"
+    (`POST /dashboard/google/narrow` revokes the older wider grant, then reconnects narrow; the Pipeline shows a
+    gold row while a connection still holds a retired scope), "Keep money out" (choice `money`; deletes
+    the money copy at once and sync skips it), "Stop using this sheet" (`/dashboard/source/remove`).
+  - **Own storage per environment**: D1 `west-peek-productions-dashboard-<env>` bound as
+    `PRODUCTIONS_DB` (owner, sessions, connections, sources, last-synced rows, action log, ticks,
+    choices, notes). Preview and production never share a database, bucket or Worker. The pre-v1.0 KV
+    snapshot is retired from every screen; KV `PRODUCTIONS_DASHBOARD` is read only to copy Scooter's
+    existing owner record and swap a still-valid old cookie for a D1 session (nobody signed out).
+  - **Sign-in**: Sign in with Google (an Internal OAuth app in his Productions Workspace that he
+    creates: Help → "Setting up the Google sign-in app"); until its secrets exist the sign-in screen
+    says so calmly and the emailed one-time code → own password flow is the working fallback.
+    Sessions are D1 rows (cookie holds a random token, the row holds its hash), "remember this phone"
+    = 30 days, sign-out revokes the row, changing the password revokes every other session. Wrong
+    tries: 10 per connection and 5 per owner per 15 minutes. A password typed without an email opens
+    nothing. `OWNER_IDS` (`['scooter']`) in `functions/_lib/pd/auth.mjs` is the whole owners list.
+  - **Connections**: Google (Sheets, file names and sharing, Calendar events), Dropbox (read), DocuSign
+    (envelope status), QuickBooks or Xero (cash now, read) — each through the service's own OAuth
+    screen; refresh tokens AES-GCM encrypted with `PRODUCTIONS_TOKEN_KEY`. Each service's app keys
+    are PASTED by Scooter into its box under Connections → "Paste your app keys" (password fields,
+    owner session, strictly same-origin POST `/dashboard/keys`, refused in sample mode, 303 back with
+    "Saved. You can connect <app> now."); the pair is kept AES-GCM encrypted with
+    `PRODUCTIONS_TOKEN_KEY` in D1 table `app_key` of THAT host's database (preview and production
+    separate), shown afterwards only as "Saved <date>" + Replace, never logged and never returned by
+    any page or answer. Every request runs with `withAppKeys(env)`: the Worker secret first, the
+    pasted pair only where the secret is missing (Scooter, 14 Nov 2026: "app keys are pasted into
+    the dashboard, never emailed"). Disconnect revokes at the
+    provider where it can and deletes the token. DocuSign connects to its live server
+    (`account.docusign.com`) or, for an app DocuSign has not yet moved live, its test server
+    (`account-d.docusign.com`); the stage is kept in the connection's `meta.server` and every
+    refresh and sync uses it. His open choices (accounting tool, bank cash
+    source, CRM, Shared Drive, agent seat, developer view, link) are buttons on Connections.
+  - **Sync**: the Worker `west-peek-productions-dashboard-<env>` (`workers/productions-dashboard/`)
+    calls `POST /dashboard/cron/sync` every 15 minutes (secret checked against a hash in D1) and
+    "Refresh now" does the same; blocks older than 2 hours say "may be out of date"; a failed sync
+    or a broken connection is a red row above the Pipeline. Nightly (08:30 UTC) it exports every table to the
+    private R2 bucket `west-peek-productions-dashboard-backups-<env>`, keeps 30 days, and logs the
+    real-data check (counts only).
+  - **Preview sample mode**: on a preview host only, `sample@preview.invalid` /
+    `preview-sample-only` signs in to synthetic rows (`sampleRows()`), never a connection or real
+    row; refused on every production host. `npm run first-run` uses it.
+  - Cold email sending is off in code (`COLD_EMAIL_SENDING`), cap 25 a week.
+  Guards: `npm run test:dashboard`, `npm run validate:dashboard-privacy` (sample rows and the test
+  fixtures' sheet grids carry placeholder names only).
+- **Google Analytics 4: exactly one tag per page, written by the build** (Scooter, 17 Nov 2026).
+  `scripts/build.mjs` (`GA4`) puts the standard gtag.js pair at the top of every
+  built page's `<head>`: productions `G-17BHLS1RWJ`, community `G-X0CDKY3DXT`, ventures
+  `G-Y7371XLG0L`. Never paste a Google tag into a page under `sites/`: the build fails on any page
+  with zero or two tags, a GTM container or another site's ID. No personal data leaves: page_location
+  is origin + path plus only `utm_*`/`gclid`/`gbraid`/`wbraid`, the referrer loses its query, Google
+  signals and ad personalisation are off, and any non-production host (`*.pages.dev`, localhost) sets
+  `ga-disable-<ID>`. CTA and form events (`cta_*`, `form_submit_*`; names and `page_path` only) are in
+  `shared/assets/js/wp-analytics.js`, matched by a link's or button's visible label (never a form's
+  submit button); form events fire only from forms.js's confirmed-success guard
+  (`westpeek:form-success`, lead_type only). A new CTA label or tracked form is one line in that
+  file. Guard: the build itself, plus
+  `npm run first-run -- --url <preview>`.
+
 ## Lead delivery and alarms
 **A lead has two independent ways out** (outage 2 Nov to 6 Nov 2026: the Resend key behind every
 form was deleted, every submission failed with 502, and only `console.error` knew). Code and the
@@ -180,12 +359,43 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | Script | Pins |
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
+| `scripts/validate_dashboard_privacy.mjs` | no owners file or dashboard loader input in the repo; sample rows are all "Sample …" with example.test addresses; no address (beyond the OS inbox and test domains) or dollar figure in dashboard code; no private package document; with `DASHBOARD_PRIVATE_NAMES_FILE`, none of those names anywhere |
+| `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout (a locked password never blocks a fresh emailed code); sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are Gmail compose links and no Gmail scope is asked; his tracker read under a title line with no ID column, only changed cells written, a moved row found by organization, an inquiry appended once, unrecognised columns named; Lead to cash joins inquiry and deal; notes go into his tracker's Notes cell only and persist on a second device; his Pipeline tab read from row 11 under a summary block; site inquiries, intake owner/need, researched lead appended once; discovery shaped per deal; quote floor/unknowns/price/margin/terms/timing, encrypted; proposal never shows costs; accept moves his tracker and starts delivery; portal isolation, revoke and new link; money hold; wide grant withdrawn by sync; delete synced copies; the cash rules; Who can see what names wider grants, sharing and every table; Narrow revokes then reconnects; Keep money out deletes the money copy; ticks persist; the Pipeline lists each deal under its stage with no triage; failed sync, broken connection and a disconnected account above the Pipeline; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
+| `scripts/build.mjs` (privacy pass) | every built page links `/privacy`; every tool the build loads is named on that site's privacy page |
 | `.github/workflows/entity-validation.yml` | runs the build and the guards above on every push and PR |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
+
+## Porter may run
+
+Derived by Porter from this repo's `package.json` because the RUNBOOK had no such section. Edit it freely — a human's list here wins over the derivation, and a job that needs a data-op the repo lacks writes the script and names it here in the same PR.
+
+- `build` — `node scripts/build.mjs community && node scripts/build.mjs ventures && node scripts/build.mjs productions`
+- `build:community` — `node scripts/build.mjs community`
+- `build:productions` — `node scripts/build.mjs productions`
+- `build:ventures` — `node scripts/build.mjs ventures`
+- `test:lead` — `node scripts/test_lead_delivery.mjs`
+- `validate` — `npm run build && npm run test:lead && npm run validate:forms && npm run validate:disclosure && npm run validate:ventures-isolation && npm run validate:community-site`
+- `validate:community-site` — `node scripts/validate_community_site.mjs`
+- `validate:disclosure` — `node scripts/validate_disclosure.mjs`
+- `validate:forms` — `node scripts/validate_forms.mjs`
+- `validate:ventures-isolation` — `node scripts/validate_ventures_isolation.mjs`
+- `test:dashboard` — `node scripts/test_dashboard.mjs`
+- `dashboard:setup` — `node scripts/dashboard_setup.mjs --env preview|production [--site-url https://…] [--prove-restore]`: finds or creates that environment's D1, applies migrations, binds it as `PRODUCTIONS_DB`, adds `PRODUCTIONS_TOKEN_KEY` if absent, finds or creates the private R2 backup bucket (30-day expiry), deploys the sync/backup Worker with a fresh cron secret (hash kept in D1), and with `--prove-restore` backs up, deletes a marker, restores and checks it came back. On production with no owner row it copies Scooter's owner record (address, name, password hash; never sessions or codes) from the preview database, or before his first preview sign-in from the pre-v1.0 KV `owners` record bound to preview; none in either is NAMED STOP `owner_missing` (exit 2), cleared by `dashboard:owners -- --env production --file <owners JSON outside the repo>` (no `--send`). When it changed the binding or the key (or with `--redeploy`) it waits for that environment's newest deployment to finish and redeploys that same commit, so the binding is live when setup exits (`redeploy=done(…)`; a failed or 12-minute-stuck deploy exits 1). Safe to repeat. Needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+  State: preview set up 14 Nov 2026 (D1 `west-peek-productions-dashboard-preview`, Worker `west-peek-productions-dashboard-preview`, backup bucket with 30-day expiry, one restore proven).
+  Production, in this order (review, 14 Nov 2026: a binding added after the merge reached no deployment, and production had no owner row, so the live page would have said "not set up"):
+  1. BEFORE the merge: `dashboard:setup -- --env production`. The binding rides on the live pre-v1.0 code harmlessly, and the merge's own deployment carries it. Expect `owner=copied_from_preview(1)`, `copied_from_preview_kv(1)` or `kept`.
+  2. LAND merges and deploys.
+  3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
+- `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
+- `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, (1) `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
+- `live-links` — `node scripts/live_links.mjs [--url https://<host> …]` (no `--url` = the three production hosts): fetches each site's home and /privacy (Productions also /work, /what-we-do, /about, /get-in-touch) and fails on a non-200, not exactly one GA4 tag with that site's ID, another site's ID, Clarity or any other tracker, and on Productions a favicon other than the WP mark, a link preview other than the "We make people care" card, or the old preview/client-permission line. Prints each link and `LIVE_LINKS OK <n> links`. LAND runs it with no `--url` after the deploy; its lines are the live links sent to Scooter (19 Nov 2026: "Please reply with the live links once complete").
+- `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
+  (2) `node scripts/first_run_privacy.mjs --url <preview>`: loads `/privacy` and every sitemap page plus the 404 on each preview given; fails on a missing footer link, an unnamed tool, a missing contact or date, a placeholder or a bad status; then runs `scripts/first_run.mjs` (the GA4 first-run) on the same previews; prints `FIRST_RUN OK` only when both pass.
+  GA4 first-run alone: `node scripts/first_run.mjs --url <preview>` (repeatable; or `FIRST_RUN_URL`): loads every sitemap page and the 404 on that host, fails on a page without exactly one GA4 tag with its site's ID or with a placeholder, runs the deployed `wp-analytics.js`/`forms.js` against every link and button (each CTA sends one event carrying only `page_path`; submit buttons send none) and against a stubbed `/api/lead` (form event on success only). Prints `FIRST_RUN OK`. Sends nothing to Google or `/api/lead`.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
@@ -194,3 +404,16 @@ Per Pages project; set through `pages_env`, never by hand.
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
 - `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, ventures POSTs are still delivered, recorded `bot_check: "not_configured"`, and the `bot_check_not_configured` alarm fires (owner, 15 Nov 2026; the 3 Nov fail-closed 503 is gone).
+- `west-peek-productions` (dashboard v1.0): `PRODUCTIONS_DB` (D1) and `PRODUCTIONS_TOKEN_KEY`
+  are set by `npm run dashboard:setup`, never by hand. `GOOGLE_OAUTH_CLIENT_ID` +
+  `GOOGLE_OAUTH_CLIENT_SECRET` (Internal app in his Productions Workspace; Sign in with Google and the
+  Drive/Sheets/Gmail/Calendar connection) are HELD in the vault (14 Nov 2026) and set on this project
+  through `pages_env`; `first-run` follows the button to Google's own screen and fails on a key Google
+  does not know. Dropbox, DocuSign, QuickBooks and Xero keys are not Pages secrets at all: Scooter
+  pastes each pair into its box on the dashboard's Connections page (encrypted in that host's D1;
+  never emailed, never asked for by email). A Pages secret of the same name, if one is ever set,
+  wins over the pasted pair. Redirect URI for every one:
+  `https://westpeekproductions.com/dashboard/oauth/callback` and, for this preview,
+  `https://work-wpc-c548d043-next.west-peek-productions.pages.dev/dashboard/oauth/callback`. One-time codes
+  need the forms' mail sender on this project (`FORMS_MAILER` + `FORMS_MAILER_SECRET`, or
+  `RESEND_API_KEY` + `EMAIL_FROM`).

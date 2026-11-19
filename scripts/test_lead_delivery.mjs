@@ -282,6 +282,54 @@ try {
     const none = await runProbe(w.workerEnv, siteFetch, []);
     check('probe: zero sites is a named stop', none.ok === false && none.stop === 'NO_SITES_SELECTED');
   }
+
+  // 9. A productions inquiry reads on a phone in Scooter's layout (15 Nov 2026): his subject, his
+  //    order, no empty or tracking lines, Reply-To the submitter, a link to Inquiries, TEST flagged.
+  {
+    const body = {
+      lead_type: 'productions_start_a_project', site: 'westpeekproductions.com', source_page: '/start', landing_page: '/what-we-do',
+      utm_source: 'linkedin', utm_medium: 'social', utm_campaign: 'fall', referrer_host: 'www.linkedin.com',
+      need_type: 'Build community', need_other: '', initiative: 'A spring alumni series.', timing: '1 to 3 months',
+      name: 'Dana Reyes', email: 'dana@harborfund.org', organization: 'Harbor Fund', heard_about: 'LinkedIn', website: ''
+    };
+    const w = world({ cloudflare: 'down' });
+    const r = await submit(w, { host: 'westpeekproductions.com', body });
+    const m = w.sent.resend.find((x) => /New inquiry/.test(x.subject)) || {};
+    check('inquiry: delivered', r.status === 200 && r.body.ok === true, JSON.stringify(r.body));
+    check('inquiry: subject is New inquiry: Organization - Name', m.subject === 'New inquiry: Harbor Fund - Dana Reyes', m.subject);
+    check('inquiry: Reply-To is the submitter', m.reply_to === 'dana@harborfund.org', m.reply_to);
+    const order = ['Name: Dana Reyes', 'Email: dana@harborfund.org', 'Organization: Harbor Fund', 'Needs: Build community — A spring alumni series.', 'Timing: 1 to 3 months', 'Heard about us: LinkedIn', 'Submitted: '];
+    const at = order.map((l) => (m.text || '').indexOf(l));
+    check('inquiry: fields in his order', at.every((i, n) => i >= 0 && (n === 0 || i > at[n - 1])), JSON.stringify(at));
+    check('inquiry: Submitted is a readable Eastern time', /Submitted: \w+day, \w+ \d+, \d{4} at \d+:\d\d [AP]M E[SD]T/.test(m.text || ''), (m.text || '').match(/Submitted: .*/)?.[0]);
+    check('inquiry: no tracking labels or raw field names', !/utm_|source_page|landing_page|referrer_host|lead_type|submitted_at|site:|website:|\/api\/lead/.test(`${m.text}${m.html}`));
+    check('inquiry: links to Inquiries on the same site', (m.text || '').includes('https://westpeekproductions.com/dashboard/inquiries') && /href="https:\/\/westpeekproductions\.com\/dashboard\/inquiries"/.test(m.html || ''));
+    check('inquiry: the email is a clickable link in the html part', /href="mailto:dana@harborfund\.org"/.test(m.html || ''));
+    check('inquiry: a real one is not marked TEST', !/TEST/.test(`${m.subject}${m.text}`));
+
+    const t = world({ cloudflare: 'down' });
+    await submit(t, { host: 'work-wpc.west-peek-productions.pages.dev', body: { ...body, organization: '', need_type: 'Other', need_other: 'A gala film', initiative: '' } });
+    const tm = t.sent.resend.find((x) => /New inquiry/.test(x.subject)) || {};
+    check('inquiry: a preview submission is TEST in the subject', tm.subject === 'TEST: New inquiry: Dana Reyes', tm.subject);
+    check('inquiry: an empty field is left out, not shown blank', !/Organization:/.test(tm.text || '') && /Needs: Something else: A gala film\n/.test(tm.text || ''), tm.text);
+    check('inquiry: on a preview the link opens that preview\'s Inquiries', (tm.text || '').includes('https://work-wpc.west-peek-productions.pages.dev/dashboard/inquiries'));
+    check('inquiry: a test address on production is TEST too', lead.isTestInquiry({ email: 'scooter+x@example.test', name: 'Scooter' }, 'https://westpeekproductions.com/api/lead') && !lead.isTestInquiry({ email: 'a@testament.org', name: 'Testament Fund' }, 'https://westpeekproductions.com/api/lead'));
+
+    const c = world({ cloudflare: 'down' });
+    await submit(c);
+    check('inquiry: other sites keep their own email', leadsIn(c.sent.resend).length === 1 && !c.sent.resend.some((x) => /New inquiry/.test(x.subject)));
+
+    // The Get in touch form (Scooter, 15 Nov 2026): first and last name, title, the service, and for
+    // Virtual / hybrid event production the event dates, in his email in that order.
+    const g = world({ cloudflare: 'down' });
+    const gt = await submit(g, { host: 'westpeekproductions.com', body: { lead_type: 'productions_start_a_project', site: 'westpeekproductions.com', source_page: '/get-in-touch', first_name: 'Dana', last_name: 'Reyes', job_title: 'Director of Programs', organization: 'Harbor Fund', email: 'dana@harborfund.org', initiative: 'A two-day member summit.', service: 'Virtual / hybrid event production', event_start: '2027-04-08', event_end: '2027-04-09', heard_about: 'Search', website: '' } });
+    const gm = g.sent.resend.find((x) => /New inquiry/.test(x.subject)) || {};
+    check('get in touch: first and last name make one name in the subject', gt.status === 200 && gm.subject === 'New inquiry: Harbor Fund - Dana Reyes', gm.subject);
+    const gOrder = ['Name: Dana Reyes', 'Email: dana@harborfund.org', 'Organization: Harbor Fund', 'Title: Director of Programs', 'Service: Virtual / hybrid event production', 'Event dates: Thu, Apr 8, 2027 to Fri, Apr 9, 2027', 'Needs: A two-day member summit.', 'Heard about us: Search', 'Submitted: '];
+    const gAt = gOrder.map((l) => (gm.text || '').indexOf(l));
+    check('get in touch: title, service and event dates in his order', gAt.every((i, n) => i >= 0 && (n === 0 || i > gAt[n - 1])), JSON.stringify(gAt) + (gm.text || ''));
+    check('get in touch: no raw field names in his email', !/first_name|last_name|job_title|event_start|event_end/.test(`${gm.text}${gm.html}`));
+  }
 } finally {
   console.error = quiet;
   console.log = loud;

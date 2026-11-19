@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { SERVICES } from "../functions/_lib/services.mjs";
 
 const target = process.argv[2];
 if (!target) {
@@ -22,6 +23,26 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 
 copyRecursive(src, out);
+
+// West Peek Productions' six services come from ONE list (functions/_lib/services.mjs), shared with
+// the dashboard (Scooter, 15 Nov 2026: "same list on the site and the dashboard picker"). Pages carry
+// markers; the build writes the list in, so the site can never drift from the dashboard.
+if (target === "productions") {
+  const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const grid = SERVICES.map((s) => `<li id="${s.id}"><button type="button" class="wpp-capgrid__btn" aria-expanded="false" aria-controls="cap-${s.id}">${s.icon}<span>${esc(s.name)}</span></button><p id="cap-${s.id}" class="wpp-capgrid__desc">${esc(s.line)}</p></li>`).join("\n        ");
+  const options = SERVICES.map((s) => `<option value="${esc(s.name)}"${s.events ? " data-events" : ""}>${esc(s.name)}</option>`).join("\n            ");
+  let marked = 0;
+  for (const name of fs.readdirSync(out)) {
+    if (!name.endsWith(".html")) continue;
+    const abs = path.join(out, name);
+    const html = fs.readFileSync(abs, "utf8");
+    if (!html.includes("<!--SERVICES:")) continue;
+    fs.writeFileSync(abs, html.replaceAll("<!--SERVICES:grid-->", grid).replaceAll("<!--SERVICES:options-->", options));
+    marked += 1;
+  }
+  if (!marked) fail("productions: no page carries a <!--SERVICES:…--> marker; the six services would be missing from the site");
+  console.log(`services: wrote the ${SERVICES.length} services into ${marked} page(s)`);
+}
 
 // Per-episode pages for community: one template + episodes.json, not one
 // hand-written file per guest, so a new episode is a JSON row rather than a
@@ -110,7 +131,7 @@ if (target === "community") {
   const index = fs.readFileSync(indexPath, "utf8");
   const styles = [
     ...(index.match(/<style[\s\S]*?<\/style>/gi) || []),
-    ...(index.match(/<link[^>]+rel=["'](?:stylesheet|preconnect)["'][^>]*>/gi) || []),
+    ...(index.match(/<link[^>]+rel=["'](?:stylesheet|preconnect|icon|apple-touch-icon)["'][^>]*>/gi) || []),
   ].join("\n");
   const footer = (index.match(/<footer[\s\S]*?<\/footer>/i) || [""])[0];
   const titleRaw = (index.match(/<title>([^<]*)<\/title>/i) || [, "This site"])[1];
@@ -146,29 +167,9 @@ ${footer}
   console.log("404: wrote 404.html");
 })();
 
-// Microsoft Clarity. The project for westpeekproductions.com already existed but
-// no tag was ever installed, so it recorded nothing. Only that site has a Clarity
-// project today; ventures and community have none, so nothing is injected there
-// rather than pointing them at a project that is not theirs.
-const CLARITY_PROJECTS = { productions: "y7l2pamzfh" };
-const clarityId = CLARITY_PROJECTS[target];
-if (clarityId) {
-  const marker = "data-clarity-loader";
-  const snippet = `<script ${marker}>(function(w,d,i){w.clarity=w.clarity||function(){(w.clarity.q=w.clarity.q||[]).push(arguments)};var s=d.createElement("script");s.async=1;s.src="https://www.clarity.ms/tag/"+i;var f=d.getElementsByTagName("script")[0];f.parentNode.insertBefore(s,f)})(window,document,${JSON.stringify(clarityId)})</script>`;
-  let tagged = 0;
-  (function inject(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const abs = path.join(dir, entry.name);
-      if (entry.isDirectory()) { inject(abs); continue; }
-      if (!entry.name.endsWith(".html")) continue;
-      const html = fs.readFileSync(abs, "utf8");
-      if (html.includes(marker) || !/<\/head>/i.test(html)) continue;
-      fs.writeFileSync(abs, html.replace(/<\/head>/i, `${snippet}</head>`));
-      tagged += 1;
-    }
-  })(out);
-  console.log(`clarity: tagged ${tagged} page(s) for ${target}`);
-}
+// Microsoft Clarity was removed (Scooter, 19 Nov 2026: "Google Analytics only.
+// Remove Microsoft Clarity and leave other tracking off"). guardTrackers below
+// refuses any build that carries it or another tracker.
 
 // Organization schema on every page, not just the index.
 //
@@ -304,10 +305,68 @@ const outAssets = path.join(out, "assets");
 fs.mkdirSync(outAssets, { recursive: true });
 copyRecursive(sharedAssets, outAssets);
 
+// Google Analytics 4 (Scooter, 17 Nov 2026: "Standard gtag.js in the <head> of
+// every page, one tag per page"). Written by the build, so
+// the pages the build generates (404, episodes, workshops) are covered and no
+// source file can carry a second copy. What the tag sends is cut down to what
+// GA needs and nothing personal: page_location is origin + path plus only the
+// campaign/click keys (a value that looks like an email address is dropped),
+// the referrer loses its query string and hash, Google signals and ad
+// personalisation are off. On any host that is not the site's own domain
+// (*.pages.dev previews, localhost) Google's own opt-out flag is set, so test
+// visits never reach the counts; events still land in dataLayer for checking.
+// The CTA and form events live in shared/assets/js/wp-analytics.js.
+const GA4 = {
+  productions: { id: "G-17BHLS1RWJ", hosts: ["westpeekproductions.com", "www.westpeekproductions.com"] },
+  community: { id: "G-X0CDKY3DXT", hosts: ["joinwestpeek.com", "www.joinwestpeek.com"] },
+  ventures: { id: "G-Y7371XLG0L", hosts: ["westpeek.ventures", "www.westpeek.ventures", "ventures.joinwestpeek.com"] },
+};
+(function injectGa4() {
+  const ga = GA4[target];
+  if (!ga) fail(`No GA4 measurement ID for target: ${target}`);
+  const keep = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id", "gclid", "gbraid", "wbraid"];
+  const snippet = [
+    `<!-- Google tag (gtag.js) -->`,
+    `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga.id}" data-wp-ga></script>`,
+    `<script data-wp-ga-config>`,
+    `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}`,
+    `(function(id,hosts,keep){var l=window.location;if(hosts.indexOf(l.hostname.toLowerCase())<0)window["ga-disable-"+id]=true;var q="";try{var i=new URLSearchParams(l.search),o=new URLSearchParams();keep.forEach(function(k){var v=i.get(k);if(v&&!/@|%40/.test(v))o.set(k,v)});q=o.toString()}catch(e){}var r="";try{if(document.referrer){var u=new URL(document.referrer);r=u.origin+u.pathname}}catch(e){}`,
+    `gtag("js",new Date());gtag("set",{page_location:l.origin+l.pathname+(q?"?"+q:""),page_referrer:r,allow_google_signals:false,allow_ad_personalization_signals:false});gtag("config",id)})(${JSON.stringify(ga.id)},${JSON.stringify(ga.hosts)},${JSON.stringify(keep)});`,
+    `</script>`,
+    `<script src="/assets/js/wp-analytics.js" defer data-wp-analytics data-site="${target}"></script>`,
+  ].join("\n");
+  const headOpen = /<head(?:\s[^>]*)?>/i;
+  const allIds = Object.values(GA4).map((g) => g.id);
+  const problems = [];
+  let tagged = 0;
+  for (const abs of htmlFiles(out)) {
+    let html = fs.readFileSync(abs, "utf8");
+    const rel = path.relative(out, abs);
+    if (!headOpen.test(html)) { problems.push(`${rel}: no <head> to put the tag in`); continue; }
+    if (!html.includes("data-wp-ga-config")) {
+      html = html.replace(headOpen, (m) => `${m}\n${snippet}`);
+      fs.writeFileSync(abs, html);
+      tagged += 1;
+    }
+    // Exactly one Google tag per page, and only this site's ID.
+    const loaders = (html.match(/googletagmanager\.com\/gtag\/js/g) || []).length;
+    const configs = (html.match(/gtag\(\s*["']config["']/g) || []).length;
+    const gtm = /googletagmanager\.com\/gtm\.js|GTM-[A-Z0-9]+/.test(html);
+    const foreign = allIds.filter((id) => id !== ga.id && html.includes(id));
+    if (loaders !== 1 || configs !== 1 || gtm || foreign.length) {
+      problems.push(`${rel}: ${loaders} gtag.js loader(s), ${configs} config call(s)${gtm ? ", a GTM container" : ""}${foreign.length ? `, foreign ID ${foreign.join(" ")}` : ""}`);
+    }
+  }
+  if (!tagged && !htmlFiles(out).length) fail(`ga4: no pages found for ${target}`);
+  if (problems.length) fail(`ga4: every ${target} page must carry exactly one Google tag (${ga.id}):\n  ${problems.join("\n  ")}`);
+  console.log(`ga4: tagged ${tagged} page(s) for ${target} with ${ga.id}; every page has exactly one tag`);
+})();
+
 const required = {
   ventures: [
     path.join(outAssets, "base.css"),
     path.join(outAssets, "js", "forms.js"),
+    path.join(outAssets, "js", "wp-analytics.js"),
     // 20 Sep 2026 update: shared nav, the WP monogram, the two portfolio companies.
     path.join(outAssets, "ventures.css"),
     path.join(outAssets, "ventures.js"),
@@ -324,11 +383,13 @@ const required = {
     path.join(outAssets, "img", "productions-hero.jpg"),
     path.join(outAssets, "img", "productions-logo.jpg"),
     path.join(outAssets, "js", "forms.js"),
+    path.join(outAssets, "js", "wp-analytics.js"),
   ],
   community: [
     // 23 Sep 2026 redesign: black/orange visual system, self-hosted Maax, and
     // the data files the episode/winner/history pages read at runtime.
     path.join(outAssets, "js", "forms.js"),
+    path.join(outAssets, "js", "wp-analytics.js"),
     path.join(outAssets, "community.css"),
     path.join(outAssets, "community.js"),
     path.join(outAssets, "img", "community-monogram.png"),
@@ -347,6 +408,97 @@ if (!required[target]) fail(`Unknown target: ${target}`);
 for (const f of required[target]) {
   if (!exists(f)) fail(`Build contract failed for ${target}. Missing: ${f}`);
 }
+
+// Privacy (Scooter, 17 Nov 2026: "Privacy pages naming Google Analytics (and
+// Clarity)"; risk rule R-PRV-04). Runs last, over what was actually built, so it
+// sees every tag the build added (GA4) and every
+// generated page (404, episodes, workshops). It fails the build when:
+//   - the site has no /privacy page;
+//   - any built page carries no link to /privacy;
+//   - the build put a tool on the site that its privacy page does not name.
+// One direction only: a page may name a tool before the tag arrives, so this
+// and a tag change can land in either order, but a tool can never go live
+// undisclosed.
+const PRIVACY_TOOLS = [
+  { name: "Google Analytics", loaded: /googletagmanager\.com\/gtag\/js/ },
+  { name: "Microsoft Clarity", loaded: /clarity\.ms\/tag\// },
+  { name: "Cloudflare Turnstile", loaded: /data-bot-check\s*=\s*["']turnstile["']/ },
+];
+(function guardPrivacy() {
+  const pages = htmlFiles(out);
+  if (!pages.length) fail(`privacy: no pages found for ${target}`);
+  const privacyPath = path.join(out, "privacy.html");
+  if (!exists(privacyPath)) fail(`privacy: ${target} has no privacy page (sites/${target}/privacy.html)`);
+  const privacyText = fs.readFileSync(privacyPath, "utf8").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const linkRe = new RegExp(`<a\\b[^>]*href\\s*=\\s*["'](?:${site.origin.replace(/[.]/g, "\\.")})?/privacy/?["']`, "i");
+  const unlinked = [];
+  const loaded = new Map();
+  for (const abs of pages) {
+    const html = fs.readFileSync(abs, "utf8");
+    const rel = path.relative(out, abs).split(path.sep).join("/");
+    if (!linkRe.test(html)) unlinked.push(rel);
+    for (const tool of PRIVACY_TOOLS) if (tool.loaded.test(html) && !loaded.has(tool.name)) loaded.set(tool.name, rel);
+  }
+  const unnamed = [...loaded].filter(([name]) => !privacyText.includes(name));
+  const problems = [
+    ...unlinked.map((rel) => `${rel}: no link to /privacy (put it in the footer)`),
+    ...unnamed.map(([name, rel]) => `${name} is loaded (first seen on ${rel}) but sites/${target}/privacy.html does not name it`),
+  ];
+  if (problems.length) fail(`privacy: ${target} build refused:\n  ${problems.join("\n  ")}`);
+  console.log(`privacy: ${pages.length} page(s) link /privacy; tools loaded and named: ${[...loaded.keys()].join(", ") || "none"}`);
+})();
+
+// Google Analytics is the only tracking on all three sites (Scooter, 19 Nov
+// 2026: "Google Analytics only. Remove Microsoft Clarity and leave other
+// tracking off"). Any other analytics, session-recording or ad tag on a built
+// page fails the build.
+(function guardTrackers() {
+  const OTHER = [
+    ["Microsoft Clarity", /clarity\.ms|data-clarity-loader|window\.clarity|w\.clarity/],
+    ["Google Tag Manager", /googletagmanager\.com\/gtm\.js/],
+    ["Meta pixel", /connect\.facebook\.net|fbq\(/],
+    ["Hotjar", /static\.hotjar\.com|hj\(/],
+    ["LinkedIn Insight", /snap\.licdn\.com/],
+    ["TikTok pixel", /analytics\.tiktok\.com/],
+    ["Plausible", /plausible\.io\/js/],
+    ["Segment", /cdn\.segment\.com/],
+  ];
+  const pages = htmlFiles(out);
+  if (!pages.length) fail(`trackers: no pages found for ${target}`);
+  const problems = [];
+  for (const abs of pages) {
+    const html = fs.readFileSync(abs, "utf8");
+    for (const [name, re] of OTHER) if (re.test(html)) problems.push(`${path.relative(out, abs)}: ${name}`);
+  }
+  if (problems.length) fail(`trackers: Google Analytics only on ${target}; found:\n  ${problems.join("\n  ")}`);
+  console.log(`trackers: ${pages.length} page(s), Google Analytics only`);
+})();
+
+// Productions favicon and link preview (Scooter, 19 Nov 2026: "WP mark for the
+// favicon. WP logo and 'We make people care' for the link preview, not Peggy
+// Kim or another case-study image"). Every page's icon is the WP mark; every
+// page except the 404 names the one WP card as its og:image and twitter:image.
+if (target === "productions") (function guardProductionsShare() {
+  const CARD = "https://westpeekproductions.com/assets/img/og-we-make-people-care.png";
+  for (const f of ["favicon-32.png", "favicon-192.png", "apple-touch-icon.png", "og-we-make-people-care.png"]) {
+    if (!exists(path.join(outAssets, "img", f))) fail(`share: missing assets/img/${f}`);
+  }
+  const problems = [];
+  const pages = htmlFiles(out);
+  for (const abs of pages) {
+    const rel = path.relative(out, abs).split(path.sep).join("/");
+    const html = fs.readFileSync(abs, "utf8");
+    const icons = html.match(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>/gi) || [];
+    if (!icons.length || icons.some((l) => !/\/assets\/img\/favicon-(?:32|192)\.png/.test(l))) problems.push(`${rel}: icon is not the WP mark`);
+    if (rel === "404.html") continue;
+    const og = [...html.matchAll(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi)].map((m) => m[1]);
+    const tw = [...html.matchAll(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/gi)].map((m) => m[1]);
+    if (og.length !== 1 || og[0] !== CARD) problems.push(`${rel}: og:image must be the WP card once (saw ${og.join(", ") || "none"})`);
+    if (tw.length !== 1 || tw[0] !== CARD) problems.push(`${rel}: twitter:image must be the WP card once (saw ${tw.join(", ") || "none"})`);
+  }
+  if (problems.length) fail(`share: productions build refused:\n  ${problems.join("\n  ")}`);
+  console.log(`share: ${pages.length} page(s) carry the WP mark icon; link preview is the WP card`);
+})();
 
 console.log(`Built ${target}: ${src} -> ${out}`);
 

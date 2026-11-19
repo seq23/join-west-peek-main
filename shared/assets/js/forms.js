@@ -44,8 +44,8 @@
   // (Scooter, 22 Sep 2026: no personal address as the public backup line), and
   // community forms with data-fallback-email="os@joinwestpeek.com" (the West
   // Peek OS inbox, 28 Sep 2026 - scripts/validate_community_site.mjs pins it).
-  // This default still covers productions, whose enquiries go to Scooter.
-  var DEFAULT_FALLBACK_EMAIL = 'scooter@westpeek.ventures';
+  // The default is the firm inbox too (Scooter, 18 Nov 2026: no personal address public).
+  var DEFAULT_FALLBACK_EMAIL = 'info@westpeek.ventures';
 
   function status(form) {
     return form.querySelector('[data-form-status]');
@@ -120,6 +120,22 @@
     container.hidden = true;
     container.setAttribute('hidden', '');
     if (typeof panel.focus === 'function') panel.focus();
+  }
+
+  /**
+   * Tells the page a submission was CONFIRMED, for the GA4 form events in
+   * wp-analytics.js (17 Nov 2026). Called only from the success guard below.
+   * The signal carries the form's lead_type and nothing else - never a field
+   * value - and a failure never sends it.
+   */
+  function announceSuccess(form) {
+    try {
+      if (typeof document === 'undefined' || typeof document.dispatchEvent !== 'function') return;
+      if (typeof CustomEvent !== 'function') return;
+      var input = form.querySelector('input[name="lead_type"], input[name="lead_source"]');
+      var leadType = input ? String(input.value || '') : '';
+      document.dispatchEvent(new CustomEvent('westpeek:form-success', { detail: { lead_type: leadType } }));
+    } catch (e) { /* analytics must never break a confirmed submission */ }
   }
 
   /**
@@ -270,6 +286,7 @@
               // The single guard. Everything above this line is presentation.
               if (response.ok && body && body.ok === true) {
                 setSuccess(form);
+                announceSuccess(form);
                 form.reset();
               } else {
                 setError(form, 'We could not send that just now.');
