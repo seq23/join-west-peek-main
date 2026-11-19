@@ -15,6 +15,7 @@
 import { dbOf, ensureSchema } from './schema.mjs';
 import { decryptJson, encryptJson, httpsOnly, isoDay, num, randomToken, sha256b64, toTime } from './core.mjs';
 import { EVENT_SERVICE, SERVICES, SERVICE_BY_ID, serviceFrom } from '../services.mjs';
+import { clientView } from './pricing.mjs';
 
 const DAY = 86400000;
 const KEY_RE = /^[a-z0-9~-]{1,120}$/;
@@ -541,6 +542,37 @@ export function proposalDraft({ name, quote, discovery }) {
     'Reply to confirm and we will send the agreement for signature.'
   ].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
 }
+/**
+ * A first proposal from a quote-tool quote (19 Nov 2026): built from its client view only (the
+ * included services, what each is, the price), so no person, rate, cost, margin, cut line or flag can
+ * reach it.
+ */
+export function proposalFromEstimate({ name, quote, discovery }) {
+  const cv = clientView(quote);
+  const outcome = discovery?.answers?.outcome;
+  const audience = discovery?.answers?.audience;
+  const scope = cv.services.map((x) => `- ${x.name}${x.qty !== null && x.qty !== 1 ? ` (${x.qty} ${String(x.unit).replace(/^per /, '')})` : ''}${x.description ? `: ${x.description}` : ''}`);
+  const ev = discovery?.event;
+  const when = ev?.start ? `Event dates: ${ev.start}${ev.end && ev.end !== ev.start ? ` to ${ev.end}` : ''}.` : '';
+  const paid = (quote.milestones || []).filter((m) => m.label).map((m) => `${m.label}${num(m.pct) !== null ? ` ${num(m.pct)}%` : ''}${m.trigger ? ` ${m.trigger.toLowerCase()}` : ''}`).join(', ');
+  return [
+    quote.project ? `${quote.project}: proposal for ${cv.client || name}` : `Proposal for ${cv.client || name}`,
+    '',
+    'What you told us',
+    outcome ? `- Success looks like: ${outcome}` : '- Success looks like: (from our discovery conversation)',
+    audience ? `- Who needs to care: ${audience}` : '',
+    '',
+    'What we will do',
+    ...(scope.length ? scope : ['- (Services from the quote)']),
+    when,
+    '',
+    'Investment',
+    cv.total !== null ? `${usd(cv.total)} in total${cv.discount ? ` (${usd(cv.price)} less a ${usd(cv.discount)} discount)` : ''}.${paid ? ` Payment: ${paid}.` : ''}` : '(Set the client price on the quote.)',
+    '',
+    'Next step',
+    'Reply to confirm and we will send the agreement for signature.'
+  ].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
+}
 export const PROPOSAL_STATUS = { draft: 'Draft', sent: 'Sent to the client', accepted: 'Accepted', declined: 'Declined' };
 export async function saveProposal(env, { key, text, status, quoteId, sample }, now = Date.now()) {
   const db = dbOf(env);
@@ -570,7 +602,7 @@ export async function proposalStatuses(env, sample) {
 /* ------------------------------------------------------------------ the work side, and the portal */
 
 /** An accepted deal gets its work side: the account team, a task per quoted service, and a portal. */
-export async function startDelivery(env, { key, team, quote, sample }, now = Date.now()) {
+export async function startDelivery(env, { key, team, quote, tasks = null, sample }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
   const s = sample ? 1 : 0;
@@ -578,7 +610,9 @@ export async function startDelivery(env, { key, team, quote, sample }, now = Dat
   if (have) return { created: false };
   const stmts = [db.prepare('INSERT INTO delivery (key, sample, at, team) VALUES (?,?,?,?)').bind(key, s, now, clip(team, 1000))];
   // One task per service (or per line of an older quote); never a specialist's name or cost.
-  for (const x of (quote ? quoteServices(quote) : []).filter((y) => !y.team)) stmts.push(db.prepare('INSERT INTO task (key, sample, at, title, owner, due, done, client) VALUES (?,?,?,?,?,?,0,1)').bind(key, s, now, clip(x.name, 200), '', ''));
+  // From the quote tool: one task per included line (its name only). Else the earlier builder's services.
+  const titles = Array.isArray(tasks) ? tasks : (quote ? quoteServices(quote) : []).filter((y) => !y.team).map((y) => y.name);
+  for (const x of titles.map((name) => ({ name }))) stmts.push(db.prepare('INSERT INTO task (key, sample, at, title, owner, due, done, client) VALUES (?,?,?,?,?,?,0,1)').bind(key, s, now, clip(x.name, 200), '', ''));
   await db.batch(stmts);
   const token = await newPortal(env, { key, sample }, now);
   return { created: true, token };

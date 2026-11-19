@@ -14,6 +14,8 @@
  * dead while the second still opens. A deal record: one screen with the tracker form, notes and the
  * discovery-to-delivery steps; a note saved on it persists after a reload and on the second device, and Who can see what opens. One deal all the way through:
  * discovery, a priced quote, a proposal, accepted, delivery, and a client portal with no money.
+ * The quote tool (19 Nov 2026): settings, the rate list and a catalog service saved and read on a second
+ * device; a quote with an unfinished line that persists flagged; a client view with no internal figure.
  * Exits non-zero on any failure; prints one line starting "FIRST_RUN OK" when every step passed.
  */
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
@@ -277,7 +279,7 @@ const formOf = (html) => {
   for (const m of f.matchAll(/<select [^>]*?name="([^"]*)"[^>]*>([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
   return out;
 };
-const q0 = await get(`${deal}/quote`, A);
+const q0 = await get(`${deal}/quote-roles`, A);
 if (q0.status !== 200 || !/>Brand lead<\/span>/.test(q0.text) || !/>Account management<\/span>/.test(q0.text) || !/Hourly, hours per month/.test(q0.text) || !/Assigned to/.test(q0.text)) fail('quote', `the services did not load their roles, Assigned to or Billed as (${q0.status})`);
 const td = await post('/dashboard/team', { n: '2', pname_0: 'Sample Person A', ptype_0: 'owner', prate_0: '150', pper_0: 'hour', pname_1: 'Sample Person C', ptype_1: 'contractor', prate_1: '2000', pper_1: 'job', back: `${deal}/quote` }, A);
 if (!/m=team_dir_saved/.test(td.location || '')) fail('team directory', `not saved (${td.location || td.status})`);
@@ -285,12 +287,12 @@ const tdB = (await get('/dashboard/team', B)).text;
 const ids = [...tdB.matchAll(/name="pid_(\d)" value="([^"]+)"/g)].map((x) => x[2]);
 if (!/value="Sample Person A"/.test(tdB) || ids.length !== 2) fail('team directory', 'the people do not show on a second device');
 ok('team directory: an owner and a contractor saved, read on a second device');
-const q1 = await get(`${deal}/quote`, A);
+const q1 = await get(`${deal}/quote-roles`, A);
 const body = formOf(q1.text).filter(([k]) => !['rl_brand-strategy_0_who', 'rl_brand-strategy_1_who', 'rl_brand-strategy_1_hours', 'price_brand-strategy', 'price_virtual-hybrid-events', 'term', 'plan', 'rationale'].includes(k));
 body.push(['rl_brand-strategy_0_who', ids[1]], ['rl_brand-strategy_1_who', ids[0]], ['rl_brand-strategy_1_hours', '10'], ['price_brand-strategy', '5000'], ['price_virtual-hybrid-events', '1000'], ['term', '3'], ['plan', 'monthly'], ['rationale', 'First-run rationale']);
 const q = await post('/dashboard/quote', body, A);
 if (!/m=quote_saved/.test(q.location || '')) fail('quote', `not saved (${q.location || q.status})`);
-const qv = await get(`${deal}/quote`, B);
+const qv = await get(`${deal}/quote-roles`, B);
 if (!/Client price<\/span><strong>[$]6,000/.test(qv.text) || !/Costs so far<\/span><strong>[$]3,500/.test(qv.text) || !/provisional/.test(qv.text) || !/selected>Sample Person C</.test(qv.text) || !/[$]2,000 a month for 3 months/.test(qv.text) || !/Month 3/.test(qv.text)) fail('quote', 'the price, the role costs from the directory, the provisional margin, the assignment or the 3-month bundle is missing on a second device');
 ok('quote: roles priced from the directory, client price, costs and a provisional margin together, the 3-month bundle and timing, on a second device');
 let prop = await get(`${deal}/proposal`, A);
@@ -313,6 +315,57 @@ if (portal.status !== 200 || !/Brand strategy/.test(portalText) || /[$]|Sample P
 await post('/dashboard/delivery/portal', { key: dealKey, do: 'off', back: `${deal}/delivery` }, A);
 if ((await get(`/portal/${token}`)).status !== 404) fail('portal', 'a turned-off portal link still opens');
 ok('delivery: team and tasks; the client portal shows their tasks, no money, and stops when turned off');
+
+// The quote tool (Scooter, 19 Nov 2026, the quote tool builder brief): owner-only settings, the rate
+// list, the catalog, a quote with an unfinished line that persists on a second device, and a client
+// view with no internal figure. Sample rows only (the reset above clears them every run).
+const formFor = (html, action) => {
+  const f = (html.match(new RegExp(`<form class="d-form" method="post" action="${action.replace(/\//g, '\\/')}">([\\s\\S]*?)<\\/form>`)) || [])[1] || '';
+  const out = [];
+  for (const m of f.matchAll(/<input([^>]*)>/g)) {
+    const a = m[1]; const name = (a.match(/name="([^"]+)"/) || [])[1]; if (!name) continue;
+    if (/type="checkbox"/.test(a) && !/ checked/.test(a)) continue;
+    out.push([name, ((a.match(/value="([^"]*)"/) || [])[1] || '').replace(/&quot;/g, '"').replace(/&amp;/g, '&')]);
+  }
+  for (const m of f.matchAll(/<select[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1]) || '']);
+  for (const m of f.matchAll(/<textarea[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/textarea>/g)) out.push([m[1], m[2]]);
+  return out;
+};
+const put = (pairs, over) => [...pairs.filter(([k]) => !(k in over)), ...Object.entries(over)];
+{
+  const s0 = await get('/dashboard/quote-settings', A);
+  if (s0.status !== 200 || !/Leave anything you do not know yet blank/.test(s0.text) || /name="ownerPay" inputmode="decimal" value="\d/.test(s0.text)) fail('quote settings', 'the first screen does not say what it is, or a box is not blank');
+  const sv = await post('/dashboard/quote-settings', put(formFor(s0.text, '/dashboard/quote-settings'), { ownerPay: '100000', ownerHours: '1000', overheadPct: '10', contingencyPct: '10', targetMarginPct: '35', depositPct: '50' }), A);
+  if (!/m=pricing_saved/.test(sv.location || '')) fail('quote settings', `not saved (${sv.location || sv.status})`);
+  if (!/Your hourly cost: <strong>[$]100\.00/.test((await get('/dashboard/quote-settings', B)).text)) fail('quote settings', 'the saved settings and the hourly cost do not show on a second device');
+  const r0 = await get('/dashboard/rates', A);
+  await post('/dashboard/rates', put(formFor(r0.text, '/dashboard/rates'), { p_0_name: 'Sample Person T', p_0_rate: '50', p_0_unit: 'hour', p_0_status: 'guess' }), A);
+  const r1 = (await get('/dashboard/rates', B)).text;
+  const pid = (r1.match(/name="p_0_id" value="([^"]+)"/) || [])[1];
+  if (!pid || !/value="Sample Person T"/.test(r1)) fail('rate list', 'the person does not show on a second device');
+  let c0 = await get('/dashboard/services', A);
+  if ((c0.text.match(/<details class="d-fold"><summary>/g) || []).length < 36) fail('service catalog', 'the 36 services are not listed');
+  await post('/dashboard/services', put(formFor(c0.text, '/dashboard/services'), { s_s01_new_who: pid, s_s01_new_qty: '4', s_s01_description: 'Sample description the client reads' }), A);
+  c0 = await get('/dashboard/services', A);
+  await post('/dashboard/services', put(formFor(c0.text, '/dashboard/services'), { s_s01_new_who: 'owner', s_s01_new_qty: '2' }), A);
+  if (!/1 of 3\d services are complete/.test((await get('/dashboard/services', B)).text)) fail('service catalog', 'the components do not persist on a second device');
+  ok('quote tool: settings, the rate list and a catalog service saved and read back on a second device');
+  const q0 = await get(`${deal}/quote`, A);
+  if (q0.status !== 200 || !/Add a line to start/.test(q0.text)) fail('quote tool', 'a new quote does not say what to do first');
+  const qa = await post('/dashboard/estimate', put(formFor(q0.text, '/dashboard/estimate'), { add_sid: 's01', add_custom: 'First-run unfinished line', do: 'add' }), A);
+  if (!/m=estimate_saved/.test(qa.location || '')) fail('quote tool', `not saved (${qa.location || qa.status})`);
+  const q1 = await get(`${deal}/quote`, B);
+  if (!/Event management/.test(q1.text) || !/First-run unfinished line/.test(q1.text) || !/No cost components: cost missing/.test(q1.text) || !/1 cost missing/.test(q1.text) || !/Your pay<br>/.test(q1.text) || !/at least [$]/.test(q1.text)) fail('quote tool', 'the unfinished line is not still there and flagged on a second device');
+  const qp = await post('/dashboard/estimate', put(formFor(q1.text, '/dashboard/estimate'), { price: '1500', do: 'save' }), B);
+  if (!/m=estimate_saved/.test(qp.location || '')) fail('quote tool', 'the price did not save');
+  const q2 = (await get(`${deal}/quote`, A)).text;
+  if (!/Client price<\/span><strong>[$]1,500\.00/.test(q2) || !/Company profit/.test(q2)) fail('quote tool', 'the price does not show after a reload');
+  ok('quote tool: a quote with an unfinished line saves, reloads on a second device still flagged, and keeps its price');
+  const cv = (await get(`${deal}/quote/client`, B)).text;
+  const doc = (cv.match(/<article class="d-client"[\s\S]*?<\/article>/) || [''])[0];
+  if (!/Event management/.test(doc) || !/Sample description the client reads/.test(doc) || !/[$]1,500\.00/.test(doc) || /Sample Person T|[$]50|[$]200|Starting number|profit|margin|missing|estimate|Guess/i.test(doc)) fail('client view', 'it is missing the services or price, or shows an internal figure');
+  ok('quote tool: the client view shows services, descriptions and the price only');
+}
 
 // 7. Sign-out revokes the session.
 const so = await post('/dashboard/logout', {}, A);

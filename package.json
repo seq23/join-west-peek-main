@@ -22,6 +22,7 @@
     "dashboard:owners": "node scripts/dashboard_owners.mjs",
     "validate:dashboard-privacy": "node scripts/validate_dashboard_privacy.mjs",
     "dashboard:setup": "node scripts/dashboard_setup.mjs",
+    "dashboard:status": "node scripts/dashboard_status.mjs",
     "first-run": "node scripts/first_run_all.mjs",
     "live-links": "node scripts/live_links.mjs"
   },
