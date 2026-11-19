@@ -41,6 +41,16 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
   const r = await get(p);
   if (r.status !== 200) fail(`page ${p}`, `answered ${r.status}`);
   if (PLACEHOLDER.test(r.text)) fail(`page ${p}`, `carries placeholder text (${r.text.match(PLACEHOLDER)[0]})`);
+  // Scooter, 19 Nov 2026: WP mark favicon, the WP card as link preview, no preview/permission banner, GA only.
+  if (!/<link[^>]+rel="icon"[^>]+href="\/assets\/img\/favicon-32\.png"/.test(r.text)) fail(`page ${p}`, 'favicon is not the WP mark');
+  if (!/<meta property="og:image" content="https:\/\/westpeekproductions\.com\/assets\/img\/og-we-make-people-care\.png">/.test(r.text)) fail(`page ${p}`, 'link preview is not the WP card');
+  if (/client permission to confirm/i.test(r.text)) fail(`page ${p}`, 'the preview/client-permission banner is still there');
+  if (/clarity\.ms|data-clarity-loader/.test(r.text)) fail(`page ${p}`, 'Microsoft Clarity is still loaded');
+}
+{
+  const card = await fetch(`${base}/assets/img/og-we-make-people-care.png`);
+  if (card.status !== 200 || !/image\/png/.test(card.headers.get('content-type') || '')) fail('link preview image', `answered ${card.status}`);
+  ok('every public page: WP mark favicon, WP card link preview, no permission banner, no Clarity');
 }
 {
   // Scooter's 15 Nov 2026 polish round on the homepage: the strip is "Who we work with" (said once), the

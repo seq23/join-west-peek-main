@@ -1043,7 +1043,12 @@ async function checkBotCheck() {
     globalThis.fetch = async (url) => {
       const u = String(url);
       if (u.includes('api.resend.com')) { calls.resend += 1; return { ok: true, text: async () => '' }; }
-      if (u.includes('siteverify')) { calls.verify += 1; return { ok: true, json: async () => verify }; }
+      if (u.includes('siteverify')) {
+        calls.verify += 1;
+        if (verify === 'unreachable') throw new TypeError('fetch failed');
+        if (verify === 'http500') return { ok: false, status: 500, json: async () => null };
+        return { ok: true, json: async () => verify };
+      }
       calls.sheet += 1;
       return { ok: true, json: async () => ({ ok: true }), text: async () => '' };
     };
@@ -1069,10 +1074,15 @@ async function checkBotCheck() {
   const cases = [
     ['no Origin is dropped', { host: V }, (r) => r.status === 200 && r.body.sheet === 'skipped' && r.calls.resend === 0 && r.calls.sheet === 0],
     ['cross-origin Origin is dropped', { host: V, origin: 'https://evil.example' }, (r) => r.status === 200 && r.body.sheet === 'skipped' && r.calls.resend === 0 && r.calls.sheet === 0],
-    ['keys set, no token -> 400 bot_check_failed', { host: V, origin: `https://${V}`, keys: true }, (r) => r.status === 400 && r.body.error === 'bot_check_failed' && r.calls.resend === 0 && r.calls.sheet === 0],
-    ['keys set, siteverify says no -> 400', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: false } }, (r) => r.status === 400 && r.calls.resend === 0 && r.calls.sheet === 0],
-    ['keys set, siteverify says yes -> delivered once', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: true, hostname: V } }, (r) => r.status === 200 && r.body.bot_check === 'ok' && r.calls.resend === 1],
-    ['no keys, same origin -> refused 503, nothing delivered or written (fail closed)', { host: V, origin: `https://${V}` }, (r) => r.status === 503 && r.body.error === 'bot_check_not_configured' && r.calls.resend === 0 && r.calls.sheet === 0],
+    // THE RULE (owner, 15 Nov 2026): only a definitive siteverify "no" for a real token drops.
+    ['keys set, siteverify says no to a real token -> dropped 400, nothing delivered or written', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: false, 'error-codes': ['invalid-input-response'] } }, (r) => r.status === 400 && r.body.error === 'bot_check_failed' && r.calls.verify === 1 && r.calls.resend === 0 && r.calls.sheet === 0],
+    ['keys set, token for another site -> dropped 400', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: true, hostname: 'evil.example' } }, (r) => r.status === 400 && r.calls.resend === 0 && r.calls.sheet === 0],
+    ['keys set, siteverify says yes -> delivered once', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: true, hostname: V } }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'ok' && r.calls.resend === 1 && r.calls.sheet === 1],
+    ['no keys -> delivered once, recorded not_configured', { host: V, origin: `https://${V}`, token: 't' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'not_configured' && r.calls.verify === 0 && r.calls.resend === 1 && r.calls.sheet === 1],
+    ['keys set, siteverify unreachable -> delivered once, recorded unavailable', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: 'unreachable' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'unavailable' && r.calls.verify === 1 && r.calls.resend === 1 && r.calls.sheet === 1],
+    ['keys set, siteverify 500 -> delivered once, recorded unavailable', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: 'http500' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'unavailable' && r.calls.resend === 1 && r.calls.sheet === 1],
+    ['keys set, siteverify internal-error -> delivered once, recorded unavailable', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: false, 'error-codes': ['internal-error'] } }, (r) => r.status === 200 && r.body.bot_check === 'unavailable' && r.calls.resend === 1 && r.calls.sheet === 1],
+    ['keys set, empty token (widget did not load) -> delivered once, recorded no_token, siteverify not called', { host: V, origin: `https://${V}`, keys: true, token: '' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'no_token' && r.calls.verify === 0 && r.calls.resend === 1 && r.calls.sheet === 1],
     ['community host is untouched (no Origin, no token)', { host: 'joinwestpeek.com', keys: true }, (r) => r.status === 200 && r.body.bot_check === 'not_applicable' && r.calls.resend === 1]
   ];
   for (const [name, input, ok] of cases) {

@@ -22,7 +22,7 @@
     "dashboard:owners": "node scripts/dashboard_owners.mjs",
     "validate:dashboard-privacy": "node scripts/validate_dashboard_privacy.mjs",
     "dashboard:setup": "node scripts/dashboard_setup.mjs",
-    "first-run": "node scripts/dashboard_first_run.mjs"
+    "first-run": "node scripts/first_run_all.mjs"
   },
   "engines": {
     "node": ">=22.13"

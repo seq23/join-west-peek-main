@@ -35,9 +35,12 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   navigation. Guard: `npm run validate:ventures-isolation`.
 - **Ventures forms are bot-checked on the server** (Scooter, 8 Oct 2026: spam posted straight to
   `/api/lead`). On ventures hosts only, `functions/api/lead.js` drops a POST with a missing or foreign
-  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and it requires a valid Cloudflare Turnstile token (400
-  `bot_check_failed`; siteverify unreachable → 503). The hidden `website` honeypot stays. Every drop is
-  logged with its reason; responses carry `bot_check`. Every ventures form carries
+  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and drops one whose Turnstile token
+  Cloudflare siteverify definitively rejects (400 `bot_check_failed`). **The bot check never blocks a
+  real inquiry** (owner, 15 Nov 2026, reversing the 3 Nov fail-closed rule): keys unset, siteverify
+  unreachable/slow/erroring, or no token (widget blocked) → delivered as normal, with `bot_check`
+  `not_configured` / `unavailable` / `no_token` in the logs and the outcome report. The hidden
+  `website` honeypot stays. Every drop is logged with its reason; responses carry `bot_check`. Every ventures form carries
   `data-bot-check="turnstile"`; `forms.js` renders an interaction-only widget when `GET /api/lead` returns
   a site key. Guard: rule FORM-13 in `npm run validate:forms`.
 - **Every site's `/api/lead` is limited per IP** (security sweep, 3 Nov 2026): 5 POSTs an hour per
@@ -55,6 +58,24 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   on `sites/ventures/companies.html`. Each company: logo on a cream tile, founder photo, name,
   founders, Website + Instagram links (`target="_blank" rel="noopener noreferrer"`). Assets in
   `sites/ventures/assets/img/portfolio/`, registered in the build contract in `scripts/build.mjs`.
+- **Every site has a `/privacy` page that names every tool the build puts on it** (Scooter,
+  17 Nov 2026: "Privacy pages naming Google Analytics (and Clarity)"; risk rule R-PRV-04):
+  `sites/<site>/privacy.html`, linked from the footer of every page (nav lists unchanged), one page
+  per site because the sites may not link to each other. Today: Google Analytics on all three and
+  Cloudflare Turnstile on ventures; nothing else (Scooter, 19 Nov 2026: "Google Analytics only.
+  Remove Microsoft Clarity and leave other tracking off" — `guardTrackers` in `scripts/build.mjs`
+  fails the build on Clarity, GTM, Meta, Hotjar, LinkedIn, TikTok, Plausible or Segment tags). Contact on all three:
+  info@westpeek.ventures (Scooter, 18 Nov 2026). The wording describes what the forms really do
+  (`functions/api/lead.js`): every form is emailed (Cloudflare email, Resend as well); ventures and
+  community forms also go to the network list (Google Sheet); productions forms email Scooter and
+  land in the dashboard's private D1 (`web_inquiry`), never a network list. The productions page was
+  rewritten for the new site's Get in touch form and with Clarity removed (19 Nov 2026). No
+  public fallback shows a personal address (`forms.js` default and `community-assessment.js` use
+  info@westpeek.ventures). The wording is
+  legal copy: a change to it is asked, never decided. Guard: the privacy pass at the end of
+  `scripts/build.mjs` refuses the build when a built page has no `/privacy` link or the build loads
+  a tool (`gtag.js`, Turnstile) the site's privacy page does not name. Adding a tool means
+  adding it to `PRIVACY_TOOLS` there and naming it on the page in the same PR.
 - **Retired pages redirect, never 404**: `sites/ventures/_redirects`.
 - **Every form defaults to the master network sheet** (Sequoia, 22 Sep 2026): *"make all forms
   automatically default to adding names to our master network sheet."* A new transmitting form needs
@@ -124,6 +145,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   `sites/community/episode-template.html` — one template, not one file per guest, so a new episode
   is a JSON row, not a new page to remember to write.
 
+- **Productions favicon and link preview** (Scooter, 19 Nov 2026: "WP mark for the favicon. WP logo and 'We make people care' for the link preview, not Peggy Kim or another case-study image"): every page's icon is `assets/img/favicon-32.png` / `favicon-192.png` / `apple-touch-icon.png` (his WP mark), and every page's `og:image` and `twitter:image` is `assets/img/og-we-make-people-care.png` (1200×630). Case images stay inside the cases only. Guard: `guardProductionsShare` in `scripts/build.mjs`. The preview/client-permission line on /work is gone (permission confirmed, 19 Nov 2026).
 - **Productions menu order** (Scooter, 18 Nov 2026): the top menu and the footer "Explore" links read Case studies, Capabilities, About, then Get in touch, on every page; `first-run` checks it. Case images live in `sites/productions/assets/img/work/` as metadata-stripped webp; every case shows images under Highlighted work.
 - **Productions site polish** (Scooter, 15 Nov 2026): the WP mark is 34px in the header; the logo strip is "Who we work with" (said once on the page), his order, each logo's width/height attributes set by visual weight (equal area adjusted for ink density); `logoStrip` in `productions.js` makes it a real scroller (hover, focus or touch-and-hold pauses; drag, swipe or trackpad moves it); reduced motion keeps it static and wrapped.
 
@@ -269,6 +291,19 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   - Cold email sending is off in code (`COLD_EMAIL_SENDING`), cap 25 a week.
   Guards: `npm run test:dashboard`, `npm run validate:dashboard-privacy` (sample rows and the test
   fixtures' sheet grids carry placeholder names only).
+- **Google Analytics 4: exactly one tag per page, written by the build** (Scooter, 17 Nov 2026).
+  `scripts/build.mjs` (`GA4`) puts the standard gtag.js pair at the top of every
+  built page's `<head>`: productions `G-17BHLS1RWJ`, community `G-X0CDKY3DXT`, ventures
+  `G-Y7371XLG0L`. Never paste a Google tag into a page under `sites/`: the build fails on any page
+  with zero or two tags, a GTM container or another site's ID. No personal data leaves: page_location
+  is origin + path plus only `utm_*`/`gclid`/`gbraid`/`wbraid`, the referrer loses its query, Google
+  signals and ad personalisation are off, and any non-production host (`*.pages.dev`, localhost) sets
+  `ga-disable-<ID>`. CTA and form events (`cta_*`, `form_submit_*`; names and `page_path` only) are in
+  `shared/assets/js/wp-analytics.js`, matched by a link's or button's visible label (never a form's
+  submit button); form events fire only from forms.js's confirmed-success guard
+  (`westpeek:form-success`, lead_type only). A new CTA label or tracked form is one line in that
+  file. Guard: the build itself, plus
+  `npm run first-run -- --url <preview>`.
 
 ## Lead delivery and alarms
 **A lead has two independent ways out** (outage 2 Nov to 6 Nov 2026: the Resend key behind every
@@ -328,6 +363,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
+| `scripts/build.mjs` (privacy pass) | every built page links `/privacy`; every tool the build loads is named on that site's privacy page |
 | `.github/workflows/entity-validation.yml` | runs the build and the guards above on every push and PR |
 
 Prove a new guard negatively before merging: plant the defect, watch it fail, remove it.
@@ -354,8 +390,10 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   2. LAND merges and deploys.
   3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
 - `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
-- `first-run` — `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
+- `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, (1) `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
 - `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
+  (2) `node scripts/first_run_privacy.mjs --url <preview>`: loads `/privacy` and every sitemap page plus the 404 on each preview given; fails on a missing footer link, an unnamed tool, a missing contact or date, a placeholder or a bad status; then runs `scripts/first_run.mjs` (the GA4 first-run) on the same previews; prints `FIRST_RUN OK` only when both pass.
+  GA4 first-run alone: `node scripts/first_run.mjs --url <preview>` (repeatable; or `FIRST_RUN_URL`): loads every sitemap page and the 404 on that host, fails on a page without exactly one GA4 tag with its site's ID or with a placeholder, runs the deployed `wp-analytics.js`/`forms.js` against every link and button (each CTA sends one event carrying only `page_path`; submit buttons send none) and against a stubbed `/api/lead` (form event on success only). Prints `FIRST_RUN OK`. Sends nothing to Google or `/api/lead`.
 
 ## Secrets
 Per Pages project; set through `pages_env`, never by hand.
@@ -363,7 +401,7 @@ Per Pages project; set through `pages_env`, never by hand.
   binding `FORMS_MAILER` → `west-peek-forms-mailer`, `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`,
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
-- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, every ventures POST is refused 503 `bot_check_not_configured` (fail closed; was: Turnstile off, `bot_check: "not_configured"`).
+- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, ventures POSTs are still delivered, recorded `bot_check: "not_configured"`, and the `bot_check_not_configured` alarm fires (owner, 15 Nov 2026; the 3 Nov fail-closed 503 is gone).
 - `west-peek-productions` (dashboard v1.0): `PRODUCTIONS_DB` (D1) and `PRODUCTIONS_TOKEN_KEY`
   are set by `npm run dashboard:setup`, never by hand. `GOOGLE_OAUTH_CLIENT_ID` +
   `GOOGLE_OAUTH_CLIENT_SECRET` (Internal app in his Productions Workspace; Sign in with Google and the
