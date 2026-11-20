@@ -56,7 +56,7 @@ for (const p of ['/', '/work', '/what-we-do', '/about', '/get-in-touch', '/event
   // Scooter's 15 Nov 2026 polish round on the homepage: the strip is "Who we work with" (said once), the
   // Gap line and its support, "Turnkey production services", Google first in the strip.
   const home = (await get('/')).text;
-  if ((home.match(/Who we work with/g) || []).length !== 1 || !/We turn the impact you make into compelling marketing\./.test(home) || !/Turnkey production services/.test(home) || !/<ul class="wpp-logos__row">\s*<li><img src="\/assets\/img\/logos\/google\.webp"/.test(home)) fail('page /', 'the 15 Nov polish is not on the homepage');
+  if ((home.match(/Who we work with/g) || []).length !== 1 || (home.match(/We translate your organization(?:'|&#39;|&rsquo;|’)s impact into something people understand, feel and respond to/g) || []).length !== 1 || /Make your marketing match your impact|We turn the impact you make into compelling marketing/.test(home) || !/Turnkey production services/.test(home) || !/<ul class="wpp-logos__row">\s*<li><img src="\/assets\/img\/logos\/google\.webp"/.test(home)) fail('page /', 'the 15 Nov polish or the 20 Nov impact line is not on the homepage');
 }
 {
   // Item 7 of the 15 Nov round: each case study is ONE <details> (one + opens the problem, what we did,
