@@ -8,6 +8,8 @@
 import { esc, usTime } from './core.mjs';
 import { CATEGORIES, DUE, OWNER, QUOTE_STATUS, SETTINGS, STATUS, UNITS, clientView, ownerHourly, priceQuote } from './pricing.mjs';
 import { moneyHold } from './views-deal.mjs';
+import { lineCategory } from './pricing-forms.mjs';
+import { serviceFrom } from '../services.mjs';
 import { empty, errorBox, gap, page, sec } from './views.mjs';
 
 const shell = (title, body, ctx) => page(title, body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
@@ -169,37 +171,169 @@ export function renderTemplates(ctx) {
 /* ------------------------------------------------------------------ the quote on a deal */
 
 const tag = (on, words = 'estimate') => (on ? ` <span class="d-tag">${words}</span>` : '');
-function compRow(l, c, j, people) {
-  const f = (k) => `l_${l.lid}_c${j}_${k}`;
-  const ro = '';
-  const cost = c.cost === null ? `<span class="d-gold">Cost missing: ${esc(c.why)}</span>` : `${esc(c$(c.cost))}${c.rate !== null && c.qty !== null ? ` <span class="d-sub">(${esc(c.qty)} × ${esc(c$(c.rate))}${l.qty !== 1 && l.qty !== null ? ` × ${esc(l.qty)}` : ''})</span>` : ''}${tag(c.guess, 'guess')}`;
-  return `<div class="d-role">${hidden(f('cid'), c.cid)}${hidden(f('qtywas'), c.qty ?? '')}${hidden(f('ratewas'), c.rateOver ?? '')}${hidden(f('whowas'), c.who)}
-    <div class="d-grid3"><div><label for="${f('who')}">Who</label><select id="${f('who')}" name="${f('who')}">${whoOptions(people, c.who)}</select></div>
-    <div><label for="${f('qty')}">How much</label><input id="${f('qty')}" name="${f('qty')}" inputmode="decimal" value="${v(c.qty)}" placeholder="hours, days, pieces"${ro}></div>
-    <div><label for="${f('qtyStatus')}">Quantity is</label><select id="${f('qtyStatus')}" name="${f('qtyStatus')}">${opts(STATUS, c.qtyStatus)}</select></div>
-    <div><label for="${f('rate')}">Rate for this quote only</label><input id="${f('rate')}" name="${f('rate')}" inputmode="decimal" value="${c.rateOver ? v(c.rateOver) : ''}" placeholder="${c.rateOver ? '' : c.rate === null ? 'none on the rate list' : esc(`rate list: ${c$(c.rate)}`)}"${ro}></div></div>
-    <div class="d-grid2"><div>${c.rateOver ? `<label for="${f('rateStatus')}">That rate is</label><select id="${f('rateStatus')}" name="${f('rateStatus')}">${opts(STATUS, c.rateStatus)}</select>` : ''}</div><div><label class="d-check"><input type="checkbox" name="${f('del')}" value="1"> Remove</label></div></div>
-    <p class="d-role__cost">${cost}</p></div>`;
-}
-function lineCard(l, pq, people) {
-  const f = (k) => `l_${l.lid}_${k}`;
-  const p = pq.lines.find((x) => x.lid === l.lid) || l;
-  const comps = (l.components || []).map((c, j) => ({ ...c, ...(p.comps?.[j] || {}), rateOver: c.rate }));
-  const sums = l.cut ? `<p class="d-role__cost">Cut: counts for nothing. Cutting it saves ${or$(p.loaded, 'an unknown amount')} of cost${p.start === null ? '' : ` and ${esc(c$(p.start))} off the starting number`}.</p>`
-    : `<ul class="d-kv"><li><span>Direct cost${p.missing ? ` <span class="d-gold">· ${p.missing} missing</span>` : ''}</span><span>${esc(c$(p.direct))}</span></li>${l.pass ? `<li><span>Billed at cost plus handling (pass-through)</span><span>${or$(p.start, 'not set')}</span></li>` : `<li><span>Loaded cost <span class="d-sub">(contingency on the guessed part, then overhead)</span></span><span>${esc(c$(p.loaded))}${tag(p.guess)}</span></li><li><span>Starting number</span><span>${p.start === null ? gap('set your target margin') : `${p.missing ? 'at least ' : ''}${esc(c$(p.start))}`}${tag(p.guess)}</span></li>`}${p.variance !== null && p.variance !== undefined ? `<li><span>Actual against budget</span><span class="${p.variance > 0 ? 'd-red' : ''}">${p.variance > 0 ? `${esc(c$(p.variance))} over` : `${esc(c$(-p.variance))} under`}</span></li>` : ''}</ul>`;
-  return `<div class="d-qsvc${l.cut ? ' d-cut' : ''}">${hidden('lid', l.lid)}${hidden(f('cn'), comps.length)}
-    <div class="d-role__head"><h3 class="d-qline__name">${esc(l.name)}${l.pass ? ' <span class="d-role__tag">pass-through</span>' : ''}${l.sid ? '' : ' <span class="d-role__tag">custom</span>'}${p.incomplete && !l.cut ? ' <span class="d-gold d-role__tag">incomplete</span>' : ''}</h3>
-    <div><label class="d-check"><input type="checkbox" name="${f('cut')}" value="1"${l.cut ? ' checked' : ''}> Cut</label><label class="d-check"><input type="checkbox" name="${f('del')}" value="1"> Remove from the quote</label></div></div>
-    <div class="d-grid3"><div><label for="${f('qty')}">Quantity (${esc(l.unit)})</label><input id="${f('qty')}" name="${f('qty')}" inputmode="decimal" value="${v(l.qty)}"></div><div><label for="${f('due')}">Its costs go out</label><select id="${f('due')}" name="${f('due')}">${opts(DUE, l.due)}</select></div><div><label for="${f('actual')}">Actual cost after delivery</label><input id="${f('actual')}" name="${f('actual')}" inputmode="decimal" value="${v(l.actual)}" placeholder="optional"></div></div>
-    <details><summary>Name and what the client reads</summary><label for="${f('name')}">Name</label><input id="${f('name')}" name="${f('name')}" maxlength="160" value="${esc(l.name)}"><label for="${f('description')}">What the client reads</label><textarea id="${f('description')}" name="${f('description')}" maxlength="600">${esc(l.description)}</textarea></details>
-    ${comps.map((c, j) => compRow(l, c, j, people)).join('') || '<p class="d-sub d-gold">No cost components: cost missing. Add who does it below, or fill the service in the catalog.</p>'}
-    <details><summary>Add who does it (this quote only)</summary><div class="d-grid3"><div><label for="${f('new_who')}">Who</label><select id="${f('new_who')}" name="${f('new_who')}">${whoOptions(people, '')}</select></div><div><label for="${f('new_qty')}">How much</label><input id="${f('new_qty')}" name="${f('new_qty')}" inputmode="decimal"></div></div><p class="d-sub">Added for this quote only, as a Guess until you mark it Agreed.</p></details>
-    ${sums}</div>`;
-}
 const keyBox = (label, val, sub = '', cls = '') => `<div><span>${label}</span><strong${cls ? ` class="${cls}"` : ''}>${val}</strong>${sub}</div>`;
+
+/**
+ * The quote as a guided flow (Scooter, 23 Nov 2026: "a guided flow instead of one long form. Five
+ * screens, one decision each"). Each screen saves what it shows and moves on; the math is
+ * `priceQuote`'s, unchanged. The first screen carries no figures, settings links or warnings.
+ */
+export const QUOTE_STEPS = [
+  { n: 1, label: 'The work', next: 'Next: who does what' },
+  { n: 2, label: 'Who does what', next: 'Next: other costs and your time' },
+  { n: 3, label: 'Other costs and your time', next: 'Next: the price' },
+  { n: 4, label: 'The price', next: 'Next: review and send' },
+  { n: 5, label: 'Review and send', next: '' }
+];
+export const stepPath = (key, n) => `/dashboard/flow/${encodeURIComponent(key)}/quote${n > 1 ? `/${n}` : ''}`;
+/** Discovery's services suggest the work (site service → catalog category). */
+const SUGGEST = { 'virtual-hybrid-events': 'Virtual events', 'podcast-production': 'Podcast production', 'content-production': 'Content production', 'brand-strategy': 'Brand', 'web-development': 'Web development', 'community-as-a-service': 'Community' };
+const ME_WORDS = 'me';
+
+function stepBar(key, cur) {
+  return `<ol class="d-stepbar" aria-label="Quote steps">${QUOTE_STEPS.map((s) => `<li${s.n === cur ? ' aria-current="step"' : ''}${s.n < cur ? ' class="is-done"' : ''}><a href="${stepPath(key, s.n)}"><span>${s.n}</span>${esc(s.label)}</a></li>`).join('')}</ol>`;
+}
+function stepActs(step, frozen, est) {
+  const back = step > 1 ? `<button type="submit" name="do" value="back">Back</button>` : '';
+  if (step < 5) return `<div class="d-acts d-acts--step">${back}<button type="submit" name="do" value="next" class="d-primary">${QUOTE_STEPS[step - 1].next}</button></div>`;
+  return `<div class="d-acts d-acts--step">${back}<button type="submit" name="do" value="save" class="d-primary">${frozen ? `Save as version ${est.version + 1} (draft)` : 'Save'}</button><button type="submit" name="do" value="send">Save and mark as sent</button></div>
+    <p class="d-sub">Marking as sent freezes this version with today's settings and rates. Nothing is sent to anyone from here.</p>`;
+}
+
+/* Step 1: the work. Categories bring their services in; lines are kept or cut; no figures. */
+function stepWork(j, q, ctx, live) {
+  const services = (live.services || []).filter((s) => !s.archived);
+  const cats = CATEGORIES.filter((c) => services.some((s) => s.category === c)).concat([...new Set(services.map((s) => s.category))].filter((c) => !CATEGORIES.includes(c)));
+  const present = new Set((q.lines || []).map((l) => lineCategory(l, services)).filter(Boolean));
+  // Discovery's saved services; before Discovery is saved, the service their form or tracker row named.
+  const picked = ctx.discovery?.at ? ctx.discovery.profile?.services || [] : [serviceFrom(j.deal?.service), serviceFrom(j.inquiries?.at(-1)?.service)];
+  const suggested = new Set(picked.map((id) => SUGGEST[id]).filter(Boolean));
+  const tiles = `<div class="d-cats">${cats.map((c) => { const n = services.filter((s) => s.category === c).length; return `<label class="d-cat"><input type="checkbox" name="cat" value="${esc(c)}"${present.has(c) ? ' checked' : ''}><span class="d-cat__name">${esc(c)}</span><span class="d-cat__sub">${n} ${n === 1 ? 'service' : 'services'}</span>${suggested.has(c) ? '<span class="d-cat__tag">From Discovery</span>' : ''}</label>`; }).join('')}</div>${hidden('cats', '1')}
+    <p><button type="submit" name="do" value="stay">Bring in their services</button></p>`;
+  const lines = q.lines || [];
+  const row = (l) => {
+    const f = (k) => `l_${l.lid}_${k}`;
+    return `<li class="d-wline${l.cut ? ' d-cut' : ''}">${hidden('lid', l.lid)}${hidden(f('keepon'), '1')}
+      <label class="d-check d-wline__keep"><input type="checkbox" name="${f('keep')}" value="1"${l.cut ? '' : ' checked'}><span class="d-wline__name">${esc(l.name)}</span></label>
+      <div class="d-wline__qty"><label for="${f('qty')}">How many <span class="d-sub">(${esc(l.unit)})</span></label><input id="${f('qty')}" name="${f('qty')}" inputmode="decimal" value="${v(l.qty)}"></div>
+      <details><summary>Name and what the client reads</summary><label for="${f('name')}">Name</label><input id="${f('name')}" name="${f('name')}" maxlength="160" value="${esc(l.name)}"><label for="${f('description')}">What the client reads</label><textarea id="${f('description')}" name="${f('description')}" maxlength="600">${esc(l.description)}</textarea></details></li>`;
+  };
+  const groups = [...new Set(lines.map((l) => lineCategory(l, services) || 'Your own lines'))];
+  const list = lines.length ? groups.map((g) => `<h3 class="d-wgroup">${esc(g)}</h3><ul class="d-wlines">${lines.filter((l) => (lineCategory(l, services) || 'Your own lines') === g).map(row).join('')}</ul>`).join('') : '';
+  const tpls = (live.templates || []).filter((t) => t.items.length);
+  const more = `<details class="d-fold"><summary><span>More ways to add</span></summary>
+    ${tpls.length ? `<label for="add_tid">One of your sets</label><select id="add_tid" name="add_tid"><option value="">Choose a set</option>${tpls.map((t) => `<option value="${esc(t.id)}">${esc(t.name)} (${t.items.length} services)</option>`).join('')}</select>` : ''}
+    <div class="d-grid2"><div><label for="add_sid">One service from your catalog</label>${serviceSelect('add_sid', services)}</div><div><label for="add-qty">How many</label><input id="add-qty" name="add_qty" inputmode="decimal" placeholder="1"></div></div>
+    <p><button type="submit" name="do" value="stay">Add</button></p></details>`;
+  return `<h2 class="d-qh">What is the work?</h2><p class="d-sub">Pick the kinds of work. Each brings its services in; untick any line to leave it out.</p>${tiles}
+    ${list}
+    <div class="d-wown"><label for="add-custom">Add a line of your own</label><div class="d-addrow"><input id="add-custom" name="add_custom" maxlength="160" placeholder="Something not in your catalog"><button type="submit" name="do" value="stay">Add</button></div></div>${more}`;
+}
+
+/* Step 2: who does what. A typed name and their price on each line ("me" for your hours). */
+function stepWho(q, pq, people) {
+  const byId = Object.fromEntries(people.map((p) => [p.id, p]));
+  const lines = (q.lines || []).filter((l) => !l.cut);
+  if (!lines.length) return `<h2 class="d-qh">Who does what?</h2><div class="d-emptybox"><p>No lines kept yet. Go back to the work and pick what is in this quote.</p></div>`;
+  const card = (l) => {
+    const p = pq.lines.find((x) => x.lid === l.lid) || l;
+    const f = (k) => `l_${l.lid}_${k}`;
+    const comps = l.components || [];
+    const rows = [...comps.map((c, j) => ({ c, pc: p.comps?.[j] })), { c: null }, { c: null }];
+    const row = ({ c, pc }, j) => {
+      const g = (k) => `${f(`c${j}_${k}`)}`;
+      const person = c && c.who && c.who !== OWNER ? byId[c.who] : null;
+      const name = !c ? '' : c.who === OWNER ? ME_WORDS : c.name || person?.name || '';
+      const agreed = c ? !pc?.guess : false;
+      const ph = !c ? 'their price' : c.who === OWNER ? (pq.ownerRate === null ? 'your hourly cost' : `your hourly cost ${c$(pq.ownerRate)}`) : person && person.rate !== null ? `rate list ${c$(person.rate)}` : 'their price';
+      const cost = !c ? '' : pc?.cost === null || pc?.cost === undefined ? `<span class="d-gold">Cost missing: ${esc(pc?.why || 'not complete')}</span>` : `${esc(c$(pc.cost))}${pc.qty !== null && pc.rate !== null ? ` <span class="d-sub">(${esc(pc.qty)} × ${esc(c$(pc.rate))}${l.qty !== 1 && l.qty !== null ? ` × ${esc(l.qty)}` : ''})</span>` : ''}${tag(pc.guess, 'guess')}`;
+      return `<div class="d-who${c ? '' : ' d-who--new'}">${hidden(g('cid'), c?.cid || '')}${hidden(g('namewas'), name)}${hidden(g('qtywas'), c?.qty ?? '')}${hidden(g('ratewas'), c?.rate ?? '')}${hidden(g('agreedwas'), agreed ? '1' : '')}
+        <div class="d-who__grid"><div><label for="${g('name')}">Who</label><input id="${g('name')}" name="${g('name')}" maxlength="120" value="${esc(name)}" placeholder="${c ? '' : 'A name, or me'}" autocomplete="off"></div>
+        <div><label for="${g('qty')}">How many</label><input id="${g('qty')}" name="${g('qty')}" inputmode="decimal" value="${v(c?.qty)}" placeholder="${c?.who === OWNER ? 'your hours' : '1'}"></div>
+        <div><label for="${g('rate')}">Price each ($)</label><input id="${g('rate')}" name="${g('rate')}" inputmode="decimal" value="${v(c?.rate)}" placeholder="${esc(ph)}"></div>
+        <label class="d-check d-who__ok"><input type="checkbox" name="${g('agreed')}" value="1"${agreed ? ' checked' : ''}> Agreed</label></div>
+        ${cost ? `<p class="d-role__cost">${cost}</p>` : ''}</div>`;
+    };
+    // A line with nobody on it yet is a missing cost, never "$0.00".
+    const total = !p.comps?.length ? '<span class="d-gold">Cost missing: nobody on this line yet</span>' : p.missing ? `<span class="d-gold">${or$(p.direct, '')} known · ${p.missing} missing</span>` : esc(c$(p.direct));
+    return `<div class="d-qsvc">${hidden('lid', l.lid)}${hidden(f('cn'), rows.length)}<div class="d-role__head"><h3 class="d-qline__name">${esc(l.name)}${l.qty !== null && l.qty !== 1 ? ` <span class="d-sub">× ${esc(l.qty)}</span>` : ''}</h3><span class="d-qsvc__cost">${total}${tag(p.guess)}</span></div>
+      ${rows.map(row).join('')}
+      <details><summary>Actual cost after delivery</summary><label for="${f('actual')}">Actual cost ($)</label><input id="${f('actual')}" name="${f('actual')}" inputmode="decimal" value="${v(l.actual)}" placeholder="optional"></details></div>`;
+  };
+  return `<h2 class="d-qh">Who does what?</h2><p class="d-sub">On each line, type who does it and their price. Type <strong>me</strong> for your own hours: how many is your hours, priced at your hourly cost. Leave a row empty to drop it. A new or changed price is a guess until you tick Agreed.</p>${lines.map(card).join('')}`;
+}
+
+/* Step 3: other costs, and only the hours of yours not already on a line. */
+function stepOther(q, pq) {
+  const others = q.others || [];
+  const other = (o, i) => `<li class="d-row${o.cut ? ' d-cut' : ''}"><div class="d-row__main">${hidden(`o_${i}_oid`, o.oid || '')}
+    <div class="d-grid2"><div><label for="o-${i}-item">Item</label><input id="o-${i}-item" class="d-qline__name" name="o_${i}_item" maxlength="160" value="${esc(o.item || '')}"${o.oid ? '' : ' placeholder="Add a cost: travel, a license, a rental"'}></div><div><label for="o-${i}-vendor">Vendor</label><input id="o-${i}-vendor" name="o_${i}_vendor" maxlength="120" value="${esc(o.vendor || '')}"></div></div>
+    <div class="d-grid3"><div><label for="o-${i}-cost">Cost ($)</label><input id="o-${i}-cost" name="o_${i}_cost" inputmode="decimal" value="${v(o.cost)}" placeholder="unknown"></div><div><label for="o-${i}-status">It is</label><select id="o-${i}-status" name="o_${i}_status">${opts(STATUS, o.status || 'guess')}</select></div><div><label for="o-${i}-due">Goes out</label><select id="o-${i}-due" name="o_${i}_due">${opts(DUE, o.due || 'before')}</select></div><div><label class="d-check"><input type="checkbox" name="o_${i}_pass" value="1"${o.pass ? ' checked' : ''}> Pass-through</label></div></div>
+    ${o.oid ? `<div class="d-grid2"><label class="d-check"><input type="checkbox" name="o_${i}_cut" value="1"${o.cut ? ' checked' : ''}> Cut</label><span class="d-role__cost">${(() => { const p = pq.others[i]; return !p ? '' : p.loaded === null ? '<span class="d-gold">Cost missing</span>' : o.cut ? `Cut: saves ${esc(c$(p.loaded))}` : `${o.pass ? 'Billed at' : 'Loaded'} ${esc(c$(o.pass ? p.start : p.loaded))}${tag(p.guess)}`; })()}</span></div>` : ''}</div></li>`;
+  const onLines = pq.lines.filter((l) => !l.cut).reduce((a, l) => a + (l.ownerHours || 0), 0);
+  return `<h2 class="d-qh">Other costs and your time</h2>
+    <h3>Vendor costs and travel</h3><ul class="d-list">${others.map(other).join('')}${other({}, others.length)}${other({}, others.length + 1)}</ul>${hidden('on', others.length + 2)}<p class="d-sub">A cost with no amount is flagged as missing, never counted as zero. A pass-through is billed at cost plus your handling markup.</p>
+    <h3>Your time not on a line</h3><p class="d-callout">${onLines ? `<strong>${esc(+onLines.toFixed(2))} hours</strong> of yours are already on service lines and counted there.` : 'None of your hours are on a service line yet.'} Add only the hours not already on a line (calls, travel): nothing counts twice.</p>
+    <div class="d-grid2"><div><label for="q-xh">Extra hours</label><input id="q-xh" name="extra_hours" inputmode="decimal" value="${v(q.extraHours)}" placeholder="none"></div><div><label for="q-xs">Those hours are</label><select id="q-xs" name="extra_status">${opts(STATUS, q.extraStatus || 'guess')}</select></div></div>${pq.extra?.loaded ? `<p class="d-sub">Priced at your hourly cost with overhead: ${esc(c$(pq.extra.loaded))}.</p>` : ''}`;
+}
+
+/* Step 4: the price. The suggestion sits beside his number, never in it; discount clearly labelled. */
+function stepPrice(q, pq) {
+  const d = q.discount || {};
+  const sugg = pq.recommended === null ? gap(pq.start === null ? 'set your target margin in Settings' : 'needs the starting number') : `${pq.missing ? 'at least ' : ''}${esc(c$(pq.recommended))}`;
+  const price = `<div class="d-pricepair"><div><label for="q-price">Your price to the client ($)</label><input id="q-price" class="d-bigin" name="price" inputmode="decimal" value="${v(q.price)}" placeholder="type your price"></div>
+    <div class="d-suggest"><span>Suggested price</span><strong>${sugg}</strong><em class="d-strip__sub">from your costs and target margin, rounded up${pq.estimate ? ' · estimate' : ''}</em></div></div>
+    <p class="d-sub">The price is yours: the suggestion is never filled in for you.</p>
+    <fieldset class="d-discount"><legend>Discount (optional)</legend><div class="d-grid2"><div><label for="q-disc">Discount</label><input id="q-disc" name="disc" inputmode="decimal" value="${v(d.value)}" placeholder="none"></div><div><label for="q-dm">As</label><select id="q-dm" name="disc_mode">${opts({ amount: 'An amount ($)', pct: '% of the price' }, d.mode || 'amount')}</select></div></div><p class="d-sub">Comes off the price the client pays, not off your costs. The client view shows it.</p></fieldset>
+    <label for="q-reason">Why this price (optional, one line, for you only)</label><input id="q-reason" name="reason" maxlength="200" value="${esc(q.reason || '')}" placeholder="Below the suggestion to win a first project">`;
+  const strip = `<div class="d-strip">
+    ${keyBox('Client price', pq.net === null ? gap('type your price') : esc(c$(pq.net)), pq.discount ? `<em class="d-strip__sub">after ${esc(c$(pq.discount))} off</em>` : '')}
+    ${keyBox('Total cost', esc(c$(pq.totalCost)), `${pq.missing ? `<em class="d-strip__sub d-gold">${pq.missing} ${pq.missing === 1 ? 'cost' : 'costs'} missing</em>` : ''}${pq.estimate ? '<span class="d-tag">estimate</span>' : ''}`)}
+    ${keyBox('Company profit', pq.profit === null ? gap('needs a price') : esc(c$(pq.profit)), pq.margin === null ? '' : `<em class="d-strip__sub">margin ${pctW(pq.margin)}</em>`, pq.profit !== null && pq.profit < 0 ? 'd-red' : '')}
+    ${keyBox('Tax set-aside', pq.settings.taxPct === null ? gap('not set') : pq.tax === null ? gap('needs a price') : esc(c$(pq.tax)), '<em class="d-strip__sub">held from the price; not inside profit</em>')}
+  </div>`;
+  const kv = `<ul class="d-kv">
+    <li><span>Total cost${pq.missing ? '<br><span class="d-sub d-gold">what is known; missing costs are not counted as zero</span>' : ''}</span><span>${esc(c$(pq.totalCost))}${tag(pq.estimate)}</span></li>
+    <li><span>Your pay<br><span class="d-sub">${pq.ownerHours ? `${esc(+pq.ownerHours.toFixed(2))} hours of your time${pq.ownerRate === null ? '' : ` at ${esc(c$(pq.ownerRate))}`}; already inside total cost` : 'No hours of your time on this quote yet'}</span></span><span>${pq.pay === null ? gap('set your hourly cost') : esc(c$(pq.pay))}</span></li>
+    <li><span>Company profit<br><span class="d-sub">what the business keeps on top of your pay</span></span><span>${pq.profit === null ? gap('needs a price') : esc(c$(pq.profit))}</span></li>
+    <li><span>Margin <span class="d-sub">(profit ÷ price)</span></span><span>${pq.margin === null ? gap('needs a price') : `${pctW(pq.margin)}${tag(pq.estimate)}`}</span></li>
+    ${pq.hasPass ? `<li><span>Service margin<br><span class="d-sub">without pass-through billing and cost</span></span><span>${pq.serviceMargin === null ? gap('needs a price') : pctW(pq.serviceMargin)}</span></li>` : ''}
+    <li><span>Starting number<br><span class="d-sub">your costs at your target margin, before rounding</span></span><span>${pq.start === null ? gap('set your target margin') : `${pq.missing ? 'at least ' : ''}${esc(c$(pq.start))}`}</span></li>
+    <li><span>Tax set-aside<br><span class="d-sub">cash to hold from the price; not inside profit or margin</span></span><span>${pq.settings.taxPct === null ? gap('not set') : pq.tax === null ? gap('needs a price') : esc(c$(pq.tax))}</span></li>
+  </ul>`;
+  const flags = pq.flags.length ? `<ul class="d-flags">${pq.flags.map((f) => `<li class="${f.id === 'missing' ? 'd-gold' : 'd-red'}">${esc(f.text)}</li>`).join('')}</ul><p class="d-sub">Flags never block: you can still save and send.</p>` : '';
+  const cuts = pq.suggestCuts.length ? `<p class="d-sub">Lowest-value lines to cut: ${pq.suggestCuts.map((x) => `${esc(x.name)} (saves ${esc(c$(x.saves))})`).join(', ')}.</p>` : '';
+  const notSet = pq.notSet.length ? `<p class="d-sub d-gold">Not set in <a href="/dashboard/quote-settings">Settings</a> (left out of the math): ${esc(pq.notSet.join(', '))}.</p>` : '';
+  const tm = pq.timing;
+  const ms = tm.milestones.length ? tm.milestones : (q.milestones || []);
+  const mRow = (m, i) => `<li class="d-row"><div class="d-row__main">${hidden(`m_${i}_mid`, m.mid || '')}<div class="d-grid3"><div><label for="m-${i}-l">Payment</label><input id="m-${i}-l" name="m_${i}_label" maxlength="80" value="${esc(m.label || '')}"${m.mid ? '' : ' placeholder="Add a payment"'}></div><div><label for="m-${i}-p">% of price</label><input id="m-${i}-p" name="m_${i}_pct" inputmode="decimal" value="${v(m.pct)}"></div><div><label for="m-${i}-a">Or an amount ($)</label><input id="m-${i}-a" name="m_${i}_amount" inputmode="decimal" value="${v(m.amount)}"></div><div><label for="m-${i}-d">Expected date</label><input id="m-${i}-d" name="m_${i}_date" type="date" value="${esc(m.date || '')}"></div></div><label for="m-${i}-t">When</label><input id="m-${i}-t" name="m_${i}_trigger" maxlength="120" value="${esc(m.trigger || '')}" placeholder="Your terms, e.g. on signing">${m.value !== undefined && m.value !== null ? `<p class="d-role__cost">${esc(c$(m.value))}</p>` : ''}</div></li>`;
+  const dues = pq.lines.filter((l) => !l.cut).map((l) => `<div>${hidden('lid', l.lid)}<label for="l_${l.lid}_due">${esc(l.name)}: its costs go out</label><select id="l_${l.lid}_due" name="l_${l.lid}_due">${opts(DUE, l.due)}</select></div>`).join('');
+  const timing = `<details class="d-fold"><summary><span>Deposit and payment timing</span></summary><ul class="d-kv"><li><span>Goes out before the second payment<br><span class="d-sub">${tm.early.map((x) => `${esc(x.what)} ${esc(c$(x.amount))}`).join(' · ') || 'nothing priced yet'}${pq.pay ? ` · your pay ${esc(c$(pq.pay))} (when the deposit lands)` : ''}</span></span><span>${esc(c$(tm.required))}</span></li>
+    <li><span>Deposit</span><span>${tm.deposit === null ? gap(pq.net === null ? 'needs a price' : 'set its % or amount') : esc(c$(tm.deposit))}</span></li>
+    <li><span>Deposit against early costs</span><span>${tm.covered !== null ? `<span class="d-green">Covered by ${esc(c$(tm.covered))}</span>` : tm.short !== null ? `<span class="d-red">Short by ${esc(c$(tm.short))}</span>` : gap('needs the deposit')}</span></li>
+    ${tm.unplanned !== null && Math.abs(tm.unplanned) > 0.005 ? `<li><span>Not yet in a payment</span><span class="d-gold">${esc(c$(tm.unplanned))}</span></li>` : ''}</ul>
+    <p class="d-sub">For seeing timing only: it accepts any terms you set, never enforces them, and writes nothing to Money or the cash forecast.${tm.unknownPay ? ' Your pay is not counted yet: set your hourly cost in Settings.' : ''}${pq.missing ? ' Missing costs are not counted.' : ''}</p>
+    <ul class="d-list">${ms.map(mRow).join('')}${mRow({}, ms.length)}</ul>${hidden('mn', ms.length + 1)}${dues ? `<div class="d-grid2">${dues}</div>` : ''}</details>`;
+  return `<h2 class="d-qh">The price</h2>${price}<h3>Key numbers</h3>${strip}${flags}${cuts}${notSet}${kv}${timing}`;
+}
+
+/* Step 5: review and send. The client view as it is: services and the price only. */
+function clientDoc(quote) {
+  const cv = clientView(quote);
+  const items = cv.services.length ? `<ul class="d-list">${cv.services.map((s) => `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(s.name)}${s.qty !== null && s.qty !== 1 ? ` · ${esc(s.qty)} ${esc(s.unit.replace(/^per /, ''))}` : ''}</span>${s.description ? `<span class="d-row__sub">${esc(s.description)}</span>` : ''}</div></li>`).join('')}</ul>` : '<p class="d-sub">No services on the quote yet.</p>';
+  const price = cv.total === null ? '<p class="d-sub d-gold">No price yet: type your price on the quote.</p>' : `<ul class="d-kv">${cv.discount ? `<li><span>Price</span><span>${esc(c$(cv.price))}</span></li><li><span>Discount</span><span>${esc(c$(-cv.discount))}</span></li>` : ''}<li><span><strong>Total</strong></span><span><strong>${esc(c$(cv.total))}</strong></span></li></ul>`;
+  return `<article class="d-client" aria-label="Client view">${cv.client || cv.project ? `<h2>${esc([cv.project, cv.client].filter(Boolean).join(' · '))}</h2>` : ''}${items}${price}</article>`;
+}
+function stepReview(q, ctx, est, frozen) {
+  const frozenNote = frozen ? `<p class="d-flash d-flash--ok" role="status">Version ${est.version} was sent and is frozen, with the settings and rates it was priced with. Saving makes version ${est.version + 1} as a draft; version ${est.version} stays as it was sent.</p>` : '';
+  const hist = (ctx.history || []).length > 1 ? `<details class="d-fold"><summary><span>Versions · ${ctx.history.length}</span></summary><ul class="d-kv">${ctx.history.map((h) => `<li><span>Version ${h.version}</span><span>${esc(QUOTE_STATUS[h.status] || h.status)} · ${esc(usTime(h.at, ctx.now))}</span></li>`).join('')}</ul></details>` : '';
+  return `<h2 class="d-qh">Review and send</h2>${frozenNote}<p class="d-sub">What the client sees: the services and the price. Nothing else.</p>${clientDoc(q)}
+    <div class="d-grid2"><div><label for="q-client">Client</label><input id="q-client" name="client" maxlength="160" value="${esc(q.client || '')}"></div><div><label for="q-project">Project</label><input id="q-project" name="project" maxlength="160" value="${esc(q.project || '')}"></div></div>${hist}`;
+}
 
 export function renderEstimate(j, ctx) {
   const k = encodeURIComponent(j.key);
+  const step = Math.min(5, Math.max(1, Number(ctx.step) || 1));
   const title = `Quote · ${j.name}`;
   const top = `<p><a class="d-help" href="/dashboard/flow/${k}">← ${esc(j.name)}</a></p><h1>Quote</h1>`;
   const hold = moneyHold(ctx);
@@ -212,71 +346,11 @@ export function renderEstimate(j, ctx) {
   const people = frozen ? est.snapshot?.people || [] : live.people;
   const q = est || { client: j.name, project: '', lines: [], others: [], milestones: ctx.newMilestones, discount: { mode: 'amount', value: null }, price: null, extraHours: null, extraStatus: 'guess', reason: '' };
   const pq = priceQuote({ settings, people, quote: q });
-  const back = `/dashboard/flow/${k}/quote`;
-  const status = est ? `Version ${est.version} · ${esc(QUOTE_STATUS[est.status] || est.status)} · saved ${esc(usTime(est._at, ctx.now))}` : 'Not saved yet';
-  const frozenNote = frozen ? `<p class="d-flash d-flash--ok" role="status">Version ${est.version} was sent and is frozen, with the settings and rates it was priced with. Saving makes version ${est.version + 1} as a draft; version ${est.version} stays as it was sent.</p>` : '';
-
-  // The key numbers: starting number, recommended, price, cost, your pay, company profit, margin.
-  const startWords = pq.start === null ? gap('set your target margin') : `${pq.missing ? 'at least ' : ''}${esc(c$(pq.start))}`;
-  const strip = `<div class="d-strip">
-    ${keyBox('Starting number', startWords, `${pq.missing ? `<em class="d-strip__sub d-gold">${pq.missing} ${pq.missing === 1 ? 'cost' : 'costs'} missing</em>` : ''}${pq.estimate ? '<span class="d-tag">estimate</span>' : ''}`)}
-    ${keyBox('Recommended', pq.recommended === null ? gap('needs the starting number') : esc(c$(pq.recommended)), '<em class="d-strip__sub">rounded up</em>')}
-    ${keyBox('Client price', pq.net === null ? gap('type your price') : esc(c$(pq.net)), pq.discount ? `<em class="d-strip__sub">after ${esc(c$(pq.discount))} off</em>` : '')}
-    ${keyBox('Company profit', pq.profit === null ? gap('needs a price') : esc(c$(pq.profit)), pq.margin === null ? '' : `<em class="d-strip__sub">margin ${pctW(pq.margin)}</em>${pq.estimate ? '<span class="d-tag">estimate</span>' : ''}`, pq.profit !== null && pq.profit < 0 ? 'd-red' : '')}
-  </div>`;
-  const kv = `<ul class="d-kv">
-    <li><span>Total cost${pq.missing ? '<br><span class="d-sub d-gold">what is known; missing costs are not counted as zero</span>' : ''}</span><span>${esc(c$(pq.totalCost))}${tag(pq.estimate)}</span></li>
-    <li><span>Your pay<br><span class="d-sub">${pq.ownerHours ? `${esc(+pq.ownerHours.toFixed(2))} hours of your time${pq.ownerRate === null ? '' : ` at ${esc(c$(pq.ownerRate))}`}; already inside total cost` : 'No hours of your time on this quote yet'}</span></span><span>${pq.pay === null ? gap('set your hourly cost') : esc(c$(pq.pay))}</span></li>
-    <li><span>Company profit<br><span class="d-sub">what the business keeps on top of your pay</span></span><span>${pq.profit === null ? gap('needs a price') : esc(c$(pq.profit))}</span></li>
-    <li><span>Margin <span class="d-sub">(profit ÷ price)</span></span><span>${pq.margin === null ? gap('needs a price') : `${pctW(pq.margin)}${tag(pq.estimate)}`}</span></li>
-    ${pq.hasPass ? `<li><span>Service margin<br><span class="d-sub">without pass-through billing and cost</span></span><span>${pq.serviceMargin === null ? gap('needs a price') : pctW(pq.serviceMargin)}</span></li>` : ''}
-    <li><span>Tax set-aside<br><span class="d-sub">cash to hold from the price; not inside margin</span></span><span>${pq.settings.taxPct === null ? gap('not set') : pq.tax === null ? gap('needs a price') : esc(c$(pq.tax))}</span></li>
-  </ul>`;
-  const flags = pq.flags.length ? `<ul class="d-flags">${pq.flags.map((f) => `<li class="${f.id === 'missing' ? 'd-gold' : 'd-red'}">${esc(f.text)}</li>`).join('')}</ul><p class="d-sub">Flags never block: you can still save and send.</p>` : '';
-  const cuts = pq.suggestCuts.length ? `<p class="d-sub">Lowest-value lines to cut: ${pq.suggestCuts.map((x) => `${esc(x.name)} (saves ${esc(c$(x.saves))})`).join(', ')}.</p>` : '';
-  const notSet = pq.notSet.length ? `<p class="d-sub d-gold">Not set in <a href="/dashboard/quote-settings">Settings</a> (left out of the math): ${esc(pq.notSet.join(', '))}.</p>` : '';
-
-  const addSvc = serviceSelect('add_sid', live.services || []);
-  const tpls = (live.templates || []).filter((t) => t.items.length);
-  const adder = `<div class="d-qsvc"><h3>Add to this quote</h3>
-    ${tpls.length ? `<label for="add_tid">Start from a template</label><select id="add_tid" name="add_tid"><option value="">Choose a template</option>${tpls.map((t) => `<option value="${esc(t.id)}">${esc(t.name)} (${t.items.length} services)</option>`).join('')}</select>` : '<p class="d-sub">No template has services yet. <a href="/dashboard/templates">Set one up ›</a></p>'}
-    <div class="d-grid2"><div><label for="add_sid">A service from your catalog</label>${addSvc}</div><div><label for="add-qty">Quantity</label><input id="add-qty" name="add_qty" inputmode="decimal" placeholder="1"></div></div>
-    <label for="add-custom">Or a custom line (its name)</label><input id="add-custom" name="add_custom" maxlength="160" placeholder="Something not in the catalog">
-    <p><button type="submit" name="do" value="add">Add and save</button></p></div>`;
-
-  const lines = q.lines || [];
-  const emptyLines = lines.length ? '' : '<div class="d-emptybox"><p>Add a line to start: a template, a service from your catalog, or a custom line. You can leave any line unfinished; missing costs are flagged, never a block.</p></div>';
-  const other = (o, i) => `<li class="d-row${o.cut ? ' d-cut' : ''}"><div class="d-row__main">${hidden(`o_${i}_oid`, o.oid || '')}${hidden(`o_${i}_costwas`, o.cost ?? '')}
-    <div class="d-grid2"><div><label for="o-${i}-item">Item</label><input id="o-${i}-item" class="d-qline__name" name="o_${i}_item" maxlength="160" value="${esc(o.item || '')}"${o.oid ? '' : ' placeholder="Add a cost: travel, a license, a rental"'}></div><div><label for="o-${i}-vendor">Vendor</label><input id="o-${i}-vendor" name="o_${i}_vendor" maxlength="120" value="${esc(o.vendor || '')}"></div></div>
-    <div class="d-grid3"><div><label for="o-${i}-cost">Cost ($)</label><input id="o-${i}-cost" name="o_${i}_cost" inputmode="decimal" value="${v(o.cost)}" placeholder="unknown"></div><div><label for="o-${i}-status">It is</label><select id="o-${i}-status" name="o_${i}_status">${opts(STATUS, o.status || 'guess')}</select></div><div><label for="o-${i}-due">Goes out</label><select id="o-${i}-due" name="o_${i}_due">${opts(DUE, o.due || 'before')}</select></div><div><label class="d-check"><input type="checkbox" name="o_${i}_pass" value="1"${o.pass ? ' checked' : ''}> Pass-through</label></div></div>
-    ${o.oid ? `<div class="d-grid2"><label class="d-check"><input type="checkbox" name="o_${i}_cut" value="1"${o.cut ? ' checked' : ''}> Cut</label><span class="d-role__cost">${(() => { const p = pq.others[i]; return !p ? '' : p.loaded === null ? '<span class="d-gold">Cost missing</span>' : o.cut ? `Cut: saves ${esc(c$(p.loaded))}` : `${o.pass ? 'Billed at' : 'Loaded'} ${esc(c$(o.pass ? p.start : p.loaded))}${!o.pass && p.start !== null ? ` · starting number ${esc(c$(p.start))}` : ''}${tag(p.guess)}`; })()}</span></div>` : ''}</div></li>`;
-  const others = q.others || [];
-  const ms = pq.timing.milestones.length ? pq.timing.milestones : (q.milestones || []);
-  const mRow = (m, i) => `<li class="d-row"><div class="d-row__main">${hidden(`m_${i}_mid`, m.mid || '')}<div class="d-grid3"><div><label for="m-${i}-l">Payment</label><input id="m-${i}-l" name="m_${i}_label" maxlength="80" value="${esc(m.label || '')}"${m.mid ? '' : ' placeholder="Add a payment"'}></div><div><label for="m-${i}-p">% of price</label><input id="m-${i}-p" name="m_${i}_pct" inputmode="decimal" value="${v(m.pct)}"></div><div><label for="m-${i}-a">Or an amount ($)</label><input id="m-${i}-a" name="m_${i}_amount" inputmode="decimal" value="${v(m.amount)}"></div><div><label for="m-${i}-d">Expected date</label><input id="m-${i}-d" name="m_${i}_date" type="date" value="${esc(m.date || '')}"></div></div><label for="m-${i}-t">When</label><input id="m-${i}-t" name="m_${i}_trigger" maxlength="120" value="${esc(m.trigger || '')}" placeholder="Your terms, e.g. on signing">${m.value !== undefined && m.value !== null ? `<p class="d-role__cost">${esc(c$(m.value))}</p>` : ''}</div></li>`;
-  const tm = pq.timing;
-  const timingOut = `<ul class="d-kv"><li><span>Goes out before the second payment<br><span class="d-sub">${tm.early.map((x) => `${esc(x.what)} ${esc(c$(x.amount))}`).join(' · ') || 'nothing priced yet'}${pq.pay ? ` · your pay ${esc(c$(pq.pay))} (when the deposit lands)` : ''}</span></span><span>${esc(c$(tm.required))}</span></li>
-    <li><span>Deposit</span><span>${tm.deposit === null ? gap(pq.net === null ? 'needs a price' : 'set its % or amount') : esc(c$(tm.deposit))}</span></li>
-    <li><span>Deposit against early costs</span><span>${tm.covered !== null ? `<span class="d-green">Covered by ${esc(c$(tm.covered))}</span>` : tm.short !== null ? `<span class="d-red">Short by ${esc(c$(tm.short))}</span>` : gap('needs the deposit')}</span></li>
-    ${tm.unplanned !== null && Math.abs(tm.unplanned) > 0.005 ? `<li><span>Not yet in a payment</span><span class="d-gold">${esc(c$(tm.unplanned))}</span></li>` : ''}</ul>
-    <p class="d-sub">For seeing timing only: it accepts any terms you set, never enforces them, and writes nothing to Money or the cash forecast.${tm.unknownPay ? ' Your pay is not counted yet: set your hourly cost in Settings.' : ''}${pq.missing ? ' Missing costs are not counted.' : ''}</p>`;
-  const d = q.discount || {};
-  const pricing = `<div class="d-grid2"><div><label for="q-price">Your price to the client ($)</label><input id="q-price" name="price" inputmode="decimal" value="${v(q.price)}" placeholder="${pq.recommended === null ? 'your call' : esc(`recommended ${c$(pq.recommended)}`)}"></div><div><label for="q-disc">Discount</label><input id="q-disc" name="disc" inputmode="decimal" value="${v(d.value)}"></div></div>
-    <div class="d-grid2"><div><label for="q-dm">Discount as</label><select id="q-dm" name="disc_mode">${opts({ amount: 'An amount', pct: '% of the price' }, d.mode || 'amount')}</select></div><div><label for="q-reason">Why this price (optional, one line, internal)</label><input id="q-reason" name="reason" maxlength="200" value="${esc(q.reason || '')}" placeholder="Below the starting number to win a first project"></div></div>
-    <p class="d-sub">The price is yours to set. The starting number and recommended price are shown, never filled in. A discount lowers the price, not the cost.</p>`;
-  const hist = (ctx.history || []).length > 1 ? `<details class="d-fold"><summary><span>Versions · ${ctx.history.length}</span></summary><ul class="d-kv">${ctx.history.map((h) => `<li><span>Version ${h.version}</span><span>${esc(QUOTE_STATUS[h.status] || h.status)} · ${esc(usTime(h.at, ctx.now))}</span></li>`).join('')}</ul></details>` : '';
-
-  const form = `<form class="d-form" method="post" action="/dashboard/estimate">${hidden('key', j.key)}${hidden('back', back)}${hidden('base', est?._id || '')}
-    ${sec('lines', `Lines · ${lines.filter((l) => !l.cut).length}${lines.some((l) => l.cut) ? ` (+${lines.filter((l) => l.cut).length} cut)` : ''}`, `${emptyLines}${lines.map((l) => lineCard(l, pq, people)).join('')}${adder}`)}
-    ${sec('others', `Other costs · ${others.length}`, `<ul class="d-list">${others.map(other).join('')}${other({}, others.length)}</ul>${hidden('on', others.length + 1)}<p class="d-sub">A cost with no amount is flagged as missing, never zero. A pass-through is billed at cost plus your handling markup.</p>`)}
-    ${sec('extra', 'Your time not on a line', `<div class="d-grid2"><div><label for="q-xh">Extra hours (calls, travel)</label><input id="q-xh" name="extra_hours" inputmode="decimal" value="${v(q.extraHours)}" placeholder="none"></div><div><label for="q-xs">Those hours are</label><select id="q-xs" name="extra_status">${opts(STATUS, q.extraStatus || 'guess')}</select></div></div><p class="d-sub">Priced at your hourly cost with overhead${pq.extra?.loaded ? `: ${esc(c$(pq.extra.loaded))}` : ''}.</p>`)}
-    ${sec('price', 'Price', pricing)}
-    ${sec('timing', 'Payment timing', `${timingOut}<ul class="d-list">${ms.map(mRow).join('')}${mRow({}, ms.length)}</ul>${hidden('mn', ms.length + 1)}`)}
-    ${sec('who', 'Client and project', `<div class="d-grid2"><div><label for="q-client">Client</label><input id="q-client" name="client" maxlength="160" value="${esc(q.client || '')}"></div><div><label for="q-project">Project</label><input id="q-project" name="project" maxlength="160" value="${esc(q.project || '')}"></div></div>`)}
-    <div class="d-acts"><button type="submit" name="do" value="save" class="d-primary">${frozen ? `Save as version ${est.version + 1} (draft)` : 'Save draft'}</button><button type="submit" name="do" value="send">Save and mark as sent</button></div>
-    <p class="d-sub">Marking as sent freezes this version with today's settings and rates. Nothing is sent to anyone from here.</p></form>`;
-  const body = `${top}<p class="d-sub">${esc(j.name)} · ${status} · internal only</p>${toolNav('')}
-    <p class="d-files"><a class="d-btn" href="/dashboard/flow/${k}/quote/client">Client view ›</a></p>${ctx.flash || ''}${frozenNote}
-    ${sec('numbers', 'Key numbers', `${strip}${flags}${cuts}${notSet}${kv}`)}${form}${hist}`;
+  const status = est ? `Version ${est.version} · ${esc(QUOTE_STATUS[est.status] || est.status)}` : 'Not saved yet';
+  const inner = step === 1 ? stepWork(j, q, ctx, live) : step === 2 ? stepWho(q, pq, people) : step === 3 ? stepOther(q, pq) : step === 4 ? stepPrice(q, pq) : stepReview(q, ctx, est, frozen);
+  const form = `<form class="d-form" method="post" action="/dashboard/estimate">${hidden('key', j.key)}${hidden('step', step)}${hidden('back', stepPath(j.key, step))}${inner}${stepActs(step, frozen, est)}</form>`;
+  const links = step === 5 ? `<p class="d-files"><a class="d-btn" href="/dashboard/flow/${k}/quote/client">Client view on its own ›</a></p>` : step === 4 ? `<p class="d-sub">Your <a href="/dashboard/quote-settings">Settings</a>, <a href="/dashboard/rates">rate list</a> and <a href="/dashboard/services">catalog</a> stay open to change.</p>` : '';
+  const body = `${top}<p class="d-sub">${esc(j.name)} · ${status} · for you only</p>${stepBar(j.key, step)}${ctx.flash || ''}${form}${links}`;
   return shell(title, body, ctx);
 }
 
@@ -287,9 +361,6 @@ export function renderClientView(j, ctx) {
   const k = encodeURIComponent(j.key);
   const top = `<p><a class="d-help" href="/dashboard/flow/${k}/quote">← Quote</a></p><h1>Client view</h1><p class="d-sub">What the client sees: the services, what each is, and the price. No people, rates, costs, margin, cut lines, flags or history.</p>`;
   if (!ctx.estimate || ctx.estimate.unreadable) return shell(`Client view · ${j.name}`, `${top}${empty('Save a quote first; its client view shows here.', `/dashboard/flow/${k}/quote`, 'Open the quote')}`, ctx);
-  const cv = clientView(ctx.estimate);
-  const items = cv.services.length ? `<ul class="d-list">${cv.services.map((s) => `<li class="d-row"><div class="d-row__main"><span class="d-row__title">${esc(s.name)}${s.qty !== null && s.qty !== 1 ? ` · ${esc(s.qty)} ${esc(s.unit.replace(/^per /, ''))}` : ''}</span>${s.description ? `<span class="d-row__sub">${esc(s.description)}</span>` : ''}</div></li>`).join('')}</ul>` : '<p class="d-sub">No services on the quote yet.</p>';
-  const price = cv.total === null ? '<p class="d-sub d-gold">No price yet: type your price on the quote.</p>' : `<ul class="d-kv">${cv.discount ? `<li><span>Price</span><span>${esc(c$(cv.price))}</span></li><li><span>Discount</span><span>${esc(c$(-cv.discount))}</span></li>` : ''}<li><span><strong>Total</strong></span><span><strong>${esc(c$(cv.total))}</strong></span></li></ul>`;
-  const doc = `<article class="d-client" aria-label="Client view">${cv.client || cv.project ? `<h2>${esc([cv.project, cv.client].filter(Boolean).join(' · '))}</h2>` : ''}${items}${price}</article>`;
+  const doc = clientDoc(ctx.estimate);
   return shell(`Client view · ${j.name}`, `${top}${doc}`, ctx);
 }

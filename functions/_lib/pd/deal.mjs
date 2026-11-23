@@ -164,6 +164,18 @@ export function discoveryQuestions(profile = {}) {
   const seen = new Set();
   return out.filter((q) => (seen.has(q.id) ? false : seen.add(q.id)));
 }
+/**
+ * Every guided question there is, once each, with the picks that ask it ("svc:<id>", "buyer:<v>",
+ * "objective:<v>", "budget:<v>"; none = always asked). Discovery shows them all before he saves
+ * (Scooter, 23 Nov 2026: "Show every question before I save. Saving stores; nothing new appears after").
+ */
+export function allDiscoveryQuestions() {
+  const out = new Map(BANK.always.map((q) => [q.id, { ...q, when: [] }]));
+  const add = (q, tag) => { const was = out.get(q.id); if (was) { if (was.when.length) was.when.push(tag); } else out.set(q.id, { ...q, when: [tag] }); };
+  for (const x of SERVICES) for (const q of BANK.service[x.id] || []) add(q, `svc:${x.id}`);
+  for (const part of ['buyer', 'objective', 'budget']) for (const [v, qs] of Object.entries(BANK[part])) for (const q of qs) add(q, `${part}:${v}`);
+  return [...out.values()];
+}
 export function cleanProfile(p = {}) {
   return { services: servicesOf(p), ...Object.fromEntries(Object.keys(DISCOVERY_PROFILE).map((k) => [k, DISCOVERY_PROFILE[k].options[p[k]] ? p[k] : ''])) };
 }

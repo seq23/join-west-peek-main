@@ -90,8 +90,13 @@ export const SEED_SERVICES = SEED.flatMap(([category, list]) => list.map(([name,
   .map((x, i) => ({ id: `s${String(i + 1).padStart(2, '0')}`, name: x.name, category: x.category, unit: x.unit, description: '', pass: x.pass, legacy: null, components: [], archived: false }));
 export const CATEGORIES = [...new Set(SEED.map(([c]) => c))];
 
+/**
+ * One cost on a line: who does it and how much. `who` is the owner, someone on the rate list, or ''
+ * with a typed `name` (Scooter, 23 Nov 2026: "he types a person's name and their price, including
+ * 'me' for his own hours"); a typed name is priced by its own rate, the same math.
+ */
 function cleanComponent(c = {}) {
-  return { cid: idOr(c.cid, 'c'), who: c.who === OWNER ? OWNER : (ID_RE.test(String(c.who || '')) ? String(c.who) : ''), qty: nonNeg(c.qty), qtyStatus: STATUS[c.qtyStatus] ? c.qtyStatus : 'guess', rate: nonNeg(c.rate), rateStatus: STATUS[c.rateStatus] ? c.rateStatus : 'guess' };
+  return { cid: idOr(c.cid, 'c'), who: c.who === OWNER ? OWNER : (ID_RE.test(String(c.who || '')) ? String(c.who) : ''), name: c.who === OWNER ? '' : clip(c.name, 120), qty: nonNeg(c.qty), qtyStatus: STATUS[c.qtyStatus] ? c.qtyStatus : 'guess', rate: nonNeg(c.rate), rateStatus: STATUS[c.rateStatus] ? c.rateStatus : 'guess' };
 }
 export function cleanServices(list = []) {
   const seen = new Set();
@@ -158,11 +163,11 @@ export const QUOTE_STATUS = { draft: 'Draft', sent: 'Sent (frozen)' };
 
 /** A quote line from a catalog service: its structure is copied, so a later catalog edit never changes it. */
 export function lineFromService(s, qty = 1) {
-  return { lid: `l${randomToken(5)}`, sid: s.id, name: s.name, description: s.description || '', unit: s.unit, pass: Boolean(s.pass), legacy: s.legacy ?? null, qty: nonNeg(qty) ?? 1, cut: false, due: 'before', actual: null,
+  return { lid: `l${randomToken(5)}`, sid: s.id, category: s.category || '', name: s.name, description: s.description || '', unit: s.unit, pass: Boolean(s.pass), legacy: s.legacy ?? null, qty: nonNeg(qty) ?? 1, cut: false, due: 'before', actual: null,
     components: (s.components || []).map((c) => ({ ...cleanComponent({ ...c, cid: c.cid }), rate: null, rateStatus: 'agreed' })) };
 }
 export function customLine(name = '') {
-  return { lid: `l${randomToken(5)}`, sid: '', name: clip(name, 160), description: '', unit: 'each', pass: false, legacy: null, qty: 1, cut: false, due: 'before', actual: null, components: [] };
+  return { lid: `l${randomToken(5)}`, sid: '', category: '', name: clip(name, 160), description: '', unit: 'each', pass: false, legacy: null, qty: 1, cut: false, due: 'before', actual: null, components: [] };
 }
 /**
  * A new quote's payments: the brief's deposit (its % prefilled from Settings) and the second client payment it
@@ -179,7 +184,7 @@ export function newQuote(settings = {}) {
 }
 export function cleanEstimate(raw = {}) {
   const lines = (Array.isArray(raw.lines) ? raw.lines : []).map((l) => ({
-    lid: idOr(l.lid, 'l'), sid: ID_RE.test(String(l.sid || '')) ? String(l.sid) : '', name: clip(l.name, 160), description: clip(l.description, 600), unit: clip(l.unit, 40) || 'each',
+    lid: idOr(l.lid, 'l'), sid: ID_RE.test(String(l.sid || '')) ? String(l.sid) : '', category: clip(l.category, 80), name: clip(l.name, 160), description: clip(l.description, 600), unit: clip(l.unit, 40) || 'each',
     pass: Boolean(l.pass), legacy: nonNeg(l.legacy), qty: nonNeg(l.qty), cut: Boolean(l.cut), due: DUE[l.due] ? l.due : 'before', actual: nonNeg(l.actual),
     components: (Array.isArray(l.components) ? l.components : []).map(cleanComponent).slice(0, 30)
   })).filter((l) => l.name).slice(0, 80);
@@ -235,11 +240,12 @@ export function priceQuote({ settings = {}, people = [], quote = {} }) {
     const comps = (l.components || []).map((cp) => {
       const isOwner = cp.who === OWNER;
       const person = isOwner ? null : byId[cp.who] || null;
+      const named = !cp.who && Boolean(cp.name);
       const over = num(cp.rate);
       const rate = over !== null ? over : isOwner ? rate0 : person && !person.archived ? num(person.rate) : null;
       const rateStatus = over !== null ? cp.rateStatus : isOwner ? 'agreed' : person?.status || 'guess';
       const qty = num(cp.qty);
-      const why = !cp.who ? 'nobody chosen' : !isOwner && !person ? 'not on the rate list' : rate === null ? (isOwner ? 'your hourly cost is not set' : 'no rate') : qty === null ? 'no quantity' : lq === null ? 'no line quantity' : '';
+      const why = !cp.who && !named ? 'nobody chosen' : cp.who && !isOwner && !person ? 'not on the rate list' : rate === null ? (isOwner ? 'your hourly cost is not set' : named ? 'no price' : 'no rate') : qty === null ? 'no quantity' : lq === null ? 'no line quantity' : '';
       const g = rateStatus === 'guess' || cp.qtyStatus === 'guess';
       if (why) { missing += 1; return { ...cp, person, isOwner, rate, rateStatus, cost: null, why, guess: g }; }
       const cost = qty * rate * lq;

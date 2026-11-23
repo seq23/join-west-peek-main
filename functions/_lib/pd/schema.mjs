@@ -105,6 +105,13 @@ export const MIGRATIONS = [
       'CREATE TABLE IF NOT EXISTS estimate (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL, data_enc TEXT NOT NULL)',
       'CREATE INDEX IF NOT EXISTS estimate_key ON estimate (key, sample)'
     ]
+  },
+  {
+    // The Pipeline board (Scooter, 23 Nov 2026: "Each card shows how many days since its last update").
+    // When a synced row's cells last changed, so an edit made straight in his tracker counts as an
+    // update too. Additive only: one new nullable column; existing rows keep their data.
+    version: 8,
+    sql: ['ALTER TABLE row_cache ADD COLUMN changed_at INTEGER']
   }
 ];
 
@@ -116,7 +123,7 @@ export const TABLE_WORDS = {
   session: 'Each signed-in device: a hash of its sign-in and when it ends',
   connection: 'Each connected account: its name, what it allows, and its access key, encrypted',
   source: 'Which sheets you named on Connections',
-  row_cache: 'A copy of the rows read from those sheets, replaced at every sync (every 15 minutes). While Money is on, it includes your money rows',
+  row_cache: 'A copy of the rows read from those sheets, replaced at every sync (every 15 minutes), with when each row last changed. While Money is on, it includes your money rows',
   sync_state: 'When each part last synced, and how many rows (counts only)',
   action_log: 'What you pressed here and what your sheet showed back',
   tick: 'The fault rows you hid on the Pipeline',

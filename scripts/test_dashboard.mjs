@@ -21,6 +21,15 @@ import { backup, restore } from '../workers/productions-dashboard/src/index.js';
 const failures = [];
 let cases = 0;
 function check(name, cond, detail = '') { cases += 1; if (!cond) failures.push(`${name}${detail ? ` - ${detail}` : ''}`); }
+/** The Pipeline board as {columnId: [card names]} (board.mjs; Scooter, 23 Nov 2026). */
+function boardOf(text) {
+  const out = {};
+  for (const m of String(text).matchAll(/<section class="d-col" role="listitem" aria-labelledby="col-([a-z]+)">([\s\S]*?)<\/section>/g)) {
+    out[m[1]] = [...m[2].matchAll(/<a class="d-card__name" href="[^"]*">([^<]*)<\/a>/g)].map((x) => x[1]);
+  }
+  return out;
+}
+const onBoard = (text) => Object.values(boardOf(text)).flat();
 
 const PROD = 'https://westpeekproductions.com';
 const PREV = 'https://abc123.west-peek-productions.pages.dev';
@@ -273,9 +282,11 @@ const realFetch = globalThis.fetch;
   check('a sample session sees synthetic rows only, never real ones', work.status === 200 && /Sample Org/.test(work.text) && !work.text.includes(MARK));
   const owner = await signIn(env, OWNER, PW, { host: PREV });
   check('the owner never sees sample rows', !(await call(env, '/dashboard/work', { cookie: owner.cookie, host: PREV })).text.includes('Sample Org'));
-  const a = await call(env, '/dashboard/act', { method: 'POST', host: PREV, cookie: s.cookie, form: { action: 'stage', row: 'SD1', back: '/dashboard/deals' } });
+  const a = await call(env, '/dashboard/act', { method: 'POST', host: PREV, cookie: s.cookie, form: { action: 'stage', row: 'SD1', back: '/dashboard/board/discovery' } });
   const after = await call(env, a.location, { cookie: s.cookie, host: PREV });
-  check('a sample quick action is written and read back', /Saved and checked/.test(after.text) && /Solution and budget/.test(after.text));
+  const quoteCol = await call(env, '/dashboard/board/quote', { cookie: s.cookie, host: PREV });
+  const sb = boardOf((await call(env, '/dashboard', { cookie: s.cookie, host: PREV })).text);
+  check('a sample quick action is written and read back, and the card moves to its new column', /Saved and checked/.test(after.text) && /Sample Org D ›/.test(quoteCol.text) && /Solution and budget/.test(quoteCol.text) && sb.quote?.includes('Sample Org D') && !sb.discovery?.includes('Sample Org D'), JSON.stringify(sb));
   // Productions only (Scooter, 15 Nov 2026): Top Barz rows are left out at read time, never changed.
   const { isTopBarz } = await import('../functions/_lib/pd/data.mjs');
   check('productions only: SoundCloud, Overtime Elite, Sagaboy, Wendy\'s and Top Barz are recognised; Productions work is not', ['SoundCloud', 'Overtime Elite x Top Barz', 'Sagaboy', "Wendy's", 'TopBarz finals', 'Top Barz'].every((org) => isTopBarz({ org })) && isTopBarz({ org: 'Org Q', opportunity: 'Wendys sponsor night' }) && !['Org K', 'Duke University', 'Mercury', 'Wendell Foundation'].some((org) => isTopBarz({ org })));
@@ -285,6 +296,11 @@ const realFetch = globalThis.fetch;
   const tbAct = await call(env, '/dashboard/act', { method: 'POST', host: PREV, cookie: s.cookie, form: { action: 'stage', row: 'SD5', back: '/dashboard' } });
   await call(env, tbAct.location || '/dashboard', { cookie: s.cookie, host: PREV });
   check('productions only: the Top Barz row is never changed or deleted', (await env.PRODUCTIONS_DB.prepare("SELECT data FROM sample_sheet WHERE kind = 'deals' AND row_id = 'SD5'").first())?.data === tbBefore && !/Sample Top Barz show/.test((await call(env, '/dashboard/inquiries', { cookie: s.cookie, host: PREV })).text));
+  const gRow = async () => (await env.PRODUCTIONS_DB.prepare("SELECT COUNT(*) AS n FROM sample_sheet WHERE kind = 'deals' AND data LIKE '%Sample Org G%'").first()).n;
+  const gBefore = await gRow();
+  await call(env, '/dashboard/sample/reset', { method: 'POST', host: PREV, cookie: s.cookie, form: {} });
+  await call(env, '/dashboard', { cookie: s.cookie, host: PREV });
+  check('sample: the form request lands in the sample tracker by itself, and again after a sample reset', gBefore === 1 && (await gRow()) === 1, `${gBefore}`);
   const choice = await call(env, '/dashboard/choice', { method: 'POST', host: PREV, cookie: s.cookie, form: { key: 'agent_seat', value: 'yes' } });
   check('a sample session cannot make his choices', choice.status === 303 && !(await env.PRODUCTIONS_DB.prepare('SELECT * FROM choice').first()));
 }
@@ -344,7 +360,7 @@ const realFetch = globalThis.fetch;
   const r3 = await call(env, '/dashboard/act', { method: 'POST', cookie: s.cookie, form: { action: 'stage', row: 'D1', back: '/dashboard/deals' } });
   check('Move to next stage writes the CRM row', g.sheets.WORKSHEETID00000000000000001.tabs.Deals[1][2] === 'Solution and budget' && /Saved and checked/.test((await call(env, r3.location, { cookie: s.cookie })).text));
   const second = await signIn(env, OWNER, PW);
-  check('…and shows on a second device', /Solution and budget/.test((await call(env, '/dashboard/deals', { cookie: second.cookie })).text));
+  check('…and shows on a second device', boardOf((await call(env, '/dashboard/deals', { cookie: second.cookie })).text).quote?.includes('Org A'));
 
   // Reminders open, written, in his own Gmail; the dashboard holds no Gmail access (14 Nov 2026).
   const before = g.calls.length;
@@ -414,7 +430,7 @@ const realFetch = globalThis.fetch;
     await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'inquiries', link: 'https://docs.google.com/spreadsheets/d/FORMSHEETID0000000000000000001/edit' } });
     const snapshot = JSON.stringify(pipeline);
     const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
-    check('tracker: a tab found by its columns, under a title line, with no ID column, is read', /Deals · 2/.test(deals.text) && /Org B/.test(deals.text) && /Org C/.test(deals.text) && !/Org A/.test(deals.text), (deals.text.match(/Deals · \d+/) || [''])[0]);
+    check('tracker: a tab found by its columns, under a title line, with no ID column, is read', onBoard(deals.text).includes('Org B') && onBoard(deals.text).includes('Org C') && !/Org A/.test(deals.text), JSON.stringify(boardOf(deals.text)));
     const connT = (await call(env, '/dashboard/connections', { cookie: s.cookie })).text;
     check('tracker: Connections says how it is read, column by column; the pipeline carries no explanation', /How your tracker is read/.test(connT) && /2026 Pipeline, column names on row 3/.test(connT) && /<span>Company<\/span><span>organization<\/span>/.test(connT) && !/How your tracker is read/.test(deals.text));
     check('tracker: reading it changes nothing in it', JSON.stringify(pipeline) === snapshot && !g.appended);
@@ -423,7 +439,7 @@ const realFetch = globalThis.fetch;
     const up = await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-b', stage: 'Negotiation', next_action: 'Call about the deck', next_date: '2026-11-21', back: '/dashboard/flow/org-b' } });
     const upShown = await call(env, up.location, { cookie: s.cookie });
     const rowB = pipeline.find((r) => r[0] === 'Org B');
-    check('tracker: Save to my tracker writes stage, next step and date on his row, confirmed', rowB[1] === 'Negotiation' && rowB[2] === 'Call about the deck' && rowB[3] === '2026-11-21' && /Saved and checked/.test(upShown.text), JSON.stringify(rowB));
+    check('tracker: Save writes stage, next step and date on his row, confirmed', rowB[1] === 'Negotiation' && rowB[2] === 'Call about the deck' && rowB[3] === '2026-11-21' && /Saved and checked/.test(upShown.text), JSON.stringify(rowB));
     check('tracker: only the three changed cells are written; no row or column added', (g.cellsWritten - before) === 3 && pipeline.length === 5 && pipeline.every((r, i) => i < 2 || r.length === 6) && rowB[0] === 'Org B' && rowB[4] === 'Original note');
     pipeline.splice(3, 0, ['Org D', 'Discovery', '', '', '', '']);
     await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
@@ -431,10 +447,14 @@ const realFetch = globalThis.fetch;
     await call(env, '/dashboard/act', { method: 'POST', cookie: s.cookie, form: { action: 'stage', row: 'k:org-b', back: '/dashboard/deals' } });
     check('tracker: a row moved by a new row above it is still found by its organization', pipeline.find((r) => r[0] === 'Org B')[1] === 'Signed agreement' && pipeline.find((r) => r[0] === 'Org E')[1] === 'Discovery');
     const second = await signIn(env, OWNER, PW);
-    check('tracker: the change shows on a second device', /Signed agreement/.test((await call(env, '/dashboard/deals', { cookie: second.cookie })).text));
+    check('tracker: the change shows on a second device', boardOf((await call(env, '/dashboard/deals', { cookie: second.cookie })).text).won?.includes('Org B'));
 
     const flow = await call(env, '/dashboard/flow', { cookie: s.cookie });
-    check('pipeline: one line per organization, each deal listed under the stage it sits in, form requests first', /<h2 id="stage-\d+-h">Signed agreement · 1<\/h2><ul class="d-list"><li class="d-row" data-stage="Signed agreement"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-b">Org B ›/.test(flow.text) && /Form requests · 1<\/h2><ul class="d-list"><li class="d-row"><div class="d-row__main"><a class="d-row__title" href="\/dashboard\/flow\/org-z">Org Z ›/.test(flow.text) && (flow.text.match(/Org B ›/g) || []).length === 1 && flow.text.indexOf('Form requests ·') < flow.text.indexOf('Signed agreement ·') && !/New inquiries/.test(flow.text));
+    const board = boardOf(flow.text);
+    check('pipeline: one board, six columns in his order, each lead one card in the column its stage sits in', JSON.stringify(Object.keys(board)) === JSON.stringify(['new', 'discovery', 'quote', 'proposal', 'won', 'lost']) && ['New leads', 'Discovery', 'Quote', 'Proposal out', 'Won', 'Lost / cold'].every((l) => flow.text.includes(`>${l} <span class="d-col__n">`)) && board.won.includes('Org B') && board.new.includes('Org Z') && onBoard(flow.text).filter((n) => n === 'Org B').length === 1 && !/Form requests ·|New inquiries/.test(flow.text), JSON.stringify(board));
+    check('pipeline: each card carries the days since its last update, each column a See all', (flow.text.match(/<span class="d-days[^"]*" title="Days since its last update">(today|\d+ days?|no date)<\/span>/g) || []).length === onBoard(flow.text).length && /<a class="d-seeall" href="\/dashboard\/board\/won">See all 1<\/a>/.test(flow.text));
+    const wonAll = await call(env, '/dashboard/board/won', { cookie: s.cookie });
+    check('pipeline: See all lists every card in the column, with its stage', /<h1>Won · 1<\/h1>/.test(wonAll.text) && /Org B ›/.test(wonAll.text) && /Signed agreement/.test(wonAll.text));
     const recB = await call(env, '/dashboard/flow/org-b', { cookie: s.cookie });
     check('lead to cash: the record carries the inquiry, the deal form and the notes', /Person B/.test(recB.text) && /action="\/dashboard\/deal"/.test(recB.text) && /action="\/dashboard\/note"/.test(recB.text) && /Signed/.test(recB.text));
 
@@ -448,12 +468,20 @@ const realFetch = globalThis.fetch;
     pipeline.splice(pipeline.findIndex((r) => r[0] === 'SoundCloud'), 1);
     await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
 
-    const rows0 = pipeline.length;
-    const add = await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-z', back: '/dashboard/flow/org-z' } });
-    const added = pipeline.at(-1);
-    check('lead to cash: an inquiry joins his tracker as ONE appended row, nothing else changed', pipeline.length === rows0 + 1 && g.appended === 1 && added[0] === 'Org Z' && added[5] === 'org-z@example.test' && /Saved and checked/.test((await call(env, add.location, { cookie: s.cookie })).text), JSON.stringify(added));
-    const again = await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-z', back: '/dashboard/flow/org-z' } });
-    check('lead to cash: it is never added twice', pipeline.length === rows0 + 1 && again.status === 303);
+    // Every lead lands by itself (Scooter, 23 Nov 2026: "Remove the 'Save to my tracker' step. If a lead
+    // exists, it's tracked."): the form request Org Z was appended to his tracker by the sync, once.
+    const zRows = pipeline.filter((r) => r[0] === 'Org Z');
+    check('lead to cash: a form request lands in his tracker by itself as ONE appended row, nothing else changed', zRows.length === 1 && g.appended === 1 && zRows[0][5] === 'org-z@example.test' && zRows[0][1] === 'Relationship identified', JSON.stringify(zRows));
+    const recZ = await call(env, '/dashboard/flow/org-z', { cookie: s.cookie });
+    check('lead to cash: no add step and no "Save to my tracker" anywhere', !/Add to my tracker|Save to my tracker|\/dashboard\/deal\/add/.test(recZ.text + flow.text + recB.text) && /<button type="submit" class="d-primary">Save<\/button>/.test(recB.text));
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
+    check('lead to cash: it is never added twice', pipeline.filter((r) => r[0] === 'Org Z').length === 1 && g.appended === 1);
+    const zAt = pipeline.findIndex((r) => r[0] === 'Org Z');
+    const zKept = pipeline.splice(zAt, 1)[0];
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
+    check('lead to cash: a row he deletes from his tracker is never put back', !pipeline.some((r) => r[0] === 'Org Z') && g.appended === 1);
+    pipeline.splice(zAt, 0, zKept);
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
 
     // Notes live in his tracker's Notes cell (Scooter, 14 Nov 2026: "they need to live where I can see and edit them").
     const cellsBeforeNote = g.cellsWritten;
@@ -482,7 +510,7 @@ const realFetch = globalThis.fetch;
     const nScope = nar.location ? new URL(nar.location).searchParams.get('scope') : '';
     check('access: Narrow withdraws the old grant at Google, then asks only for the narrow set', g.revoked.length === revokedBefore + 1 && /^https:\/\/accounts\.google\.com\//.test(nar.location || '') && !/gmail|drive\.readonly/.test(nScope), nScope);
     await call(env, `/dashboard/oauth/callback?state=${new URL(nar.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
-    check('access: after narrowing, the named sheets are kept and the gold item is gone', !/still allows more/.test((await call(env, '/dashboard', { cookie: s.cookie })).text) && /Deals · 5/.test((await call(env, '/dashboard/deals', { cookie: s.cookie })).text));
+    check('access: after narrowing, the named sheets are kept and the gold item is gone', !/still allows more/.test((await call(env, '/dashboard', { cookie: s.cookie })).text) && onBoard((await call(env, '/dashboard/deals', { cookie: s.cookie })).text).length === 5);
 
     // Keep money out: the copy is deleted at once and a sync does not bring it back.
     await env.PRODUCTIONS_DB.prepare("INSERT INTO row_cache (kind,row_id,origin,data,synced_at) VALUES ('invoices','I1','{}',?,?)").bind(JSON.stringify({ id: 'I1', client: 'Org B', amount: '100', due: '2026-11-01', status: 'Sent' }), NOW).run();
@@ -904,7 +932,7 @@ const realFetch = globalThis.fetch;
     await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${PIPE}/edit` } });
     const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
     const conn11 = (await call(env, '/dashboard/connections', { cookie: s.cookie })).text;
-    check('row 11: the table under his summary block is read, not the summary', /Deals · 2/.test(deals.text) && /Org K/.test(deals.text) && /Org L/.test(deals.text) && /Pipeline, column names on row 11/.test(conn11), (deals.text.match(/Deals · \d+/g) || []).concat(conn11.match(/column names on row \d+/g) || []).join(' '));
+    check('row 11: the table under his summary block is read, not the summary', JSON.stringify(onBoard(deals.text).sort()) === '["Org K","Org L"]' && /Pipeline, column names on row 11/.test(conn11), JSON.stringify(boardOf(deals.text)) + (conn11.match(/column names on row \d+/g) || []).join(' '));
     check('row 11: Opportunity through Flag are each understood', ['Opportunity', 'Organization', 'Service', 'Buyer type', 'Probability', 'Expected close', 'Notes', 'Flag'].every((h) => new RegExp(`<span>${h}</span><span>`).test(conn11)));
     const snap = JSON.stringify(pipeline);
     await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-k', stage: 'Solution and budget', back: '/dashboard/flow/org-k' } });
@@ -929,9 +957,9 @@ const realFetch = globalThis.fetch;
     const recM = await call(env, '/dashboard/flow/org-m', { cookie: second.cookie });
     check('intake: the owner and need persist on a second device', /value="Owner A"/.test(recM.text) && /Spring member summit, hybrid/.test(recM.text));
     const rowsBefore = pipeline.length;
-    await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-m', back: '/dashboard/flow/org-m' } });
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
     const mRow = pipeline.at(-1);
-    check('intake: added to his tracker as ONE row carrying owner, need and note', pipeline.length === rowsBefore + 1 && mRow[1] === 'Org M' && mRow[0] === 'Org M' && mRow[6] === 'Owner A' && /Need: Spring member summit, hybrid/.test(mRow[12]) && /Met at the conference/.test(mRow[12]) && mRow.length === 14, JSON.stringify(mRow));
+    check('intake: it lands in his tracker by itself at the next sync, as ONE row carrying owner, need and note', pipeline.length === rowsBefore + 1 && mRow[1] === 'Org M' && mRow[0] === 'Org M' && mRow[6] === 'Owner A' && /Need: Spring member summit, hybrid/.test(mRow[12]) && /Met at the conference/.test(mRow[12]) && mRow.length === 14, JSON.stringify(mRow));
     await call(env, '/dashboard/intake', { method: 'POST', cookie: s.cookie, form: { key: 'org-m', owner: 'Owner B', back: '/dashboard/flow/org-m' } });
     check('intake: once in his tracker, the owner is written to its Owner cell', pipeline.at(-1)[6] === 'Owner B');
 
@@ -945,9 +973,9 @@ const realFetch = globalThis.fetch;
     check('get in touch: Inquiries shows the service and the event dates', /Service: Virtual (&#x2F;|\/) hybrid event production · event Thu, Apr 8 to Fri, Apr 9/.test(gtInq.text));
     const gtDisc = await call(env, '/dashboard/flow/org-p/discovery', { cookie: s.cookie });
     check('get in touch: Discovery starts with their service picked and their event dates filled', /value="virtual-hybrid-events" checked/.test(gtDisc.text) && /name="event_start" type="date" value="2027-04-08"/.test(gtDisc.text));
-    await call(env, '/dashboard/deal/add', { method: 'POST', cookie: s.cookie, form: { key: 'org-p', back: '/dashboard/flow/org-p' } });
+    await call(env, '/dashboard/refresh', { method: 'POST', cookie: s.cookie, form: { back: '/dashboard' } });
     const pRow = pipeline.at(-1);
-    check('get in touch: added to his tracker as ONE row with the service in his Service column and the event dates in Notes', pRow[1] === 'Org P' && /Virtual \/ hybrid event production/.test(pRow[3]) && /Event: 2027-04-08 to 2027-04-09/.test(pRow[12]) && pRow.length === 14, JSON.stringify(pRow));
+    check('get in touch: it lands in his tracker by itself as ONE row with the service in his Service column and the event dates in Notes', pRow[1] === 'Org P' && /Virtual \/ hybrid event production/.test(pRow[3]) && /Event: 2027-04-08 to 2027-04-09/.test(pRow[12]) && pRow.length === 14, JSON.stringify(pRow));
     const { recordWebInquiry } = await import('../functions/_lib/pd/deal.mjs');
     await recordWebInquiry(env, { first_name: 'Person', last_name: 'Q', organization: 'Org Q', email: 'org-q@example.test', service: 'Brand strategy', event_start: '2027-01-01' });
     check('get in touch: event dates are kept only for Virtual / hybrid event production', Boolean(await env.PRODUCTIONS_DB.prepare("SELECT id FROM web_inquiry WHERE org = 'Org Q' AND service = 'brand-strategy' AND event_start = '' AND name = 'Person Q'").first()));
@@ -971,6 +999,9 @@ const realFetch = globalThis.fetch;
     check('discovery: starts with the six services as icon tiles, in the site\'s order, before anything else', tiles.map((t) => t[2]).join('|') === SERVICES.map((x) => x.id).join('|') && dPage.text.indexOf('name="p_services"') < dPage.text.indexOf('name="p_buyer"') && dPage.text.indexOf('name="p_buyer"') < dPage.text.indexOf('name="a_call_department"'), tiles.map((t) => t[1]).join('|'));
     check('discovery: the deal\'s own Service and Buyer type columns pre-pick the service and Organization type', /value="brand-strategy" checked/.test(dPage.text) && /value="foundation" selected/.test(dPage.text) && /board or trustees/.test(dPage.text) && />Organization type</.test(dPage.text) && !/Who is buying/.test(dPage.text));
     check('discovery: space for his sales-call notes, all six', ['call_department', 'call_happening', 'call_working', 'call_length', 'call_timeline', 'call_next'].every((id) => new RegExp(`name="a_${id}"`).test(dPage.text)) && /Which department are we working with/.test(dPage.text) && /What is working, and what is not working/.test(dPage.text) && /Next steps/.test(dPage.text));
+    { const { allDiscoveryQuestions } = await import('../functions/_lib/pd/deal.mjs');
+      const every = allDiscoveryQuestions();
+      check('discovery: every question is on the page before he saves (an unpicked service\'s and option\'s too), each shown by the picks that ask it', every.length > 40 && every.every((q) => dPage.text.includes(`name="a_${q.id}"`)) && /class="d-dq__q d-dq__if dq-svc-podcast-production"/.test(dPage.text) && /\.d-form:has\(input\[name="p_services"\]\[value="podcast-production"\]:checked\) \.dq-svc-podcast-production/.test(dPage.text) && /\.d-form:has\(select\[name="p_buyer"\] option\[value="brand"\]:checked\) \.dq-buyer-brand/.test(dPage.text) && !/appear here\.<\/p>|Pick their services above and save/.test(dPage.text) && /<li class="d-dq__q"><label for="dq-outcome"/.test(dPage.text), String(every.length)); }
     await call(env, '/dashboard/discovery', { method: 'POST', cookie: s.cookie, form: [['key', 'org-k'], ['p_services', 'brand-strategy'], ['p_services', 'virtual-hybrid-events'], ['p_services', 'not-a-service'], ['p_buyer', 'foundation'], ['p_objective', 'funding'], ['p_budget', 'unknown'], ['event_start', '2027-03-04'], ['event_end', '2027-03-05'], ['a_outcome', 'Funders understand the grantee work'], ['a_audience', 'Program officers'], ['a_call_department', 'Communications team'], ['back', '/dashboard/flow/org-k/discovery']] });
     const dBack = (await call(env, '/dashboard/flow/org-k/discovery', { cookie: second.cookie })).text;
     check('discovery: services, event dates, call notes and answers persist on a second device (an unknown service is dropped)', /Funders understand the grantee work/.test(dBack) && /Communications team/.test(dBack) && /value="brand-strategy" checked/.test(dBack) && /value="virtual-hybrid-events" checked/.test(dBack) && !/not-a-service/.test(dBack) && /name="event_start" type="date" value="2027-03-04"/.test(dBack) && /name="event_end" type="date" value="2027-03-05"/.test(dBack) && /What should attendees do in the week after the event/.test(dBack));
@@ -1240,7 +1271,7 @@ const realFetch = globalThis.fetch;
     await call(env, `/dashboard/oauth/callback?state=${new URL(start.location).searchParams.get('state')}&code=good`, { cookie: s.cookie });
     await call(env, '/dashboard/source', { method: 'POST', cookie: s.cookie, form: { group: 'tracker', link: `https://docs.google.com/spreadsheets/d/${PIPE}/edit` } });
     const deals = await call(env, '/dashboard/deals', { cookie: s.cookie });
-    check('his tracker on Deals: two deals, read from row 11, the summary line never shown as a deal', /Deals · 2/.test(deals.text) && /Org P/.test(deals.text) && /Org Q/.test(deals.text) && !/Org Z/.test(deals.text) && /Pipeline, column names on row 11/.test((await call(env, '/dashboard/connections', { cookie: s.cookie })).text));
+    check('his tracker on Deals: two deals, read from row 11, the summary line never shown as a deal', JSON.stringify(onBoard(deals.text).sort()) === '["Org P","Org Q"]' && !/Org Z/.test(deals.text) && /Pipeline, column names on row 11/.test((await call(env, '/dashboard/connections', { cookie: s.cookie })).text));
     const before = JSON.parse(JSON.stringify(pipeline));
     await call(env, '/dashboard/note', { method: 'POST', cookie: s.cookie, form: { key: 'org-p', text: 'Edited on the dashboard', back: '/dashboard/flow/org-p' } });
     await call(env, '/dashboard/deal', { method: 'POST', cookie: s.cookie, form: { row: 'k:org-p', stage: 'Proposal', back: '/dashboard/flow/org-p' } });
@@ -1326,6 +1357,24 @@ const realFetch = globalThis.fetch;
   const nothing = priceQuote({ settings: {}, people: [], quote: {} });
   check('settings: nothing is set by default, and a blank setting is named, never a sample number', PQ.SETTINGS.length <= 12 && Object.values(PQ.cleanSettings({})).every((x) => x === null) && nothing.notSet.length === PQ.SETTINGS.filter((x) => x.unit !== 'choice').length - 1 && nothing.start === 0 && !nothing.flags.length);
 
+  const { columnOf } = await import('../functions/_lib/pd/board.mjs');
+  const colMap = { 'Relationship identified': 'new', 'Discovery call': 'discovery', 'Scoping': 'quote', 'Proposal sent': 'proposal', 'Negotiation': 'proposal', 'Signed agreement': 'won', 'Deposit paid': 'won', 'Closed lost': 'lost', 'Went cold': 'lost' };
+  check('board: his tracker stage words decide the column; "Closed lost" is never a win; an unknown stage sits under New leads and says so', Object.entries(colMap).every(([st, id]) => columnOf(st).id === id) && columnOf('Something else').id === 'new' && !columnOf('Something else').known && !columnOf('').known, JSON.stringify(Object.keys(colMap).map((k) => columnOf(k).id)));
+
+  // Who does what, by name (Scooter, 23 Nov 2026: "type a person's name and price, 'me' for my own hours").
+  const PF = await import('../functions/_lib/pd/pricing-forms.mjs');
+  const named = pv(guessV, { lines: [{ lid: 'n', name: 'Line N', qty: 1, components: [{ who: '', name: 'Editor E', qty: 2, rate: 300, qtyStatus: 'guess', rateStatus: 'guess' }, { who: '', name: 'Editor F', qty: 1, rate: null, qtyStatus: 'guess' }] }] });
+  check('who does what: a typed name with a price is costed like anyone (2 × 300 = 600, a Guess); a name with no price is flagged "no price", counted missing, never zero', at(named.lines[0].comps[0].cost, 600) && named.lines[0].comps[0].guess && named.lines[0].comps[1].cost === null && named.lines[0].comps[1].why === 'no price' && named.missing === 1 && named.lines[0].incomplete, JSON.stringify(named.lines[0].comps.map((c) => [c.cost, c.why])));
+  const fd = (pairs) => { const f = new FormData(); for (const [k, v] of pairs) f.append(k, v); return f; };
+  const prevN = { lines: [{ lid: 'n', name: 'Line N', qty: 1, components: [] }], others: [{ item: 'Hotel', cost: 200, status: 'guess' }], price: 2500, client: 'Client C', milestones: [{ label: 'Deposit', pct: 50, due: 'booking' }] };
+  const rowN = (j, name, qty, rate) => [[`l_n_c${j}_cid`, ''], [`l_n_c${j}_name`, name], [`l_n_c${j}_namewas`, ''], [`l_n_c${j}_qty`, qty], [`l_n_c${j}_qtywas`, ''], [`l_n_c${j}_rate`, rate], [`l_n_c${j}_ratewas`, '']];
+  const eN = PQ.cleanEstimate(PF.estimateFromForm(fd([['step', '2'], ['lid', 'n'], ['l_n_cn', '4'], ...rowN(0, 'Editor E', '2', '300'), ...rowN(1, 'Me', '3', ''), ...rowN(2, 'vendor v', '', ''), ...rowN(3, '', '', '')]), prevN, { settings: S, people: guessV, services: [] }));
+  const cN = eN.lines[0].components;
+  check('who does what: "me" is his own hours, a rate-list name is that person with its rate, any other name is kept with its price as a Guess; a blank row is dropped', cN.length === 3 && cN[0].who === '' && cN[0].name === 'Editor E' && cN[0].qty === 2 && cN[0].rate === 300 && cN[0].qtyStatus === 'guess' && cN[1].who === 'owner' && cN[1].name === '' && cN[1].qty === 3 && cN[2].who === 'ven' && cN[2].rate === null && cN[2].qty === 1, JSON.stringify(cN));
+  check('steps: a step posts only its own fields; the price, other costs, payment timing and client are kept as they were', eN.price === 2500 && eN.others.length === 1 && eN.others[0].item === 'Hotel' && eN.client === 'Client C' && eN.milestones.length === 1 && eN.milestones[0].pct === 50, JSON.stringify({ p: eN.price, o: eN.others, c: eN.client, m: eN.milestones }));
+  const e1 = PQ.cleanEstimate(PF.estimateFromForm(fd([['step', '1'], ['add_custom', 'Extra edit']]), eN, { settings: S, people: guessV, services: [] }));
+  check('steps: the work step adds a line and leaves who does what on the other lines untouched', e1.lines.length === 2 && JSON.stringify(e1.lines[0].components) === JSON.stringify(cN) && e1.price === 2500);
+
   // The screens, as the owner on production.
   const { recordWebInquiry } = await import('../functions/_lib/pd/deal.mjs');
   const env = ENV();
@@ -1346,7 +1395,7 @@ const realFetch = globalThis.fetch;
     for (const m of f.matchAll(/<textarea[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/textarea>/g)) out.push([m[1], m[2]]);
     return out;
   };
-  const put = (pairs, over) => { const o = pairs.filter(([k]) => !(k in over)); for (const [k, v] of Object.entries(over)) if (v !== null) o.push([k, v]); return o; };
+  const put = (pairs, over) => { const o = pairs.filter(([k]) => !(k in over)); for (const [k, v] of Object.entries(over)) for (const x of [v].flat()) if (x !== null) o.push([k, x]); return o; };
 
   const set0 = await call(env, '/dashboard/quote-settings', { cookie: s.cookie });
   check('settings: owner only, first screen says what it is and that blanks are fine; every box blank', set0.status === 200 && /Leave anything you do not know yet blank/.test(set0.text) && /Nothing is set yet/.test(set0.text) && !/name="ownerPay" inputmode="decimal" value="\d/.test(set0.text));
@@ -1379,52 +1428,92 @@ const realFetch = globalThis.fetch;
   await call(env, '/dashboard/templates', { method: 'POST', cookie: s.cookie, form: put(posted(t0.text, '/dashboard/templates'), { t_0_new_sid: 's01', t_0_new_qty: '1' }) });
   check('templates: a service added to a set persists', (await PQ.readPricing(env, 'templates', false))[0].items.map((x) => x.sid).join() === 's01');
 
-  // A quote on the deal: empty state, a template, an unfinished custom line, a price, a cut line.
+  // A quote on the deal, as five steps (Scooter, 23 Nov 2026: "Five screens, one decision each").
   const forecastBefore = JSON.stringify(await env.PRODUCTIONS_DB.prepare("SELECT (SELECT COUNT(*) FROM row_cache) AS a, (SELECT COUNT(*) FROM setting) AS b, (SELECT COUNT(*) FROM sync_state) AS c, (SELECT COUNT(*) FROM action_log) AS d").first());
-  const q0 = await call(env, '/dashboard/flow/org-q/quote', { cookie: s.cookie });
-  check('quote: the first screen says what to do first, never a blank or NaN', q0.status === 200 && /Add a line to start/.test(q0.text) && !/NaN|undefined/.test(q0.text) && /Client view ›/.test(q0.text));
-  const qA = await call(env, '/dashboard/estimate', { method: 'POST', cookie: s.cookie, form: put(posted(q0.text, '/dashboard/estimate'), { add_tid: 't1', add_custom: 'Custom film', do: 'add' }) });
-  const q1 = await call(env, '/dashboard/flow/org-q/quote', { cookie: two.cookie });
-  check('quote: a template and an unfinished custom line save, and reload on a second device still unfinished and flagged', /m=estimate_saved/.test(qA.location || '') && /Event management/.test(q1.text) && /Custom film/.test(q1.text) && /No cost components: cost missing/.test(q1.text) && /at least [$]1,421\.54/.test(q1.text) && /1 cost missing/.test(q1.text), q1.text.match(/Starting number<\/span><strong>[^<]*/)?.[0]);
-  check('quote: owner time is a cost, your pay apart from company profit', /Your pay<br>/.test(q1.text) && /[$]200\.00/.test(q1.text) && /what the business keeps on top of your pay/.test(q1.text) && /estimate<\/span>/.test(q1.text));
-  const lidOf = (html, name) => (html.match(new RegExp(`<input type="hidden" name="lid" value="([^"]+)">[\\s\\S]{0,400}?${name}`)) || [])[1];
-  const lCustom = lidOf(q1.text, 'Custom film');
-  const qP = await call(env, '/dashboard/estimate', { method: 'POST', cookie: s.cookie, form: put(posted(q1.text, '/dashboard/estimate'), { price: '3000', [`l_${lCustom}_cut`]: '1', do: 'save' }) });
-  const q2 = await call(env, '/dashboard/flow/org-q/quote', { cookie: two.cookie });
-  check('quote: a cut line is struck through, counts for nothing, raises no flag and shows what cutting saves', /m=estimate_saved/.test(qP.location || '') && /d-qsvc d-cut/.test(q2.text) && /Cutting it saves/.test(q2.text) && !/cost missing/i.test(q2.text.split('id="lines"')[0]) && /Company profit<\/span><strong>[$]2,076\.00/.test(q2.text), q2.text.match(/Company profit<\/span><strong>[^]{0,60}/)?.[0]);
-  check('quote: payment timing is shown, deposit from Settings, covered or short, information only', /Covered by [$]/.test(q2.text) && /never enforces them, and writes nothing to Money or the cash forecast/.test(q2.text) && /name="m_0_pct" inputmode="decimal" value="50"/.test(q2.text));
+  const Q = (n = 1, who = s) => call(env, `/dashboard/flow/org-q/quote${n > 1 ? `/${n}` : ''}`, { cookie: who.cookie });
+  const step = (html, over) => call(env, '/dashboard/estimate', { method: 'POST', cookie: s.cookie, form: put(posted(html, '/dashboard/estimate'), over) });
+  const form1 = (t) => (t.match(/<form class="d-form" method="post" action="\/dashboard\/estimate">[\s\S]*?<\/form>/) || [''])[0];
+  const q0 = await Q(1);
+  check('quote step 1: five steps, the work first; the kinds of work as tiles, the one their form named marked "From Discovery"', q0.status === 200 && (q0.text.match(/<li[^>]*><a href="\/dashboard\/flow\/org-q\/quote/g) || []).length === 5 && /aria-current="step"><a href="\/dashboard\/flow\/org-q\/quote"><span>1<\/span>The work/.test(q0.text) && (q0.text.match(/name="cat" value=/g) || []).length === 8 && /value="Podcast production"><span class="d-cat__name">Podcast production<\/span><span class="d-cat__sub">7 services<\/span><span class="d-cat__tag">From Discovery/.test(q0.text) && !/name="cat" value="Podcast production" checked/.test(q0.text) && !/NaN|undefined/.test(q0.text));
+  const clean1 = (t) => { const b = t.slice(t.indexOf('<h1>')); return !/[$]\d|quote-settings|\/dashboard\/rates|\/dashboard\/services|d-flags|d-gold|d-red|d-strip|missing|Starting number|profit|margin/i.test(b); };
+  check('quote step 1: clean: no money figures, no settings links, no key numbers or warnings', clean1(q0.text));
+  const qA = await step(q0.text, { add_tid: 't1', add_custom: 'Custom film', do: 'stay' });
+  const q1 = await Q(1, two);
+  check('quote step 1: a set and a line of his own save, read back, and show on a second device', /\/quote\?m=estimate_step/.test(qA.location || '') && /<span class="d-wline__name">Event management</.test(q1.text) && /<span class="d-wline__name">Custom film</.test(q1.text) && /Your own lines/.test(q1.text) && /name="cat" value="Virtual events" checked/.test(q1.text) && clean1(q1.text), [qA.location, /Saved and checked/.test(q1.text), /Event management</.test(q1.text), /Custom film</.test(q1.text), /Your own lines/.test(q1.text), /name="cat" value="Virtual events" checked/.test(q1.text), clean1(q1.text), (q1.text.match(/name="cat"[^>]*>/g)||[]).join(' ')].join(' | '));
+  // A kind of work ticked brings in all its services, priced from the rate list; unticked, they go again.
+  await step(q1.text, { cat: ['Virtual events', 'Podcast production'], do: 'stay' });
+  const eCat = await PQ.latestEstimate(env, 'org-q', false);
+  const q1b = await Q(1);
+  await step(q1b.text, { cat: ['Virtual events'], do: 'stay' });
+  const eUn = await PQ.latestEstimate(env, 'org-q', false);
+  check('quote step 1: ticking a kind of work brings its services in together; unticking takes them out again', eCat.lines.filter((l) => l.category === 'Podcast production').length === 7 && eCat.lines.some((l) => l.name === 'Event management') && eUn.lines.map((l) => l.name).sort().join('|') === 'Custom film|Event management', eUn.lines.map((l) => l.name).join('|') + ' / ' + eCat.lines.map((l) => l.category+':'+l.name).join('|'));
+  const q1c = await Q(1);
+  await step(q1c.text, { cat: ['Virtual events', 'Podcast production'], do: 'stay' });
+  const eVE = await PQ.latestEstimate(env, 'org-q', false);
+  const q1d = await Q(1);
+  const keepOnly = Object.fromEntries(eVE.lines.filter((l) => l.name !== 'Event management' && l.name !== 'Custom film').map((l) => [`l_${l.lid}_keep`, null]));
+  const qN = await step(q1d.text, { ...keepOnly, do: 'next' });
+  const eKeep = await PQ.latestEstimate(env, 'org-q', false);
+  check('quote step 1: a line left unticked is cut (kept on the quote, counted for nothing); Next goes to step 2', /\/quote\/2\?m=estimate_step/.test(qN.location || '') && eKeep.lines.filter((l) => !l.cut).map((l) => l.name).sort().join('|') === 'Custom film|Event management' && eKeep.lines.filter((l) => l.cut).length === 7);
+  const q2a = await Q(2, two);
+  check('quote step 2: each kept line lists who does it by name with their price, "me" for his hours; a cut line is not there', /name="l_[^"]+_c0_name" maxlength="120" value="Vendor V"/.test(q2a.text) && /value="Team T"/.test(q2a.text) && /value="me"/.test(q2a.text) && !/Hybrid event virtual stage/.test(form1(q2a.text)) && /Custom film<[^]*?Cost missing: nobody on this line yet/.test(q2a.text) && !/[$]0\.00 known/.test(q2a.text) && /placeholder="A name, or me"/.test(q2a.text) && !/<select[^>]*_who"/.test(q2a.text) && /[$]200\.00 <span class="d-sub">\(2 × [$]100\.00\)/.test(q2a.text));
+  const q4a = await Q(4, two);
+  check('quote step 4: the unfinished line is flagged, the suggestion counts what is known, and his price box is empty', /at least [$]1,421\.54/.test(q4a.text) && /1 cost missing/.test(q4a.text) && /name="price" inputmode="decimal" value=""/.test(q4a.text) && /Suggested price<\/span><strong>at least [$]1,425\.00/.test(q4a.text), q4a.text.match(/Suggested price<\/span><strong>[^<]*/)?.[0]);
+  check('quote step 4: owner time is a cost, your pay apart from company profit; tax set-aside on its own', /Your pay<br>/.test(q4a.text) && /[$]200\.00/.test(q4a.text) && /what the business keeps on top of your pay/.test(q4a.text) && /estimate<\/span>/.test(q4a.text) && /Tax set-aside/.test(q4a.text) && /<legend>Discount \(optional\)<\/legend>/.test(q4a.text));
+  const lidOf = (html, name) => (html.match(new RegExp(`<input type="hidden" name="lid" value="([^"]+)">(?:(?!name="lid")[\\s\\S]){0,600}?${name}`)) || [])[1];
+  const lCustom = lidOf(q1d.text, 'Custom film');
+  await step((await Q(1)).text, { [`l_${lCustom}_keep`]: null, do: 'stay' });
+  const qP = await step(q4a.text, { price: '3000', do: 'next' });
+  const q4 = await Q(4, two);
+  const q1e = await Q(1);
+  check('quote: a cut line is struck through on the work, counts for nothing and raises no flag; the price he typed is kept', /\/quote\/5\?m=estimate_step/.test(qP.location || '') && /d-wline d-cut[^]*?Custom film/.test(q1e.text) && !/costs? missing/i.test(q4.text) && /Company profit<\/span><strong>[$]2,076\.00/.test(q4.text) && /name="price" inputmode="decimal" value="3000"/.test(q4.text), q4.text.match(/Company profit<\/span><strong>[^]{0,60}/)?.[0]);
+  check('quote step 4: payment timing is there, folded: deposit from Settings, covered or short, information only', /<summary><span>Deposit and payment timing/.test(q4.text) && /Covered by [$]/.test(q4.text) && /never enforces them, and writes nothing to Money or the cash forecast/.test(q4.text) && /name="m_0_pct" inputmode="decimal" value="50"/.test(q4.text));
+  const eP = await PQ.latestEstimate(env, 'org-q', false);
+  check('quote: each step changes only what it shows: the step-4 save kept the lines, the cut and the client', eP.lines.length === eKeep.lines.length && eP.lines.find((l) => l.name === 'Custom film').cut && eP.client === 'Org Q' && eP.price === 3000);
 
-  // An override starts as a Guess; a rate change reprices the draft; sending freezes it; editing makes v2.
+  // An edit starts as a Guess; a rate change reprices the draft; sending freezes it; editing makes v2.
+  const q2 = await Q(2);
   const lEv = lidOf(q2.text, 'Event management');
-  const qO = await call(env, '/dashboard/estimate', { method: 'POST', cookie: s.cookie, form: put(posted(q2.text, '/dashboard/estimate'), { [`l_${lEv}_c0_qty`]: '2', [`l_${lEv}_c0_qtyStatus`]: 'agreed', do: 'save' }) });
+  const qO = await step(q2.text, { [`l_${lEv}_c0_qty`]: '2', do: 'next' });
   const eO = await PQ.latestEstimate(env, 'org-q', false);
-  check('quote: an override (how much) changes this quote only and starts as a Guess', /m=estimate_saved/.test(qO.location || '') && eO.lines[0].components[0].qty === 2 && eO.lines[0].components[0].qtyStatus === 'guess' && svc1.components[0].qty === 1);
+  const evO = eO.lines.find((l) => l.lid === lEv);
+  check('quote step 2: an edit (how many) changes this quote only, keeps the rate-list person, and starts as a Guess', /\/quote\/3\?m=estimate_step/.test(qO.location || '') && evO.components[0].qty === 2 && evO.components[0].who === vid && evO.components[0].qtyStatus === 'guess' && evO.components.length === 3 && svc1.components[0].qty === 1);
   const rP = await call(env, '/dashboard/rates', { cookie: s.cookie });
   await call(env, '/dashboard/rates', { method: 'POST', cookie: s.cookie, form: put(posted(rP.text, '/dashboard/rates'), { p_1_rate: '60' }) });
-  const q3 = await call(env, '/dashboard/flow/org-q/quote', { cookie: s.cookie });
-  check('quote: a rate change reprices the draft', /[$]240\.00 <span class="d-sub">\(4 × [$]60\.00\)/.test(q3.text));
-  const qS = await call(env, '/dashboard/estimate', { method: 'POST', cookie: s.cookie, form: put(posted(q3.text, '/dashboard/estimate'), { do: 'send' }) });
+  const q2r = await Q(2);
+  check('quote: a rate change reprices the draft', /[$]240\.00 <span class="d-sub">\(4 × [$]60\.00\)/.test(q2r.text));
+  const q3 = await Q(3);
+  check('quote step 3: other costs, and only the hours of his not already on a line', /2 hours<\/strong> of yours are already on service lines/.test(q3.text) && /nothing counts twice/.test(q3.text) && /name="extra_hours"/.test(q3.text) && /name="o_0_item"/.test(q3.text));
+  const q5 = await Q(5);
+  const qS = await step(q5.text, { do: 'send' });
+  await step((await Q(2)).text, { do: 'next' });
+  const histSent = await PQ.estimateHistory(env, 'org-q', false);
   const rP2 = await call(env, '/dashboard/rates', { cookie: s.cookie });
   await call(env, '/dashboard/rates', { method: 'POST', cookie: s.cookie, form: put(posted(rP2.text, '/dashboard/rates'), { p_1_rate: '90' }) });
-  const q4 = await call(env, '/dashboard/flow/org-q/quote', { cookie: two.cookie });
-  check('quote: a sent quote is frozen with its settings and rates; a later rate change does not touch it', /m=estimate_sent/.test(qS.location || '') && /Version 1 · Sent \(frozen\)/.test(q4.text) && /[$]240\.00 <span class="d-sub">\(4 × [$]60\.00\)/.test(q4.text) && /Save as version 2 \(draft\)/.test(q4.text));
-  await call(env, '/dashboard/estimate', { method: 'POST', cookie: s.cookie, form: put(posted(q4.text, '/dashboard/estimate'), { do: 'save' }) });
+  const q2f = await Q(2, two);
+  const q5f = await Q(5, two);
+  check('quote: a sent quote is frozen with its settings and rates; a later rate change does not touch it, and stepping through it unchanged makes no new version', /\/quote\/5\?m=estimate_sent/.test(qS.location || '') && /Version 1 · Sent \(frozen\)/.test(q5f.text) && /[$]240\.00 <span class="d-sub">\(4 × [$]60\.00\)/.test(q2f.text) && /Save as version 2 \(draft\)/.test(q5f.text) && histSent.length === 1 && histSent[0].status === 'sent');
+  await step(q5f.text, { project: 'Spring film', do: 'save' });
   const hist = await PQ.estimateHistory(env, 'org-q', false);
-  const q5 = await call(env, '/dashboard/flow/org-q/quote', { cookie: s.cookie });
-  check('quote: an edit after sending makes version 2 as a draft, priced live; version 1 stays sent', hist[0].version === 2 && hist[0].status === 'draft' && hist.some((h) => h.version === 1 && h.status === 'sent') && /[$]360\.00 <span class="d-sub">\(4 × [$]90\.00\)/.test(q5.text) && /Versions · 2/.test(q5.text));
+  const q2g = await Q(2);
+  const q5g = await Q(5);
+  check('quote: an edit after sending makes version 2 as a draft, priced live; version 1 stays sent', hist[0].version === 2 && hist[0].status === 'draft' && hist.some((h) => h.version === 1 && h.status === 'sent') && /[$]360\.00 <span class="d-sub">\(4 × [$]90\.00\)/.test(q2g.text) && /Versions · 2/.test(q5g.text));
   check('quote: stored encrypted, every version', !(await env.PRODUCTIONS_DB.prepare('SELECT data_enc FROM estimate').all()).results.some((r) => /Custom film|Vendor V|3000/.test(r.data_enc)));
 
-  // The client view: the one hard rule.
+  // The client view: the one hard rule, on step 5 and on its own page.
+  const internal = /Vendor V|Team T|Custom film|[$]400|[$]90|[$]60|[$]200\.00|Starting number|profit|margin|missing|estimate|Guess|Version/i;
+  const doc5 = (q5g.text.match(/<article class="d-client"[\s\S]*?<\/article>/) || [''])[0];
+  check('quote step 5: review shows the client view as is: the services and the price only', /Event management/.test(doc5) && /Planning and running the day/.test(doc5) && /[$]3,000\.00/.test(doc5) && /Spring film · Org Q/.test(doc5) && !internal.test(doc5) && /name="do" value="send">Save and mark as sent/.test(q5g.text), doc5);
   const cv = await call(env, '/dashboard/flow/org-q/quote/client', { cookie: s.cookie });
   const doc = (cv.text.match(/<article class="d-client"[\s\S]*?<\/article>/) || [''])[0];
   check('client view: included services, descriptions and the price only', /Event management/.test(doc) && /Planning and running the day/.test(doc) && /[$]3,000\.00/.test(doc));
-  check('client view: no people, rates, costs, margin, cut lines, flags or history anywhere on the page', !/Vendor V|Team T|Custom film|[$]400|[$]90|[$]60|[$]200\.00|Starting number|profit|margin|missing|estimate|Guess|Version/i.test(cv.text.replace(/<head>[\s\S]*?<\/head>/, '').replace(/No people, rates, costs, margin, cut lines, flags or history\./, '')), doc);
+  check('client view: no people, rates, costs, margin, cut lines, flags or history anywhere on the page', !internal.test(cv.text.replace(/<head>[\s\S]*?<\/head>/, '').replace(/No people, rates, costs, margin, cut lines, flags or history\./, '')), doc);
   check('client view: built from the quote only, never from the priced result', JSON.stringify(Object.keys(clientView({ lines: [{ name: 'A', cut: false, components: [{ rate: 9 }] }], price: 5 }).services[0])) === '["name","description","qty","unit"]');
   await call(env, '/dashboard/proposal', { method: 'POST', cookie: s.cookie, form: { key: 'org-q', do: 'draft', back: '/dashboard/flow/org-q/proposal' } });
   const prop = (await call(env, '/dashboard/flow/org-q/proposal', { cookie: s.cookie })).text;
   check('proposal: drafted from the quote tool\'s client view: services and the price, no cost, person or cut line', /Event management: Planning and running the day/.test(prop) && /[$]3,000 in total/.test(prop) && !/Vendor V|Team T|Custom film|Starting/.test(prop));
   const rec = await call(env, '/dashboard/flow/org-q', { cookie: s.cookie });
-  check('deal record: the Quote step opens the quote tool and says where it stands', /href="\/dashboard\/flow\/org-q\/quote">Quote ›/.test(rec.text) && /Version 2 · draft · 1 lines · price [$]3,000/.test(rec.text) && !/Earlier quote/.test(rec.text));
+  check('deal record: the Quote step opens the quote tool and says where it stands', /href="\/dashboard\/flow\/org-q\/quote">Quote ›/.test(rec.text) && /Version 2 · draft · 1 line · price [$]3,000/.test(rec.text) && !/Earlier quote/.test(rec.text));
   const forecastAfter = JSON.stringify(await env.PRODUCTIONS_DB.prepare("SELECT (SELECT COUNT(*) FROM row_cache) AS a, (SELECT COUNT(*) FROM setting) AS b, (SELECT COUNT(*) FROM sync_state) AS c, (SELECT COUNT(*) FROM action_log) AS d").first());
   check('no cash write: quote saves leave the synced money rows, settings, sync state and action log as they were', forecastBefore === forecastAfter, `${forecastBefore} ${forecastAfter}`);
 

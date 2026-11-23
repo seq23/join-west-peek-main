@@ -5,7 +5,7 @@
  */
 import { esc, isoDay, money, usDay, usTime } from './core.mjs';
 import { FUNNEL_STAGES, stageOptions } from './data.mjs';
-import { CASH_RULES, rulesWalk, CALL_NOTES, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, BILLED, BOX_WORDS, OWNER_MODELS, PERSON_TYPES, RATE_PER, ROLE_KINDS, catalogTiers, discoveryQuestions, quoteMath, quoteServices, roleCost, servicesOf, templateRoles } from './deal.mjs';
+import { CASH_RULES, rulesWalk, CALL_NOTES, CATALOG_STRUCTURE, DISCOVERY_PROFILE, PAY_PLANS, PROPOSAL_STATUS, SERVICE_NAMES, TERMS, BILLED, BOX_WORDS, OWNER_MODELS, PERSON_TYPES, RATE_PER, ROLE_KINDS, catalogTiers, allDiscoveryQuestions, quoteMath, quoteServices, roleCost, servicesOf, templateRoles } from './deal.mjs';
 import { EVENT_SERVICE, SERVICES, SERVICE_BY_ID, serviceFrom } from '../services.mjs';
 import { priceQuote, pricingFor } from './pricing.mjs';
 import { EMAIL_OFF, act, dayOr, empty, errorBox, gap, mailto, page, sec, val } from './views.mjs';
@@ -39,7 +39,7 @@ export function dealSections(j, ctx) {
   const quoteLine = hold ? 'Held' : !q ? 'No quote yet' : q.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Costs ${m$(qm.cost)}${qm.unpriced.length ? ` + ${qm.unpriced.length} not priced` : ''} · client price ${qm.net === null ? gap('not set') : m$(qm.net)}${qm.margin?.provisional.length ? ' · margin provisional' : ''}${qm.term ? ` · ${esc(TERMS[qm.term])}` : ''}`;
   const est = ctx.estimate;
   const pq = est && !est.unreadable && ctx.pricing ? priceQuote({ ...pricingFor(est, ctx.pricing), quote: est }) : null;
-  const estLine = hold ? 'Held' : !est ? 'No quote yet' : est.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Version ${est.version} · ${est.status === 'sent' ? 'sent' : 'draft'} · ${est.lines.filter((l) => !l.cut).length} lines · price ${pq.net === null ? gap('not set') : esc(money(pq.net))}${pq.missing ? ` · <span class="d-gold">${pq.missing} costs missing</span>` : ''}`;
+  const estLine = hold ? 'Held' : !est ? 'No quote yet' : est.unreadable ? '<span class="d-red">This quote could not be read back.</span>' : `Version ${est.version} · ${est.status === 'sent' ? 'sent' : 'draft'} · ${((n) => `${n} ${n === 1 ? 'line' : 'lines'}`)(est.lines.filter((l) => !l.cut).length)} · price ${pq.net === null ? gap('not set') : esc(money(pq.net))}${pq.missing ? ` · <span class="d-gold">${pq.missing} ${pq.missing === 1 ? 'cost' : 'costs'} missing</span>` : ''}`;
   const propLine = !p ? 'No proposal yet' : `${esc(PROPOSAL_STATUS[p.status] || p.status)} · version ${p.versions} · ${esc(usTime(p.at, ctx.now))}`;
   const delLine = del ? `${del.tasks.filter((t) => !t.done).length} open tasks · portal ${del.portalSince ? 'on' : 'off'}` : 'Starts once accepted';
   const gmail = `https://mail.google.com/mail/u/0/#search/${encodeURIComponent((j.deal?.email || j.inquiries.at(-1)?.email) ? `"${j.deal?.email || j.inquiries.at(-1)?.email}"` : `"${j.name}"`)}`;
@@ -72,8 +72,8 @@ export function inquiriesBody(view, ctx, journeysByKey) {
       <div class="d-grid2"><div><label for="rl-org">Organization</label><input id="rl-org" name="org" required maxlength="160"></div><div><label for="rl-name">Person</label><input id="rl-name" name="name" maxlength="160"></div></div>
       <div class="d-grid2"><div><label for="rl-email">Their email</label><input id="rl-email" name="email" type="email" maxlength="200"></div><div><label for="rl-owner">Owner</label><input id="rl-owner" name="owner" maxlength="120"></div></div>
       <label for="rl-need">What they may need, and why now</label><textarea id="rl-need" name="need" maxlength="1000"></textarea>
-      <p><button type="submit" class="d-primary">Add to my tracker</button></p>
-      <p class="d-sub">You pick each one: nothing is added unless you press this. It adds one row at the bottom of your tracker, with Source "Researched".</p></form></details>`;
+      <p><button type="submit" class="d-primary">Add this lead</button></p>
+      <p class="d-sub">You pick each one: nothing is added unless you press this. It lands on your board under New leads and as one row at the bottom of your tracker, with Source "Researched".</p></form></details>`;
   return { list, add };
 }
 function orgOf(r, map) {
@@ -108,7 +108,6 @@ export function renderDiscovery(j, ctx) {
   const services = saved.at ? servicesOf(saved.profile) : [serviceFrom(deal.service), serviceFrom(inq.service)].filter(Boolean);
   const guess = (part) => saved.profile?.[part] || guessFrom(part, deal);
   const profile = { services, ...Object.fromEntries(Object.keys(DISCOVERY_PROFILE).map((k) => [k, guess(k)])) };
-  const qs = discoveryQuestions(profile);
   const back = `/dashboard/flow/${encodeURIComponent(j.key)}/discovery`;
   const answer = (q) => esc(saved.answers?.[q.id] || '');
   const tiles = `<div class="d-svcs">${SERVICES.map((x) => `<label class="d-svc">${x.icon}<span>${esc(x.name)}</span><input type="checkbox" name="p_services" value="${x.id}"${services.includes(x.id) ? ' checked' : ''}></label>`).join('')}</div>`;
@@ -116,14 +115,21 @@ export function renderDiscovery(j, ctx) {
   const event = `<div class="d-event"><div class="d-grid2"><div><label for="ev-start">Event start date</label><input id="ev-start" name="event_start" type="date" value="${esc(ev.start)}"></div><div><label for="ev-end">Event end date</label><input id="ev-end" name="event_end" type="date" value="${esc(ev.end)}"></div></div><p class="d-sub">For ${esc(EVENT_SERVICE.name)}.${!saved.event?.start && ev.start ? ' From their form on your site.' : ''}</p></div>`;
   const pickers = `<div class="d-grid2">${Object.entries(DISCOVERY_PROFILE).map(([k, def]) => `<div><label for="dp-${k}">${esc(def.label)}</label><select id="dp-${k}" name="p_${k}"><option value="">Choose…</option>${Object.entries(def.options).map(([v, l]) => `<option value="${v}"${profile[k] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`).join('')}</div>`;
   const call = CALL_NOTES.map((q) => `<label for="dq-${q.id}">${esc(q.text)}</label><textarea id="dq-${q.id}" name="a_${q.id}" maxlength="2000">${answer(q)}</textarea>`).join('');
-  const guided = qs.map((q, i) => `<label for="dq-${q.id}">${i + 1}. ${esc(q.text)}</label><textarea id="dq-${q.id}" name="a_${q.id}" maxlength="2000">${answer(q)}</textarea>`).join('');
+  // Every question is on the page before he saves; the ones his picks ask show, numbered, as he
+  // picks (CSS only). Without :has() support every question shows. Saving stores; nothing new appears.
+  const all = allDiscoveryQuestions();
+  const tagClass = (t) => `dq-${t.replace(':', '-')}`;
+  const guided = `<ol class="d-dq">${all.map((q) => `<li class="d-dq__q${q.when.length ? ` d-dq__if ${q.when.map(tagClass).join(' ')}` : ''}"><label for="dq-${q.id}">${esc(q.text)}</label><textarea id="dq-${q.id}" name="a_${q.id}" maxlength="2000">${answer(q)}</textarea></li>`).join('')}</ol>`;
+  const tags = [...new Set(all.flatMap((q) => q.when))];
+  const pick = (t) => { const [part, v] = t.split(':'); return part === 'svc' ? `input[name="p_services"][value="${v}"]:checked` : `select[name="p_${part}"] option[value="${v}"]:checked`; };
+  const reveal = `<style>@supports selector(:has(*)){.d-dq__if{display:none}${tags.map((t) => `.d-form:has(${pick(t)}) .${tagClass(t)}`).join(',')}{display:list-item}}</style>`;
   const status = ctx.discovery?.at ? `<p class="d-src">Last saved ${esc(usTime(ctx.discovery.at, ctx.now))}</p>` : '';
   const save = (label) => `<p><button type="submit" class="d-primary">${label}</button></p>`;
   const form = `<form class="d-form" method="post" action="/dashboard/discovery">${hidden('key', j.key)}${hidden('back', back)}
     ${sec('services', 'Services', `<p class="d-sub">Pick every service they need. Each one carries into the quote.</p>${tiles}${event}`)}
     ${sec('shape', 'About them', pickers)}
     ${sec('call', 'Sales call notes', call)}
-    ${sec('questions', `Questions · ${qs.length}`, `${services.length ? '' : '<p class="d-sub">Pick their services above and save; the questions for those services appear here.</p>'}${guided}`)}
+    ${sec('questions', 'Questions', `<p class="d-sub">The questions for what you pick above appear here as you pick. Everything is asked before you save.</p>${reveal}${guided}`)}
     ${save('Save')}<p class="d-sub">Saved with this deal on every device; every save is kept.</p></form>`;
   return shell(`Discovery · ${j.name}`, `${backTo(j)}<h1>Discovery</h1><p class="d-sub">${esc(j.name)}</p>${status}${ctx.flash || ''}${form}`, ctx);
 }
@@ -340,7 +346,7 @@ export function renderProposal(j, ctx) {
   const statusBtns = `<div class="d-acts">${['draft', 'sent'].map((s) => `<button type="submit" name="status" value="${s}"${p.status === s ? ' class="d-primary"' : ''}>Save as ${esc(PROPOSAL_STATUS[s].toLowerCase())}</button>`).join('')}</div>`;
   const editor = `<form class="d-form" method="post" action="/dashboard/proposal">${hidden('key', j.key)}${hidden('back', back)}${hidden('do', 'save')}<label for="pr-text">Proposal (you can edit every word)</label><textarea id="pr-text" name="text" rows="22" maxlength="20000"${accepted ? ' readonly' : ''}>${esc(p.text)}</textarea>${accepted ? '<p class="d-sub">Accepted: this version is kept as it was agreed.</p>' : statusBtns}</form>`;
   const accept = accepted ? `<p>Accepted ${esc(usTime(p.at, ctx.now))}. <a href="/dashboard/flow/${encodeURIComponent(j.key)}/delivery">Open delivery ›</a></p>`
-    : !j.deal ? `<p class="d-sub">Add ${esc(j.name)} to your tracker first (on their record), so acceptance moves the deal there.</p>`
+    : !j.deal ? `<p class="d-sub">${esc(j.name)} lands in your tracker by itself at the next sync; then acceptance moves the deal there.</p>`
       : `<form class="d-form" method="post" action="/dashboard/proposal">${hidden('key', j.key)}${hidden('back', back)}${hidden('do', 'accept')}<label for="pr-team">Account team (one per line: name and role)</label><textarea id="pr-team" name="team" maxlength="1000">${esc(j.deal.owner ? `${j.deal.owner}: account lead` : '')}</textarea><p><button type="submit" class="d-primary">They accepted: start delivery</button></p><p class="d-sub">${signedStage ? `Moves the deal to "${esc(signedStage)}" in your tracker (checked on read-back), ` : 'Your tracker has no signed stage, so its stage is left as it is; '}keeps this version as agreed, sets up the account team, a task for each scope line, and a private portal for ${esc(j.name)} only. No invoice is created.</p></form>`;
   const stageNow = j.deal ? `<p class="d-sub">Deal stage in your tracker: ${val(j.deal.stage)}. The proposal stays attached as the deal moves through your stages.</p>` : '';
   return shell(`Proposal · ${j.name}`, `${backTo(j)}<h1>Proposal</h1><p class="d-sub">${esc(PROPOSAL_STATUS[p.status])} · version ${p.versions} · saved ${esc(usTime(p.at, ctx.now))}</p>${ctx.flash || ''}${stageNow}${sec('text', 'The proposal', editor + (accepted ? '' : draftBtn))}${sec('accept', 'Accepted?', accept)}`, ctx);
