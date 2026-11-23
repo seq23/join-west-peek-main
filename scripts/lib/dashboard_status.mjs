@@ -59,3 +59,25 @@ export function addressReadable({ obfuscation, cacheControl }) {
   if (obf !== 'on' || cacheControl == null) return 'unknown';
   return /(^|[\s,])no-transform($|[\s,])/i.test(cacheControl) ? 'yes' : 'after_land';
 }
+
+/**
+ * What still stands between this environment and "the dashboard reads and writes your real tracker,
+ * and a submitter's address is readable" — in order, each a step someone can actually take. Inputs are
+ * production's own readings; a reading that is missing never turns into "nothing to do".
+ *   land               — production still serves the code before this PR (his approval, then the merge)
+ *   set_google_app     — the Google sign-in app's keys are not on this Pages project (the firm's vault)
+ *   connect_google     — Google is not connected here (Scooter presses Connect Google on Connections)
+ *   name_tracker_sheet — neither his deal tracker nor the Work sheet is named here
+ *   first_tracker_write — it reads, but no change has yet been saved and checked in his tracker
+ *   check_again        — a reading was missing, so the list cannot be trusted as complete
+ */
+export function nextSteps({ readable, googleApp, disconnected = [], named = [], reads, writes }) {
+  const steps = [];
+  if (readable === 'after_land') steps.push('land');
+  if (googleApp === 'not_set') steps.push('set_google_app');
+  if (disconnected.includes('google')) steps.push('connect_google');
+  if (!named.includes('tracker') && !named.includes('work')) steps.push('name_tracker_sheet');
+  if (reads && !writes) steps.push('first_tracker_write');
+  if (readable === 'unknown' || googleApp === 'unknown') steps.push('check_again');
+  return steps.length ? steps : ['none'];
+}

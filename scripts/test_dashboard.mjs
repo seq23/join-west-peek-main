@@ -1565,6 +1565,13 @@ const realFetch = globalThis.fetch;
     && addressReadable({ obfuscation: 'on', cacheControl: 'no-transformx' }) === 'after_land'
     && addressReadable({ obfuscation: 'on', cacheControl: null }) === 'unknown'
     && addressReadable({ obfuscation: 'unknown (zone settings answered 403)', cacheControl: 'no-transform' }) === 'unknown');
+  const { nextSteps } = await import('./lib/dashboard_status.mjs');
+  check('dashboard:status: next names every step left for the live tracker and address, in order, and never none on a missing reading',
+    nextSteps({ readable: 'after_land', googleApp: 'not_set', disconnected: ['google', 'xero'], named: [], reads: false, writes: false }).join(',') === 'land,set_google_app,connect_google,name_tracker_sheet'
+    && nextSteps({ readable: 'yes', googleApp: 'set', disconnected: ['xero'], named: ['work'], reads: true, writes: true }).join(',') === 'none'
+    && nextSteps({ readable: 'yes', googleApp: 'set', disconnected: [], named: ['tracker'], reads: true, writes: false }).join(',') === 'first_tracker_write'
+    && nextSteps({ readable: 'unknown', googleApp: 'set', disconnected: [], named: ['work'], reads: true, writes: true }).join(',') === 'check_again'
+    && nextSteps({ readable: 'n/a', googleApp: 'unknown', disconnected: [], named: ['work'], reads: true, writes: true }).join(',') === 'check_again');
   check('dashboard:status: says what is connected and what is not, and whether the tracker is read and written, with no name, address or figure', rep.reads === false && rep.writes === false && rep.disconnected.includes('google') && /reads_tracker=no writes_tracker=no/.test(rep.output) && /site_inquiries=1/.test(rep.output) && !/Org Q|Person Q|@|[$]/.test(rep.lines.join(' ')), rep.lines.join(' | '));
 }
 

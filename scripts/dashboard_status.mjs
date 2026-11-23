@@ -11,7 +11,7 @@
  * Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (injected by the runner). Missing either, an
  * unknown --env, or no database is a NAMED STOP, exit 2. Ends with one `OUTPUT dashboard:status …` line.
  */
-import { statusReport, addressReadable } from './lib/dashboard_status.mjs';
+import { statusReport, addressReadable, nextSteps } from './lib/dashboard_status.mjs';
 
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
 function stop(line) { console.log(line); console.error(line); process.exit(2); }
@@ -44,6 +44,19 @@ async function liveCacheControl() {
   try { const r = await fetch(`${site}/dashboard`, { redirect: 'manual' }); return r.headers.get('cache-control') || ''; }
   catch { return null; }
 }
+// Are the Google sign-in app's keys on this environment? Names only, from the Pages project's own config
+// (a Pages secret wins) or a pair Scooter pasted on Connections (the app_key row). Never a value.
+async function googleApp(query) {
+  const NAMES = ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'];
+  let pasted = false;
+  try { pasted = (await query("SELECT COUNT(*) AS n FROM app_key WHERE provider = 'google'"))[0]?.n > 0; } catch { /* older schema: no app_key table */ }
+  if (pasted) return 'set';
+  try {
+    const proj = await cf('/pages/projects/west-peek-productions');
+    const vars = proj?.deployment_configs?.[env]?.env_vars || {};
+    return NAMES.every((n) => n in vars) ? 'set' : 'not_set';
+  } catch (err) { return 'unknown'; }
+}
 const dbName = `west-peek-productions-dashboard-${env}`;
 let db;
 try { db = (await cf(`/d1/database?name=${encodeURIComponent(dbName)}`) || []).find((d) => d.name === dbName); } catch (err) { console.error(`dashboard:status env=${env}: ${err.message}`); process.exit(1); }
@@ -68,7 +81,11 @@ try {
     readable = addressReadable({ obfuscation: obf, cacheControl: cc });
     console.log(`  live /dashboard cache-control: ${cc == null ? 'unreachable' : (cc || 'none')}; addresses readable on the live Inquiries page: ${readable}${readable === 'after_land' ? ' (the fix is on the preview; production still serves the code before it)' : ''}`);
   }
-  console.log(`OUTPUT dashboard:status env=${env} ${rep.output} email_obfuscation=${obf.split(' ')[0]} address_readable=${readable}`);
+  const app = await googleApp(query);
+  const next = nextSteps({ readable, googleApp: app, disconnected: rep.disconnected, named: rep.named, reads: rep.reads, writes: rep.writes });
+  console.log(`  Google sign-in app keys on this environment: ${app}`);
+  console.log(`  still to do, in order: ${next.join(', ')}`);
+  console.log(`OUTPUT dashboard:status env=${env} ${rep.output} email_obfuscation=${obf.split(' ')[0]} address_readable=${readable} google_app=${app} next=${next.join(',')}`);
   if (!rep.ownerPresent) stop(`NAMED STOP dashboard:status owner_missing: ${dbName} has no owner row; run npm run dashboard:setup -- --env ${env}`);
 } catch (err) {
   console.error(`dashboard:status env=${env}: ${err.message}`);
