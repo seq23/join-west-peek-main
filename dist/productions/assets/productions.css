@@ -321,7 +321,8 @@ table.data tr:last-child td { border-bottom: 0; }
 /* The Gap's headline (Scooter, 15 Nov 2026: "more prominent"): bigger, an orange rule above, its line under. */
 .wpp-bigline-block { margin: clamp(48px, 7vw, 88px) 0 0; padding-top: clamp(28px, 4vw, 44px); border-top: 4px solid #b45300; }
 .wpp-bigline { font-size: clamp(40px, 7vw, 92px); font-weight: 700; line-height: 1; letter-spacing: -0.04em; margin: 0; max-width: 15ch; color: var(--paper-ink) !important; }
-.wpp-bigline__sub { font-size: clamp(20px, 2.4vw, 28px); line-height: 1.35; font-weight: 500; color: #3c3e43; margin: clamp(16px, 2vw, 24px) 0 0; max-width: 34ch; }
+/* A full sentence in the headline's place (Scooter, 20 Nov 2026): same weight, colour and rule, a wider measure and a step down in size so 15 words read in about four lines. */
+.wpp-bigline--long { font-size: clamp(30px, 4.4vw, 60px); line-height: 1.08; letter-spacing: -0.03em; max-width: 24ch; }
 @media (max-width: 760px) { .wpp-stale { grid-template-columns: repeat(2, 1fr); } .wpp-stale li { font-size: 16px; } }
 
 /* Who we work with: four tiles with a hover state. Touch screens show the line always. */

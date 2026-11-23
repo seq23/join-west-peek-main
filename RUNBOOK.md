@@ -33,19 +33,29 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   to joinwestpeek.com, westpeekproductions.com or westpeek.live; `dilution.joinwestpeek.com` is the
   one allowed sister host. Structured data (JSON-LD) may still reference the family — it is not
   navigation. Guard: `npm run validate:ventures-isolation`.
-- **Ventures forms are bot-checked on the server** (Scooter, 8 Oct 2026: spam posted straight to
-  `/api/lead`). On ventures hosts only, `functions/api/lead.js` drops a POST with a missing or foreign
-  `Origin`/`Referer` (200 `sheet:"skipped"`, no email, no row), and drops one whose Turnstile token
-  Cloudflare siteverify definitively rejects (400 `bot_check_failed`). **The bot check never blocks a
-  real inquiry** (owner, 15 Nov 2026, reversing the 3 Nov fail-closed rule): keys unset, siteverify
-  unreachable/slow/erroring, or no token (widget blocked) → delivered as normal, with `bot_check`
-  `not_configured` / `unavailable` / `no_token` in the logs and the outcome report. The hidden
-  `website` honeypot stays. Every drop is logged with its reason; responses carry `bot_check`. Every ventures form carries
-  `data-bot-check="turnstile"`; `forms.js` renders an interaction-only widget when `GET /api/lead` returns
-  a site key. Guard: rule FORM-13 in `npm run validate:forms`.
-- **Every site's `/api/lead` is limited per IP** (security sweep, 3 Nov 2026): 5 POSTs an hour per
-  address (Cache API counter, per data centre), then 429 `rate_limited` before the body is read; the
-  form shows its email fallback. Guard: rule FORM-14 in `npm run validate:forms`.
+- **Every site's forms are bot-checked and capped on the server** (her ruling 23 Nov 2026, "Option B";
+  the owner's 15 Nov rule that an unchecked inquiry is still delivered stays). `functions/api/lead.js`,
+  on all three hosts:
+  - a POST with a missing or foreign `Origin`/`Referer` is dropped (200 `sheet:"skipped"`, no email, no row);
+  - **Turnstile keys unset on the project (or Cloudflare's public TEST secret on a real host) → refused**
+    503 `bot_check_not_configured` (NAMED STOP `TURNSTILE_KEYS_MISSING` in the log) and the alarm fires;
+  - a token siteverify rejects (forged, spent, or solved on another site's hostname) → refused 400
+    `bot_check_failed`, nothing sent, no row; siteverify is called with THIS project's own secret;
+  - a passing token → the **checked lane**: the deck PDF is read (real bytes start `%PDF-`, at most
+    10 MB, filename cleaned) and attached;
+  - no token, or siteverify unreachable/erroring → the **unchecked lane**: delivered, but any file is
+    never read or attached (`deck:"not_attached"`, the email and the thank-you panel say so);
+  - **daily caps** (America/Chicago day) in the forms-mailer Worker's existing KV (`ALARMS`), via
+    `POST /quota`: unchecked 3 per IP and 25 site-wide; any lane 10 per IP and 60 checked site-wide.
+    Over → 429 `rate_limited`, nothing sent. IPs are stored only as a short SHA-256 hash, keys expire
+    after 2 days. **A count that cannot be read** (KV down, no mailer) → an unchecked lead is refused
+    503 `try_again` with a retry message; a checked lead is still delivered and `count_unreadable` alarms;
+  - the reply-to is ONE validated address (no lists, display names or line breaks) → else 400 `invalid_email`.
+  The hidden `website` honeypot stays. Every form carries `data-bot-check="turnstile"`; `forms.js`
+  renders the widget with `execution: "execute"` and mints a token only on submit (a token minted at
+  page load is never verified, which is what Cloudflare's "siteverify isn't being called" alert
+  meant on 23 Nov 2026). Guards: FORM-13 and FORM-7 in `npm run validate:forms`;
+  `scripts/test_lead_delivery.mjs` cases 4 and 10–15.
 - **Ventures visual system is frozen** — colours, fonts, styling stay; changes are structure and
   content. The WP monogram (`sites/ventures/assets/img/wp-monogram.png`, black ink) is rendered
   white with `filter: invert(1)` (approved 20 Sep 2026).
@@ -62,7 +72,7 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   17 Nov 2026: "Privacy pages naming Google Analytics (and Clarity)"; risk rule R-PRV-04):
   `sites/<site>/privacy.html`, linked from the footer of every page (nav lists unchanged), one page
   per site because the sites may not link to each other. Today: Google Analytics on all three and
-  Cloudflare Turnstile on ventures; nothing else (Scooter, 19 Nov 2026: "Google Analytics only.
+  Cloudflare Turnstile on all three (the forms' bot check); nothing else (Scooter, 19 Nov 2026: "Google Analytics only.
   Remove Microsoft Clarity and leave other tracking off" — `guardTrackers` in `scripts/build.mjs`
   fails the build on Clarity, GTM, Meta, Hotjar, LinkedIn, TikTok, Plausible or Segment tags). Contact on all three:
   info@westpeek.ventures (Scooter, 18 Nov 2026). The wording describes what the forms really do
@@ -391,7 +401,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 ## Guards, and what each pins
 | Script | Pins |
 |---|---|
-| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); the ventures bot check — Origin gate and Turnstile verification executed against a stubbed fetch, every ventures form carries `data-bot-check` (FORM-13) |
+| `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); every form on all three sites carries `data-bot-check="turnstile"` (FORM-13) and the widget mints its token only on submit, then posts it (FORM-7); the server gates themselves are proven in `scripts/test_lead_delivery.mjs` |
 | `scripts/validate_dashboard_privacy.mjs` | no owners file or dashboard loader input in the repo; sample rows are all "Sample …" with example.test addresses; no address (beyond the OS inbox and test domains) or dollar figure in dashboard code; no private package document; with `DASHBOARD_PRIVATE_NAMES_FILE`, none of those names anywhere |
 | `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout (a locked password never blocks a fresh emailed code); sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are Gmail compose links and no Gmail scope is asked; his tracker read under a title line with no ID column, only changed cells written, a moved row found by organization, an inquiry appended once, unrecognised columns named; Lead to cash joins inquiry and deal; notes go into his tracker's Notes cell only and persist on a second device; his Pipeline tab read from row 11 under a summary block; site inquiries, intake owner/need, researched lead appended once; discovery shaped per deal; quote floor/unknowns/price/margin/terms/timing, encrypted; the quote tool (the brief's section 7 and 8 tests verbatim, settings/rates/catalog/templates persisted on a second device and encrypted, an unfinished line kept and flagged, cut lines, overrides as Guess, drafts reprice, sent versions frozen, the client view and its proposal carry no internal figure, no cash write, sample and Keep money out see and save nothing of his); every address inside email_off; dashboard:status counts only; proposal never shows costs; accept moves his tracker and starts delivery; portal isolation, revoke and new link; money hold; wide grant withdrawn by sync; delete synced copies; the cash rules; Who can see what names wider grants, sharing and every table; Narrow revokes then reconnects; Keep money out deletes the money copy; ticks persist; the Pipeline lists each deal under its stage with no triage; failed sync, broken connection and a disconnected account above the Pipeline; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
@@ -438,7 +448,7 @@ Per Pages project; set through `pages_env`, never by hand.
   binding `FORMS_MAILER` → `west-peek-forms-mailer`, `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`,
   `FORMS_ALARM_TO` (the alarm addresses; vault `WP_FORMS_ALARM_TO`, never committed), `FORMS_PROBE_CF_TO` (vault `WP_FORMS_PROBE_CF_TO`). The Worker holds
   the same `FORMS_MAILER_SECRET`, `FORMS_PROBE_SECRET`, `FORMS_ALARM_TO` and `RESEND_API_KEY`.
-- `west-peek-ventures`: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret) — the Turnstile widget's keys. Both are set (production and preview; vault `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, 3 Nov 2026). Unset, ventures POSTs are still delivered, recorded `bot_check: "not_configured"`, and the `bot_check_not_configured` alarm fires (owner, 15 Nov 2026; the 3 Nov fail-closed 503 is gone).
+- All three site projects: `TURNSTILE_SITE_KEY` (plain var, public) and `TURNSTILE_SECRET_KEY` (secret), each project its OWN widget (`west-peek-community-leads`, `west-peek-ventures-leads`, `west-peek-productions-leads`; vault `WEST_PEEK_COMMUNITY_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, `WEST_PEEK_VENTURES_TURNSTILE_SITE_KEY` / `_SECRET_KEY`, `WEST_PEEK_PRODUCTIONS_TURNSTILE_SITE_KEY` / `_SECRET_KEY`). Production holds the real keys; preview holds Cloudflare's public test keys (`1x00000000000000000000AA` / `1x0000000000000000000000000000000AA`), which `lead.js` accepts only on a `*.pages.dev` or localhost host. Unset (or the test secret on a real host), every POST is refused 503 `bot_check_not_configured` and the alarm fires (her ruling 23 Nov 2026).
 - `west-peek-productions` (dashboard v1.0): `PRODUCTIONS_DB` (D1) and `PRODUCTIONS_TOKEN_KEY`
   are set by `npm run dashboard:setup`, never by hand. `GOOGLE_OAUTH_CLIENT_ID` +
   `GOOGLE_OAUTH_CLIENT_SECRET` (Internal app in his Productions Workspace; Sign in with Google and the
