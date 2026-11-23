@@ -43,3 +43,19 @@ export async function statusReport(query) {
     output: `reads_tracker=${reads ? 'yes' : 'no'} writes_tracker=${writes ? 'yes' : 'no'} connected=${PROVIDERS.filter((p) => connState(p) === 'connected').join(',') || 'none'} not_connected=${disconnected.join(',') || 'none'} sheets_named=${named.join(',') || 'none'} site_inquiries=${Number(site?.n) || 0}`
   };
 }
+
+/**
+ * Is a submitter's address readable on the live Inquiries page? (Scooter, 19 Nov 2026: Inquiries shows
+ * "[email protected]".) Cloudflare's Email Address Obfuscation rewrites addresses unless the response
+ * says `no-transform` (the dashboard also wraps each address in email_off markers). Inputs are what
+ * production actually answered: the zone setting and the live /dashboard Cache-Control header.
+ *   yes        — obfuscation is off, or the live dashboard already opts out
+ *   after_land — obfuscation is on and the live dashboard is still the old code (no no-transform)
+ *   unknown    — either reading is missing; never reported as yes
+ */
+export function addressReadable({ obfuscation, cacheControl }) {
+  const obf = String(obfuscation || '').split(' ')[0];
+  if (obf === 'off') return 'yes';
+  if (obf !== 'on' || cacheControl == null) return 'unknown';
+  return /(^|[\s,])no-transform($|[\s,])/i.test(cacheControl) ? 'yes' : 'after_land';
+}

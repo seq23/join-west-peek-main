@@ -1557,6 +1557,14 @@ const realFetch = globalThis.fetch;
   // dashboard:status reads states and counts only.
   const { statusReport } = await import('./lib/dashboard_status.mjs');
   const rep = await statusReport(async (sql) => (await env.PRODUCTIONS_DB.prepare(sql).all()).results);
+  const { addressReadable } = await import('./lib/dashboard_status.mjs');
+  check('dashboard:status: the live address verdict is yes only on a real opt-out or obfuscation off, after_land on the old live code, never yes on a missing reading',
+    addressReadable({ obfuscation: 'on', cacheControl: 'no-store, private, no-transform' }) === 'yes'
+    && addressReadable({ obfuscation: 'off', cacheControl: '' }) === 'yes'
+    && addressReadable({ obfuscation: 'on', cacheControl: 'no-store, private' }) === 'after_land'
+    && addressReadable({ obfuscation: 'on', cacheControl: 'no-transformx' }) === 'after_land'
+    && addressReadable({ obfuscation: 'on', cacheControl: null }) === 'unknown'
+    && addressReadable({ obfuscation: 'unknown (zone settings answered 403)', cacheControl: 'no-transform' }) === 'unknown');
   check('dashboard:status: says what is connected and what is not, and whether the tracker is read and written, with no name, address or figure', rep.reads === false && rep.writes === false && rep.disconnected.includes('google') && /reads_tracker=no writes_tracker=no/.test(rep.output) && /site_inquiries=1/.test(rep.output) && !/Org Q|Person Q|@|[$]/.test(rep.lines.join(' ')), rep.lines.join(' | '));
 }
 

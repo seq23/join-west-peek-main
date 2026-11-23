@@ -11,7 +11,7 @@
  * Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (injected by the runner). Missing either, an
  * unknown --env, or no database is a NAMED STOP, exit 2. Ends with one `OUTPUT dashboard:status …` line.
  */
-import { statusReport } from './lib/dashboard_status.mjs';
+import { statusReport, addressReadable } from './lib/dashboard_status.mjs';
 
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
 function stop(line) { console.log(line); console.error(line); process.exit(2); }
@@ -37,6 +37,13 @@ async function emailObfuscation() {
     return String((await get(`/zones/${zone.id}/settings/email_obfuscation`))?.value || 'unknown');
   } catch (err) { return `unknown (zone settings answered ${err.message})`; }
 }
+// The live dashboard's own answer: does production already serve the no-transform opt-out? GET with no
+// cookie (the sign-in screen carries the same headers); reads one header, sends nothing else.
+async function liveCacheControl() {
+  const site = process.env.DASHBOARD_STATUS_SITE || 'https://westpeekproductions.com';
+  try { const r = await fetch(`${site}/dashboard`, { redirect: 'manual' }); return r.headers.get('cache-control') || ''; }
+  catch { return null; }
+}
 const dbName = `west-peek-productions-dashboard-${env}`;
 let db;
 try { db = (await cf(`/d1/database?name=${encodeURIComponent(dbName)}`) || []).find((d) => d.name === dbName); } catch (err) { console.error(`dashboard:status env=${env}: ${err.message}`); process.exit(1); }
@@ -55,7 +62,13 @@ try {
   // Obfuscation. Read only; the dashboard opts out of it (Cache-Control no-transform + email_off markers).
   const obf = env === 'production' ? await emailObfuscation() : 'n/a (pages.dev is not proxied)';
   console.log(`  email obfuscation on westpeekproductions.com: ${obf}; dashboard pages opt out with no-transform and email_off markers`);
-  console.log(`OUTPUT dashboard:status env=${env} ${rep.output} email_obfuscation=${obf.split(' ')[0]}`);
+  let readable = 'n/a';
+  if (env === 'production') {
+    const cc = await liveCacheControl();
+    readable = addressReadable({ obfuscation: obf, cacheControl: cc });
+    console.log(`  live /dashboard cache-control: ${cc == null ? 'unreachable' : (cc || 'none')}; addresses readable on the live Inquiries page: ${readable}${readable === 'after_land' ? ' (the fix is on the preview; production still serves the code before it)' : ''}`);
+  }
+  console.log(`OUTPUT dashboard:status env=${env} ${rep.output} email_obfuscation=${obf.split(' ')[0]} address_readable=${readable}`);
   if (!rep.ownerPresent) stop(`NAMED STOP dashboard:status owner_missing: ${dbName} has no owner row; run npm run dashboard:setup -- --env ${env}`);
 } catch (err) {
   console.error(`dashboard:status env=${env}: ${err.message}`);
