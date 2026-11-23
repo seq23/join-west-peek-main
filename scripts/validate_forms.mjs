@@ -427,9 +427,10 @@ function makeEl(tag) {
   };
 }
 
-function loadSharedHandler(fetchStub) {
+function loadSharedHandler(fetchStub, extras = {}) {
   const src = fs.readFileSync(SHARED_HANDLER, 'utf8');
   const documentStub = {
+    head: extras.head,
     readyState: 'complete',
     addEventListener() {},
     querySelectorAll() {
@@ -438,10 +439,14 @@ function loadSharedHandler(fetchStub) {
     createElement: (t) => makeEl(t),
     createTextNode: (t) => ({ nodeText: String(t) })
   };
-  const shim = {};
+  const shim = { ...(extras.turnstile ? { turnstile: extras.turnstile } : {}) };
   class FormDataStub {
     constructor(form) {
       this.form = form;
+      this.fields = {};
+    }
+    set(k, v) {
+      this.fields[k] = v;
     }
   }
   // eslint-disable-next-line no-new-func
@@ -450,9 +455,12 @@ function loadSharedHandler(fetchStub) {
     'fetch',
     'FormData',
     'globalThis',
+    'setTimeout',
+    'clearTimeout',
     `${src}\nreturn globalThis.WestPeekForms;`
   );
-  const api = factory(documentStub, fetchStub, FormDataStub, shim);
+  const clock = extras.clock || { setTimeout, clearTimeout };
+  const api = factory(documentStub, fetchStub, FormDataStub, shim, clock.setTimeout, clock.clearTimeout);
   if (!api || typeof api.wire !== 'function') {
     fail(
       'FORM-7',
@@ -525,6 +533,108 @@ function makeFormStub(successCopy, panel) {
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * FORM-7, the Turnstile path (jwp-lead-lock, 23 Nov 2026). Cloudflare warned that tokens were
+ * minted but never verified: the widget ran on every page view. Proven here against a stubbed
+ * widget: no token is asked for until the visitor submits, the POST carries the token the widget
+ * gave, a deck the server did not attach is named in the success line, and a widget that never
+ * answers still sends (the server's unchecked lane decides).
+ */
+/** A clock the test moves by hand: timers run only when advance() passes their time. */
+function fakeClock() {
+  let now = 0;
+  let next = 1;
+  const timers = new Map();
+  return {
+    setTimeout(fn, ms) { const id = next++; timers.set(id, { at: now + (ms || 0), fn }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    advance(ms) {
+      now += ms;
+      for (const [id, t] of [...timers].sort((a, b) => a[1].at - b[1].at)) {
+        if (t.at <= now && timers.has(id)) { timers.delete(id); t.fn(); }
+      }
+    }
+  };
+}
+
+async function checkBotCheckClient() {
+  const where = rel(SHARED_HANDLER);
+  // A person shown the checkbox gets time to answer it: past the 15 s silent wait nothing is sent,
+  // and their answer's token is what posts. A widget that never answers sends without a token
+  // (the server's capped unchecked lane) instead of hanging the form.
+  for (const scenario of ['interactive', 'silent']) {
+    const posts = [];
+    const widgetOpts = {};
+    const clock = fakeClock();
+    const turnstile = {
+      render(holder, opts) { Object.assign(widgetOpts, opts); return 'w1'; },
+      reset() {},
+      execute() { if (scenario === 'interactive') widgetOpts['before-interactive-callback'](); }
+    };
+    const head = { appendChild(tag) { setTimeout(() => tag.onload(), 0); } };
+    const fetchStub = (url, init) => {
+      if (!init || init.method !== 'POST') return Promise.resolve({ ok: true, json: () => Promise.resolve({ bot_check: 'ok', turnstile_site_key: 'site-key' }) });
+      posts.push(init.body);
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    };
+    const api = loadSharedHandler(fetchStub, { head, turnstile, clock });
+    if (!api) return;
+    const form = makeFormStub('Thanks, it reached us.');
+    form.attrs['data-bot-check'] = 'turnstile';
+    api.wire(form);
+    for (let i = 0; i < 4; i += 1) await tick();
+    form.submit();
+    await tick();
+    clock.advance(20000);
+    await tick();
+    if (scenario === 'silent') {
+      if (posts.length === 1 && !posts[0].fields['cf-turnstile-response']) pass();
+      else fail('FORM-7', where, `[turnstile silent] a widget that gives no token must still send, without one, after its wait; posts ${posts.length}`);
+      continue;
+    }
+    const early = posts.length;
+    widgetOpts.callback('tok-human');
+    for (let i = 0; i < 4; i += 1) await tick();
+    if (early === 0 && posts.length === 1 && posts[0].fields['cf-turnstile-response'] === 'tok-human') pass();
+    else fail('FORM-7', where, `[turnstile interactive] a shown challenge must get time to be answered; posted ${early} before the answer, then ${posts.length} with ${posts[0] && posts[0].fields['cf-turnstile-response']}`);
+  }
+  for (const scenario of ['token', 'deck_not_attached']) {
+    const executed = [];
+    const posts = [];
+    const widgetOpts = {};
+    const turnstile = {
+      render(holder, opts) { Object.assign(widgetOpts, opts); return 'w1'; },
+      reset() {},
+      execute(id) { executed.push(id); setTimeout(() => widgetOpts.callback('tok-123'), 0); }
+    };
+    const head = { appendChild(tag) { setTimeout(() => tag.onload(), 0); } };
+    const fetchStub = (url, init) => {
+      if (!init || init.method !== 'POST') {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, bot_check: 'ok', turnstile_site_key: 'site-key' }) });
+      }
+      posts.push(init.body);
+      const deck = scenario === 'deck_not_attached' ? 'not_attached' : 'attached';
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, deck }) });
+    };
+    const api = loadSharedHandler(fetchStub, { head, turnstile });
+    if (!api) return;
+    const form = makeFormStub('Thanks, it reached us.');
+    form.attrs['data-bot-check'] = 'turnstile';
+    api.wire(form);
+    for (let i = 0; i < 4; i += 1) await tick();
+    if (widgetOpts.execution === 'execute' && executed.length === 0) pass();
+    else fail('FORM-7', where, `[turnstile ${scenario}] the widget must wait for submit (execution "execute", no token on page view); got execution=${widgetOpts.execution}, executed ${executed.length} time(s) before submit`);
+    form.submit();
+    for (let i = 0; i < 4; i += 1) await tick();
+    if (executed.length === 1 && posts.length === 1 && posts[0].fields['cf-turnstile-response'] === 'tok-123') pass();
+    else fail('FORM-7', where, `[turnstile ${scenario}] submit must ask the widget once and post its token; executed ${executed.length}, posts ${posts.length}, token ${posts[0] && posts[0].fields['cf-turnstile-response']}`);
+    const text = form.status.text();
+    const noted = /did not come through/.test(text);
+    if (scenario === 'deck_not_attached' ? noted : !noted) pass();
+    else fail('FORM-7', where, `[turnstile ${scenario}] deck note shown=${noted} in "${text}"`);
+  }
+}
 
 async function checkSharedHandlerBehaviour() {
   if (!fs.existsSync(SHARED_HANDLER)) {
@@ -1005,144 +1115,25 @@ async function checkFormsRegister() {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// FORM-13 - the ventures bot check (Scooter, 8 Oct 2026). Spam was posting
-// straight to /api/lead; the checks that run on the server are executed here
-// against a stubbed fetch, not pattern-matched.
+// FORM-13 - every site form asks for a Turnstile token (Scooter, 8 Oct 2026, ventures; all three
+// sites from 23 Nov 2026, jwp-lead-lock). Without data-bot-check="turnstile" forms.js never renders
+// the widget, so every submission from that form would land on the capped unchecked lane, without
+// its attachment. What the SERVER does with a token is executed in scripts/test_lead_delivery.mjs.
 // ---------------------------------------------------------------------------
 
-async function checkBotCheck() {
-  const where = rel(LEAD_HANDLER);
-  let mod;
-  try {
-    mod = await import(pathToFileURL(LEAD_HANDLER).href);
-  } catch (err) {
-    fail('FORM-13', where, `lead.js could not be imported: ${err.message}`);
-    return;
-  }
-
-  // Every ventures form carries the attribute that makes forms.js render the widget.
-  let ventureForms = 0;
-  const dir = path.join(root, 'sites', 'ventures');
-  for (const file of htmlFiles(dir)) {
-    const html = fs.readFileSync(file, 'utf8');
-    for (const m of html.matchAll(/<form\b[^>]*data-westpeek-form[^>]*>/gi)) {
-      ventureForms += 1;
-      if (/data-bot-check="turnstile"/.test(m[0])) pass();
-      else fail('FORM-13', rel(file), 'a ventures form lacks data-bot-check="turnstile", so it would never send a Turnstile token.');
-    }
-  }
-  if (ventureForms === 0) {
-    fail('FORM-13', rel(dir), 'no ventures form with data-westpeek-form was found; the bot-check scan proves nothing.');
-    return;
-  }
-  pass();
-
-  const realFetch = globalThis.fetch;
-  async function post({ host, origin, token, keys, verify }) {
-    const calls = { resend: 0, sheet: 0, verify: 0 };
-    globalThis.fetch = async (url) => {
-      const u = String(url);
-      if (u.includes('api.resend.com')) { calls.resend += 1; return { ok: true, text: async () => '' }; }
-      if (u.includes('siteverify')) {
-        calls.verify += 1;
-        if (verify === 'unreachable') throw new TypeError('fetch failed');
-        if (verify === 'http500') return { ok: false, status: 500, json: async () => null };
-        return { ok: true, json: async () => verify };
+function checkBotCheck() {
+  for (const site of ['community', 'ventures', 'productions']) {
+    const dir = path.join(root, 'sites', site);
+    let forms = 0;
+    for (const file of htmlFiles(dir)) {
+      const html = fs.readFileSync(file, 'utf8');
+      for (const m of html.matchAll(/<form\b[^>]*data-westpeek-form[^>]*>/gi)) {
+        forms += 1;
+        if (/data-bot-check="turnstile"/.test(m[0])) pass();
+        else fail('FORM-13', rel(file), 'a site form lacks data-bot-check="turnstile", so it would never send a Turnstile token.');
       }
-      calls.sheet += 1;
-      return { ok: true, json: async () => ({ ok: true }), text: async () => '' };
-    };
-    try {
-      const body = new URLSearchParams({ email: 'probe@example.com', lead_type: 'founder_apply' });
-      if (token) body.set('cf-turnstile-response', token);
-      const headers = { 'content-type': 'application/x-www-form-urlencoded' };
-      if (origin) headers.origin = origin;
-      const request = new Request(`https://${host}/api/lead`, { method: 'POST', headers, body });
-      const env = {
-        RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co',
-        WP_NETWORK_OS_INTAKE_URL: 'https://door.invalid/x', WP_NETWORK_OS_INTAKE_SECRET: 's',
-        ...(keys ? { TURNSTILE_SECRET_KEY: 'sec', TURNSTILE_SITE_KEY: 'site' } : {})
-      };
-      const res = await mod.onRequestPost({ request, env });
-      return { status: res.status, body: await res.json(), calls };
-    } finally {
-      globalThis.fetch = realFetch;
     }
-  }
-
-  const V = 'westpeek.ventures';
-  const cases = [
-    ['no Origin is dropped', { host: V }, (r) => r.status === 200 && r.body.sheet === 'skipped' && r.calls.resend === 0 && r.calls.sheet === 0],
-    ['cross-origin Origin is dropped', { host: V, origin: 'https://evil.example' }, (r) => r.status === 200 && r.body.sheet === 'skipped' && r.calls.resend === 0 && r.calls.sheet === 0],
-    // THE RULE (owner, 15 Nov 2026): only a definitive siteverify "no" for a real token drops.
-    ['keys set, siteverify says no to a real token -> dropped 400, nothing delivered or written', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: false, 'error-codes': ['invalid-input-response'] } }, (r) => r.status === 400 && r.body.error === 'bot_check_failed' && r.calls.verify === 1 && r.calls.resend === 0 && r.calls.sheet === 0],
-    ['keys set, token for another site -> dropped 400', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: true, hostname: 'evil.example' } }, (r) => r.status === 400 && r.calls.resend === 0 && r.calls.sheet === 0],
-    ['keys set, siteverify says yes -> delivered once', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: true, hostname: V } }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'ok' && r.calls.resend === 1 && r.calls.sheet === 1],
-    ['no keys -> delivered once, recorded not_configured', { host: V, origin: `https://${V}`, token: 't' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'not_configured' && r.calls.verify === 0 && r.calls.resend === 1 && r.calls.sheet === 1],
-    ['keys set, siteverify unreachable -> delivered once, recorded unavailable', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: 'unreachable' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'unavailable' && r.calls.verify === 1 && r.calls.resend === 1 && r.calls.sheet === 1],
-    ['keys set, siteverify 500 -> delivered once, recorded unavailable', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: 'http500' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'unavailable' && r.calls.resend === 1 && r.calls.sheet === 1],
-    ['keys set, siteverify internal-error -> delivered once, recorded unavailable', { host: V, origin: `https://${V}`, keys: true, token: 't', verify: { success: false, 'error-codes': ['internal-error'] } }, (r) => r.status === 200 && r.body.bot_check === 'unavailable' && r.calls.resend === 1 && r.calls.sheet === 1],
-    ['keys set, empty token (widget did not load) -> delivered once, recorded no_token, siteverify not called', { host: V, origin: `https://${V}`, keys: true, token: '' }, (r) => r.status === 200 && r.body.ok === true && r.body.bot_check === 'no_token' && r.calls.verify === 0 && r.calls.resend === 1 && r.calls.sheet === 1],
-    ['community host is untouched (no Origin, no token)', { host: 'joinwestpeek.com', keys: true }, (r) => r.status === 200 && r.body.bot_check === 'not_applicable' && r.calls.resend === 1]
-  ];
-  for (const [name, input, ok] of cases) {
-    let r;
-    try { r = await post(input); } catch (err) { fail('FORM-13', where, `${name}: threw ${err.message}`); continue; }
-    if (ok(r)) pass();
-    else fail('FORM-13', where, `${name}: got ${r.status} ${JSON.stringify(r.body)} calls ${JSON.stringify(r.calls)}`);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// FORM-14 - per-IP limit on /api/lead (security sweep, 3 Nov 2026). Executed against
-// a stubbed Cache API and fetch: the sixth POST from one address inside the window is
-// refused with 429 before anything is delivered; another address still gets through.
-// ---------------------------------------------------------------------------
-
-async function checkIpLimit() {
-  const where = rel(LEAD_HANDLER);
-  let mod;
-  try { mod = await import(pathToFileURL(LEAD_HANDLER).href); } catch (err) {
-    fail('FORM-14', where, `lead.js could not be imported: ${err.message}`);
-    return;
-  }
-  const store = new Map();
-  const realCaches = globalThis.caches;
-  const realFetch = globalThis.fetch;
-  let resend = 0;
-  globalThis.caches = { default: {
-    match: async (req) => (store.has(req.url) ? new Response(store.get(req.url)) : undefined),
-    put: async (req, res) => { store.set(req.url, await res.text()); }
-  } };
-  globalThis.fetch = async (url) => {
-    if (String(url).includes('api.resend.com')) resend += 1;
-    return { ok: true, json: async () => ({ ok: true }), text: async () => '' };
-  };
-  const send = async (ip) => {
-    const request = new Request('https://joinwestpeek.com/api/lead', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': ip },
-      body: new URLSearchParams({ email: 'probe@example.com', lead_type: 'contact' })
-    });
-    const res = await mod.onRequestPost({ request, env: { RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co' } });
-    return res.status;
-  };
-  try {
-    const statuses = [];
-    for (let i = 0; i < 6; i += 1) statuses.push(await send('203.0.113.7'));
-    const sentBefore = resend;
-    const other = await send('198.51.100.9');
-    if (statuses.slice(0, 5).every((s) => s === 200)) pass();
-    else fail('FORM-14', where, `the first five POSTs from one address must be delivered, got ${statuses.slice(0, 5).join(',')}`);
-    if (statuses[5] === 429 && sentBefore === 5) pass();
-    else fail('FORM-14', where, `the sixth POST from one address must be refused with 429 before delivery, got ${statuses[5]} with ${sentBefore} emails sent`);
-    if (other === 200) pass();
-    else fail('FORM-14', where, `a different address must still get through, got ${other}`);
-  } catch (err) {
-    fail('FORM-14', where, `threw ${err.message}`);
-  } finally {
-    globalThis.caches = realCaches;
-    globalThis.fetch = realFetch;
+    if (forms === 0) fail('FORM-13', rel(dir), `no ${site} form with data-westpeek-form was found; the bot-check scan proves nothing.`);
   }
 }
 
@@ -1180,8 +1171,8 @@ async function main() {
   await checkSharedHandlerBehaviour();
   await checkUrlNormalisation();
   await checkFormsRegister();
-  await checkBotCheck();
-  await checkIpLimit();
+  checkBotCheck();
+  await checkBotCheckClient();
 
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ ok: failures.length === 0, failures, notes, checks_passed: passes }, null, 2));

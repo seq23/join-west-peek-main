@@ -63,7 +63,24 @@
     el.appendChild(document.createTextNode(text));
   }
 
-  function setSuccess(form) {
+  /**
+   * The server delivered the message but not the file (it could not confirm a person sent it, so
+   * it never opened the upload). Say so, and give the address to send the deck to.
+   */
+  function deckNote(form, tagName) {
+    var address = form.getAttribute('data-fallback-email') || DEFAULT_FALLBACK_EMAIL;
+    var note = document.createElement(tagName);
+    note.setAttribute('data-deck-note', '');
+    note.appendChild(document.createTextNode(' Your deck did not come through with it, so please email it to '));
+    var link = document.createElement('a');
+    link.setAttribute('href', 'mailto:' + address);
+    link.appendChild(document.createTextNode(address));
+    note.appendChild(link);
+    note.appendChild(document.createTextNode('.'));
+    return note;
+  }
+
+  function setSuccess(form, deckMissing) {
     var el = status(form);
     if (!el) return;
     clear(el);
@@ -71,7 +88,8 @@
     el.appendChild(
       document.createTextNode(form.getAttribute('data-success') || DEFAULT_SUCCESS)
     );
-    showSuccessPanel(form);
+    if (deckMissing) el.appendChild(deckNote(form, 'span'));
+    showSuccessPanel(form, deckMissing);
   }
 
   /**
@@ -83,7 +101,7 @@
    * submission - this is called from setSuccess and nowhere else - and only
    * for forms that opt in with data-success-panel. DOM nodes, never innerHTML.
    */
-  function showSuccessPanel(form) {
+  function showSuccessPanel(form, deckMissing) {
     var target = form.getAttribute('data-success-panel');
     if (target === null) return;
     var container = form;
@@ -108,6 +126,7 @@
     panel.appendChild(tag);
     panel.appendChild(heading);
     panel.appendChild(copy);
+    if (deckMissing) panel.appendChild(deckNote(form, 'p'));
     var href = form.getAttribute('data-success-link');
     if (href) {
       var link = document.createElement('a');
@@ -209,9 +228,16 @@
     return turnstileLoad;
   }
 
-  /** Returns state that holds the widget once it is up; stays empty when there is no key. */
+  /**
+   * Returns state that holds the widget once it is up; stays empty when there is no key.
+   * The widget is rendered with execution 'execute': it mints a token only when the form is
+   * submitted (tokenFor below), not on every page view. A token minted on load is never checked
+   * by anyone who does not submit, which Cloudflare reports as "siteverify isn't being called"
+   * (23 Nov 2026: 784 tokens solved in a week against 4 verified), and it can expire before a
+   * long form is sent.
+   */
   function wireBotCheck(form) {
-    var state = { widget: null, api: null };
+    var state = { widget: null, api: null, waiting: null, interactive: null };
     if (form.getAttribute('data-bot-check') !== 'turnstile' || typeof fetch !== 'function') return state;
     var action = form.getAttribute('action') || DEFAULT_ACTION;
     fetch(action, { headers: { Accept: 'application/json' } })
@@ -225,12 +251,60 @@
           state.api = api;
           state.widget = api.render(holder, {
             sitekey: body.turnstile_site_key,
-            appearance: 'interaction-only'
+            appearance: 'interaction-only',
+            execution: 'execute',
+            callback: function (token) { if (state.waiting) state.waiting(token || ''); },
+            'error-callback': function () { if (state.waiting) state.waiting(''); },
+            'timeout-callback': function () { if (state.waiting) state.waiting(''); },
+            // A person is being shown the checkbox: give them time to answer it.
+            'before-interactive-callback': function () { if (state.interactive) state.interactive(); }
           });
         });
       })
       .catch(function () { /* no widget: the server decides, the form shows its email fallback */ });
     return state;
+  }
+
+  /**
+   * Resolves with a fresh token, or '' when there is no widget or it gives none in time (blocked,
+   * erroring, or a challenge left unanswered). '' still sends: the server delivers it on its capped
+   * unchecked lane, without the attachment.
+   */
+  var TOKEN_WAIT_MS = 15000;
+  var CHALLENGE_WAIT_MS = 120000;
+  function tokenFor(botCheck) {
+    if (!botCheck.api || botCheck.widget === null) return Promise.resolve('');
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish(token) {
+        if (done) return;
+        done = true;
+        botCheck.waiting = null;
+        botCheck.interactive = null;
+        clearTimeout(timer);
+        resolve(token || '');
+      }
+      botCheck.waiting = finish;
+      var timer = setTimeout(function () { finish(''); }, TOKEN_WAIT_MS);
+      botCheck.interactive = function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { finish(''); }, CHALLENGE_WAIT_MS);
+      };
+      try {
+        botCheck.api.reset(botCheck.widget);
+        botCheck.api.execute(botCheck.widget);
+      } catch (e) { finish(''); }
+    });
+  }
+
+  /** The visitor's next step for each refusal the server can give. */
+  function errorLead(body) {
+    var code = body && body.error;
+    if (code === 'deck_file_invalid') return 'That file is not a PDF, so nothing was sent. Attach the deck as a PDF, or leave it off.';
+    if (code === 'deck_file_too_large') return 'That file is over 10 MB, so nothing was sent. Attach a smaller PDF, or leave it off.';
+    if (code === 'invalid_email') return 'That email address does not look right, so nothing was sent.';
+    if (code === 'rate_limited') return 'We have had too many messages from this connection today, so nothing was sent.';
+    return 'We could not send that just now.';
   }
 
   function wire(form) {
@@ -262,17 +336,21 @@
         }
       }
 
-      var request;
-      try {
-        request = fetch(form.getAttribute('action') || DEFAULT_ACTION, {
+      function send(token) {
+        var data = new FormData(form);
+        if (token) data.set('cf-turnstile-response', token);
+        return fetch(form.getAttribute('action') || DEFAULT_ACTION, {
           method: 'POST',
-          body: new FormData(form),
+          body: data,
           headers: { Accept: 'application/json' }
         });
-      } catch (err) {
-        setError(form, 'We could not reach the server.');
-        release();
-        return;
+      }
+
+      // With a widget, wait for its token first; without one, send at once.
+      var request;
+      if (botCheck.api && botCheck.widget !== null) request = tokenFor(botCheck).then(send);
+      else {
+        try { request = send(''); } catch (err) { request = Promise.reject(err); }
       }
 
       request
@@ -285,21 +363,16 @@
             .then(function (body) {
               // The single guard. Everything above this line is presentation.
               if (response.ok && body && body.ok === true) {
-                setSuccess(form);
+                setSuccess(form, body.deck === 'not_attached');
                 announceSuccess(form);
                 form.reset();
               } else {
-                setError(form, 'We could not send that just now.');
+                setError(form, errorLead(body));
               }
             });
         })
         .catch(function () {
           setError(form, 'We could not reach the server.');
-        })
-        .then(function () {
-          if (botCheck.api && botCheck.widget !== null) {
-            try { botCheck.api.reset(botCheck.widget); } catch (e) { /* widget gone */ }
-          }
         })
         .then(release, release);
     });

@@ -97,34 +97,6 @@ const TURNSTILE_FIELD = 'cf-turnstile-response';
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const TURNSTILE_TIMEOUT_MS = 4000;
 
-/**
- * Per-IP limit on every site (security sweep, 3 Nov 2026). A person sends one enquiry; a script
- * replaying the endpoint sends many. This repo has no storage binding, so the count lives in the
- * Cache API: per data centre, which is where one address's requests land. A missing or failing
- * cache never blocks a submission (the limit is a brake on volume, not the bot check).
- */
-const LEAD_LIMIT_PER_IP = 5;
-const LEAD_LIMIT_WINDOW_SECONDS = 3600;
-
-async function overIpLimit(request) {
-  const ip = request.headers.get('cf-connecting-ip');
-  const cache = globalThis.caches?.default;
-  if (!ip || !cache) return false;
-  const windowStart = Math.floor(Date.now() / 1000 / LEAD_LIMIT_WINDOW_SECONDS);
-  const key = new Request(`https://lead-limit.invalid/${encodeURIComponent(ip)}/${windowStart}`);
-  try {
-    const hit = await cache.match(key);
-    const count = hit ? Number(await hit.text()) || 0 : 0;
-    if (count >= LEAD_LIMIT_PER_IP) return true;
-    await cache.put(key, new Response(String(count + 1), {
-      headers: { 'cache-control': `max-age=${LEAD_LIMIT_WINDOW_SECONDS}` }
-    }));
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 /** How long the sheet write may take before the visitor stops waiting for it. */
 const INTAKE_TIMEOUT_MS = 5000;
 
@@ -189,13 +161,14 @@ export function writesToSheet(hostname) {
   return SHEET_SITES.includes(siteForHost(hostname));
 }
 
-/** The bot checks apply to ventures only (the 8 Oct 2026 request was about westpeek.ventures). */
-function botChecksApply(hostname) {
-  return siteForHost(hostname) === 'ventures';
+/** A preview deployment or a local run: the only places Cloudflare's published test keys are accepted. */
+export function isPreviewHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.pages.dev');
 }
 
 /**
- * Every ventures form submits by same-origin fetch, and browsers always send
+ * Every form submits by same-origin fetch, and browsers always send
  * Origin on a POST. A missing or foreign Origin (Referer as the fallback) is a
  * script replaying the endpoint, not a visitor.
  */
@@ -209,23 +182,39 @@ export function sameOrigin(request, hostname) {
   }
 }
 
-function turnstileConfigured(env) {
-  return Boolean(clean(env.TURNSTILE_SECRET_KEY) && clean(env.TURNSTILE_SITE_KEY));
+/**
+ * Cloudflare's published Turnstile TEST secrets (always pass / always fail / already spent). One of
+ * them on a real host would turn the bot check into a rubber stamp, so there it counts as no key.
+ */
+const TURNSTILE_TEST_SECRET = /^[123]x0{30,}AA$/;
+
+/**
+ * 'ok' when this project has a site key and a secret it may use on this host; 'not_configured'
+ * otherwise (NAMED STOP: TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY on this Pages project, from the
+ * vault). Each Pages project carries its own widget's pair, so each site verifies with its own secret.
+ */
+export function turnstileState(env, hostname) {
+  const secret = clean(env && env.TURNSTILE_SECRET_KEY);
+  const site = clean(env && env.TURNSTILE_SITE_KEY);
+  if (!secret || !site) return 'not_configured';
+  if (TURNSTILE_TEST_SECRET.test(secret) && !isPreviewHost(hostname)) return 'not_configured';
+  return 'ok';
 }
 
 /**
  * Siteverify error codes that are about OUR side (secret, request, Cloudflare itself), not the
- * visitor's token. They say nothing about whether a person sent the form, so they never drop it.
+ * visitor's token. They say nothing about whether a person sent the form, so they are 'unavailable'.
  */
 const TURNSTILE_NOT_A_VERDICT = ['missing-input-secret', 'invalid-input-secret', 'bad-request', 'internal-error'];
 
 /**
- * Returns 'ok', 'failed' (Cloudflare says this real token is invalid), 'no_token' (the widget
- * never produced one: blocked script, ad blocker, privacy browser) or 'unavailable' (siteverify
- * unreachable, slow, non-OK, or an error that is not about the token). Only 'failed' drops.
+ * Returns 'ok', 'failed' (Cloudflare rejects this token, or it was minted for another site),
+ * 'no_token' (the widget never produced one: blocked script, ad blocker, privacy browser) or
+ * 'unavailable' (siteverify unreachable, slow, non-OK, or an error that is not about the token).
  */
-async function verifyTurnstile(token, env, request) {
+export async function verifyTurnstile(token, env, request) {
   if (!token) return 'no_token';
+  const host = new URL(request.url).hostname;
   try {
     const body = new URLSearchParams({ secret: clean(env.TURNSTILE_SECRET_KEY), response: token });
     const ip = request.headers.get('cf-connecting-ip');
@@ -242,7 +231,10 @@ async function verifyTurnstile(token, env, request) {
       const codes = Array.isArray(result['error-codes']) ? result['error-codes'] : [];
       return codes.some((c) => TURNSTILE_NOT_A_VERDICT.includes(c)) ? 'unavailable' : 'failed';
     }
-    if (result.hostname && siteForHost(result.hostname) !== 'ventures') return 'failed';
+    // A token solved on another site (or another property's widget) is not a pass here. Test keys
+    // answer hostname "example.com"; turnstileState already confines those keys to previews.
+    const testing = TURNSTILE_TEST_SECRET.test(clean(env.TURNSTILE_SECRET_KEY)) && isPreviewHost(host);
+    if (!testing && siteForHost(result.hostname) !== siteForHost(host)) return 'failed';
     return 'ok';
   } catch {
     return 'unavailable';
@@ -253,23 +245,32 @@ function clean(value) {
   return String(value ?? '').slice(0, MAX_FIELD).trim();
 }
 
-function looksLikeEmail(value) {
-  return /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(value);
+/**
+ * ONE address, by the same rule browsers use for <input type=email> (the HTML standard's "valid
+ * email address"), plus a dotted domain and the 254-character limit. It becomes the reply-to header,
+ * so a list ("a@x.com, b@y.com"), a display name ("<a@x.com>") or a line break never gets through.
+ */
+const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+export function looksLikeEmail(value) {
+  const v = String(value ?? '');
+  return v.length <= 254 && EMAIL_RE.test(v);
 }
 
 /**
- * This repo has no storage binding, so a file part is never held past this
- * one request: it is read into memory, validated, and either attached to the
- * outgoing Resend email or rejected. Nothing is written to disk or R2.
+ * This repo has no storage binding, so a file part is never held past this one request: it is
+ * read into memory, validated on its REAL bytes (the size the bytes have, not the size the client
+ * claims; a PDF header at byte 0, whatever the name or type says), and either attached to the
+ * outgoing email or rejected. Read only AFTER the bot check passed: an unchecked caller's upload is
+ * never read at all. Nothing is written to disk or R2.
  */
-async function readDeckFile(value) {
-  if (!(value instanceof File) || value.size === 0) return { file: null, error: null };
-  if (value.size > MAX_FILE_BYTES) return { file: null, error: 'deck_file_too_large' };
+export async function readDeckFile(value) {
+  if (!value || typeof value === 'string' || typeof value.arrayBuffer !== 'function') return { file: null, error: null };
   const bytes = new Uint8Array(await value.arrayBuffer());
-  const header = new TextDecoder().decode(bytes.slice(0, 5));
-  const looksPdf = header === '%PDF-' && (value.type === 'application/pdf' || /\.pdf$/i.test(value.name || ''));
-  if (!looksPdf) return { file: null, error: 'deck_file_invalid' };
-  return { file: { filename: value.name || 'deck.pdf', bytes }, error: null };
+  if (bytes.length === 0) return { file: null, error: null };
+  if (bytes.length > MAX_FILE_BYTES) return { file: null, error: 'deck_file_too_large' };
+  if (new TextDecoder().decode(bytes.subarray(0, 5)) !== '%PDF-') return { file: null, error: 'deck_file_invalid' };
+  const base = String(value.name || '').replace(/\.pdf$/i, '').replace(/[^A-Za-z0-9 ._-]+/g, '').replace(/^[ .]+/, '').trim().slice(0, 80);
+  return { file: { filename: `${base || 'deck'}.pdf`, bytes }, error: null };
 }
 
 /** Resend wants attachment content as base64. Chunked so a 10MB file does not blow the call stack. */
@@ -344,6 +345,24 @@ async function addToNetworkSheet(fields, env, request, site) {
   }
 }
 
+/**
+ * Count this submission against the daily caps (forms-mailer Worker /quota, KV ALARMS).
+ * 'ok' | 'over' | 'unreadable'. No mailer, a refused call, a timeout or a KV error is 'unreadable':
+ * never 'ok' by default. cf-connecting-ip is set by Cloudflare's edge, not by the visitor.
+ */
+async function countSubmission(env, request, lane) {
+  if (!mailerReady(env)) return 'unreadable';
+  try {
+    const res = await callMailer(env, '/quota', { ip: request.headers.get('cf-connecting-ip') || 'unknown', lane });
+    const body = await res.json().catch(() => null);
+    if (res.ok && body && body.ok === true && body.allowed === true) return 'ok';
+    if (res.ok && body && body.ok === true && body.allowed === false) return 'over';
+    return 'unreadable';
+  } catch {
+    return 'unreadable';
+  }
+}
+
 function json(body, status) {
   return new Response(JSON.stringify(body), {
     status,
@@ -361,27 +380,21 @@ export async function onRequestPost({ request, env, waitUntil }) {
     return json({ ok: false, error: 'probe_refused' }, 401);
   }
   const isProbe = probe === 'ok';
-  // Before the body is read: an address over its limit costs nothing more. The form shows its
-  // email fallback on any non-ok answer, so a real person who hits this still has a way through.
-  if (!isProbe && await overIpLimit(request)) {
-    console.error('lead dropped', JSON.stringify({ reason: 'ip_limit', host: new URL(request.url).hostname }));
-    return json({ ok: false, error: 'rate_limited' }, 429);
-  }
   let fields = {};
-  let deckFile = null;
+  let upload = null;
   try {
     const type = request.headers.get('content-type') || '';
     if (type.includes('application/json')) {
-      fields = await request.json();
+      const parsed = await request.json();
+      fields = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      delete fields[FILE_FIELD];
     } else {
       const form = await request.formData();
       for (const [k, v] of form.entries()) {
         if (typeof v === 'string') { fields[k] = v; continue; }
-        if (k !== FILE_FIELD) { fields[k] = ''; continue; }
-        const { file, error } = await readDeckFile(v);
-        if (error) return json({ ok: false, error }, 400);
-        deckFile = file;
-        fields[k] = file ? file.filename : '';
+        // The file is kept UNREAD here. Its bytes are read only once the bot check has passed.
+        if (k === FILE_FIELD && !upload) upload = v;
+        fields[k] = '';
       }
     }
   } catch {
@@ -399,34 +412,38 @@ export async function onRequestPost({ request, env, waitUntil }) {
     return json({ ok: true, sheet: 'skipped' }, 200);
   }
 
-  // Bot checks, ventures only, before any email or sheet write.
+  // Bot checks, every site, before any email, sheet write or file read (jwp-lead-lock, 23 Nov 2026;
+  // her words: "anyone can trigger them and use up your quota").
   //
-  // THE RULE (owner, 15 Nov 2026: "I wouldn't have started this bot check if it was going to mess
-  // up the form"): the bot check can never block a real inquiry. A submission is DROPPED only when
-  //   - the honeypot is filled (above), or Origin/Referer is missing or foreign (here), or
-  //   - Cloudflare siteverify definitively rejects a real token (verdict 'failed').
-  // Every other case is DELIVERED exactly like a normal inquiry, with bot_check recorded in the
-  // logs and reportOutcome (never shown to the visitor): keys unset -> 'not_configured', siteverify
-  // down/slow/erroring -> 'unavailable', no token because the widget did not load -> 'no_token'.
-  // 'not_configured' and 'unavailable' still raise the alarm. This replaces the 3 Nov 2026 fail-
-  // closed rule. Pinned by FORM-13 in scripts/validate_forms.mjs and by case 4 in
-  // scripts/test_lead_delivery.mjs.
-  let botCheck = 'not_applicable';
-  if (botChecksApply(host) && !isProbe) {
+  // THE RULE (her 15 Nov 2026 ruling kept, Option B chosen 23 Nov 2026):
+  //   - Origin/Referer missing or foreign: a script replaying the endpoint. Dropped (200, skipped).
+  //   - Keys missing (or a test key on a real host): REFUSED 503 bot_check_not_configured + alarm.
+  //   - Siteverify rejects the token, or it was solved for another site: REFUSED 400.
+  //   - Siteverify passes: the CHECKED lane. The deck is read and attached.
+  //   - No token (widget blocked) or siteverify down: the UNCHECKED lane. Still delivered, so a real
+  //     person behind an ad blocker is not lost, but WITHOUT the attachment and under tighter caps.
+  //   - Either lane is counted against the daily caps in the forms-mailer KV (/quota). Over a cap:
+  //     REFUSED 429. Count unreadable: the unchecked lane is REFUSED 503 try_again (nothing proved
+  //     it is a person, and nothing can bound it); the checked lane is delivered and alarmed.
+  // Pinned by scripts/test_lead_delivery.mjs (cases 4 and 10-18).
+  let botCheck = 'probe';
+  let lane = 'probe';
+  if (!isProbe) {
     if (!sameOrigin(request, host)) {
       console.error('lead dropped', JSON.stringify({ reason: 'origin', form: formName, host }));
       return json({ ok: true, sheet: 'skipped' }, 200);
     }
-    botCheck = turnstileConfigured(env)
-      ? await verifyTurnstile(clean(fields[TURNSTILE_FIELD]), env, request)
-      : 'not_configured';
+    if (turnstileState(env, host) !== 'ok') {
+      console.error('lead refused NAMED_STOP=TURNSTILE_KEYS_MISSING', JSON.stringify({ form: formName, host }));
+      later(reportOutcome(env, { host, form: formName, delivered: false, delivered_by: null, channels: {}, bot_check: 'not_configured', error: 'bot_check_not_configured' }));
+      return json({ ok: false, error: 'bot_check_not_configured' }, 503);
+    }
+    botCheck = await verifyTurnstile(clean(fields[TURNSTILE_FIELD]), env, request);
     if (botCheck === 'failed') {
-      console.error('lead dropped', JSON.stringify({ reason: 'turnstile', verdict: botCheck, form: formName, host }));
+      console.error('lead refused', JSON.stringify({ reason: 'turnstile', form: formName, host }));
       return json({ ok: false, error: 'bot_check_failed' }, 400);
     }
-    if (botCheck !== 'ok') {
-      console.error('lead bot check skipped, delivering', JSON.stringify({ bot_check: botCheck, form: formName, host }));
-    }
+    lane = botCheck === 'ok' ? 'checked' : 'unchecked';
   }
 
   // The Get in touch form asks first and last name apart (Scooter, 15 Nov 2026); everything
@@ -439,6 +456,34 @@ export async function onRequestPost({ request, env, waitUntil }) {
     if (!clean(fields[key])) return json({ ok: false, error: `missing_${key}` }, 400);
   }
   if (!looksLikeEmail(email)) return json({ ok: false, error: 'invalid_email' }, 400);
+
+  // The deck: checked lane only. An unchecked caller's file is never read; the email says one was
+  // sent and the visitor is asked to email it instead.
+  let deckFile = null;
+  let deck = upload && upload.size !== 0 ? 'not_attached' : 'none';
+  if (upload && lane === 'checked') {
+    const { file, error: deckError } = await readDeckFile(upload);
+    if (deckError) return json({ ok: false, error: deckError }, 400);
+    deckFile = file;
+    deck = file ? 'attached' : 'none';
+  }
+  if (deckFile) fields[FILE_FIELD] = deckFile.filename;
+  else delete fields[FILE_FIELD];
+
+  // The daily caps. A probe is signed, so it is never counted.
+  let quota = 'probe';
+  if (!isProbe) {
+    quota = await countSubmission(env, request, lane);
+    if (quota === 'over') {
+      console.error('lead refused', JSON.stringify({ reason: 'daily_cap', lane, form: formName, host }));
+      return json({ ok: false, error: 'rate_limited' }, 429);
+    }
+    if (quota === 'unreadable' && lane === 'unchecked') {
+      console.error('lead refused', JSON.stringify({ reason: 'count_unreadable', lane, form: formName, host }));
+      later(reportOutcome(env, { host, form: formName, delivered: false, delivered_by: null, channels: {}, bot_check: botCheck, quota, error: 'count_unreadable' }));
+      return json({ ok: false, error: 'try_again', message: 'We could not send that just now. Please try again in a few minutes.' }, 503);
+    }
+  }
 
   const leadSource = clean(fields.lead_source);
   const isCommunityViabilityAssessment = leadSource === 'community_viability_assessment';
@@ -465,6 +510,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const lines = Object.entries(fields)
     .filter(([k]) => !HONEYPOT_FIELDS.includes(k) && k !== TURNSTILE_FIELD)
     .map(([k, v]) => (k === FILE_FIELD && v ? `${k}: ${clean(v)} (attached to this email)` : `${k}: ${clean(v)}`))
+    .concat(deck === 'not_attached' ? ['deck_file: a file was sent but NOT attached (the bot check could not run), so the sender was asked to email it'] : [])
     .concat([`submitted_at: ${new Date().toISOString()}`])
     .join('\n');
   // A productions inquiry is read on Scooter's phone (Scooter, 15 Nov 2026): his own layout, no
@@ -473,9 +519,10 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const mail = {
     to,
     replyTo: email,
-    subject: `${isProbe ? '[probe] ' : ''}${inquiry ? inquiry.subject : isCommunityViabilityAssessment
+    // One line, always: no visitor text can add a header. A TEST submission says so up front.
+    subject: `${isProbe ? '[probe] ' : ''}${!inquiry && !isProbe && isTestInquiry(fields, request.url) ? 'TEST: ' : ''}${inquiry ? inquiry.subject : isCommunityViabilityAssessment
       ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
-      : `New enquiry from ${site}`}`,
+      : `New enquiry from ${site}`}`.replace(/[\r\n]+/g, ' '),
     text: inquiry ? inquiry.text : `${lines}\n\nSubmitted from: ${request.url}`,
     ...(inquiry ? { html: inquiry.html } : {}),
     deckFile
@@ -503,19 +550,19 @@ export async function onRequestPost({ request, env, waitUntil }) {
   for (const [ch, v] of Object.entries(delivery.channels)) alarmChannels[ch] = !bothUnconfigured && v === 'not_configured' ? 'failed' : v;
   later(reportOutcome(env, {
     host, form: formName, delivered, delivered_by: delivery.deliveredBy, channels: alarmChannels,
-    bot_check: botCheck, error, detail: delivery.detail
+    bot_check: botCheck, quota, error, detail: delivery.detail
   }));
 
   if (!delivered) {
     console.error('lead delivery failed on every channel', JSON.stringify({ host, form: formName, channels: delivery.channels, detail: delivery.detail }));
     await dashboardKept;
-    return json({ ok: false, error, sheet: await sheetWrite, bot_check: botCheck, channels: delivery.channels }, bothUnconfigured ? 503 : 502);
+    return json({ ok: false, error, sheet: await sheetWrite, bot_check: botCheck, lane, deck, channels: delivery.channels }, bothUnconfigured ? 503 : 502);
   }
 
   // The email is delivered, so the visitor succeeded. The sheet result is
   // reported, never allowed to overturn that.
   await dashboardKept;
-  return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, delivered_by: delivery.deliveredBy, channels: delivery.channels }, 200);
+  return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, lane, deck, delivered_by: delivery.deliveredBy, channels: delivery.channels }, 200);
 }
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -526,7 +573,7 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
  */
 export function isTestInquiry(fields, requestUrl) {
   const host = new URL(requestUrl).hostname.toLowerCase();
-  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.pages.dev')) return true;
+  if (isPreviewHost(host)) return true;
   const email = clean(fields.email).toLowerCase();
   if (/\.test$/.test(email) || /@(?:[^@]+\.)?example\.(?:com|org|net)$/.test(email)) return true;
   return [fields.name, fields.organization, email.split('@')[0]].some((v) => /(^|[^a-z])test([^a-z]|$)/i.test(clean(v)));
@@ -738,10 +785,11 @@ export function onRequestGet({ request, env } = {}) {
   const body = { ok: false, error: 'method_not_allowed', hint: 'POST a contact form here' };
   let host = '';
   try { host = new URL(request.url).hostname; } catch { /* no request: bare probe */ }
-  if (host && botChecksApply(host)) {
-    body.bot_check = turnstileConfigured(env || {}) ? 'ok' : 'not_configured';
+  if (host) {
+    const state = turnstileState(env || {}, host);
+    body.bot_check = state;
     // The site key is public by design; the page needs it to render the widget.
-    if (turnstileConfigured(env || {})) body.turnstile_site_key = clean(env.TURNSTILE_SITE_KEY);
+    if (state === 'ok') body.turnstile_site_key = clean(env.TURNSTILE_SITE_KEY);
   }
   return json(body, 405);
 }

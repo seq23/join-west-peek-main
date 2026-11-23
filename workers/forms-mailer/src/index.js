@@ -5,6 +5,8 @@
 //   POST /report  one submission's outcome -> incident records in KV, alarm / "fixed" emails
 //   POST /test-alarm  a TEST alarm to FORMS_ALARM_TO through both channels (proves the alarm path)
 //   POST /probe   the end-to-end probe now; body {"sites": [...]} limits it to those hosts
+//   POST /quota   count one submission against the daily caps (QUOTA below); refuses over a cap,
+//                 and answers 503 count_unreadable when the count cannot be read or written
 //   cron          the end-to-end probe at 8 AM Central: westpeek.ventures daily, the other two
 //                 sites on Mondays (see wrangler.toml and probeSitesFor)
 //
@@ -18,6 +20,70 @@ export const FROM = { email: 'forms@joinwestpeek.com', name: 'West Peek forms' }
 export const PROBE_SITES = ['westpeek.ventures', 'joinwestpeek.com', 'westpeekproductions.com'];
 /** Checked every day, not only Mondays (Sequoia, 7 Nov 2026: "the form checks need to go back to daily for west peek ventures"). */
 export const DAILY_PROBE_SITES = ['westpeek.ventures'];
+
+/**
+ * Daily caps on lead submissions (jwp-lead-lock, 23 Nov 2026), counted in the existing ALARMS KV.
+ * 'unchecked' = no Turnstile verdict (widget blocked, or siteverify down): still delivered (her
+ * 15 Nov ruling) but capped hard, because nothing proved a person sent it. 'checked' = Turnstile
+ * passed. A day is a Chicago calendar day. Real volume is a handful a week, so these sit far above
+ * a real day and only stop a flood that would burn the send quota.
+ */
+export const QUOTA = {
+  perIpUnchecked: 3,
+  perIpAll: 10,
+  globalUnchecked: 25,
+  globalChecked: 60
+};
+const QUOTA_TTL_SECONDS = 2 * 24 * 60 * 60;
+
+function chicagoDay(now) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
+}
+
+/** A raw IP is never stored: SHA-256, first 16 hex characters. */
+async function ipKey(ip) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(ip || 'unknown')));
+  return [...new Uint8Array(digest)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Count one submission. { ok: true, allowed: true } counts it; { ok: true, allowed: false, reason }
+ * refuses it without counting. Any KV failure (or no KV) is { ok: false, error: 'count_unreadable' }:
+ * never "allowed" by default. Read-then-write is not atomic, so a burst can overshoot a cap by the
+ * few requests in flight at once; the caps exist to stop a flood, not to count exactly.
+ */
+export async function countSubmission(env, { ip, lane }, now = Date.now()) {
+  if (lane !== 'checked' && lane !== 'unchecked') return { ok: false, error: 'bad_lane', status: 400 };
+  const kv = env.ALARMS;
+  if (!kv) return { ok: false, error: 'count_unreadable', detail: 'ALARMS_KV_MISSING' };
+  const day = chicagoDay(now);
+  const ipHash = await ipKey(ip);
+  const keys = {
+    ipAll: `quota:${day}:ip:${ipHash}`,
+    ipUnchecked: `quota:${day}:ip-unchecked:${ipHash}`,
+    global: `quota:${day}:all:${lane}`
+  };
+  try {
+    const read = async (k) => {
+      const v = await kv.get(k);
+      const n = v === null ? 0 : Number(v);
+      if (!Number.isFinite(n) || n < 0) throw new Error(`unreadable count at ${k}`);
+      return n;
+    };
+    const ipAll = await read(keys.ipAll);
+    const ipUnchecked = lane === 'unchecked' ? await read(keys.ipUnchecked) : 0;
+    const global = await read(keys.global);
+    if (ipAll >= QUOTA.perIpAll || (lane === 'unchecked' && ipUnchecked >= QUOTA.perIpUnchecked)) return { ok: true, allowed: false, reason: 'ip' };
+    if (global >= (lane === 'unchecked' ? QUOTA.globalUnchecked : QUOTA.globalChecked)) return { ok: true, allowed: false, reason: 'global' };
+    const opts = { expirationTtl: QUOTA_TTL_SECONDS };
+    await kv.put(keys.ipAll, String(ipAll + 1), opts);
+    if (lane === 'unchecked') await kv.put(keys.ipUnchecked, String(ipUnchecked + 1), opts);
+    await kv.put(keys.global, String(global + 1), opts);
+    return { ok: true, allowed: true };
+  } catch (err) {
+    return { ok: false, error: 'count_unreadable', detail: String(err && err.message ? err.message : err).slice(0, 200) };
+  }
+}
 
 /** Email Routing refused the recipient: it is not (yet) a verified destination address. */
 export class UnverifiedRecipientError extends Error {
@@ -210,6 +276,11 @@ const worker = {
         }
         return Response.json({ ok: false, error: String(err && err.message ? err.message : err).slice(0, 300) }, { status: 502 });
       }
+    }
+    if (path === '/quota') {
+      const result = await countSubmission(env, body || {});
+      if (!result.ok) console.error(`OUTPUT quota ${result.error}`, result.detail || '');
+      return Response.json(result, { status: result.ok ? 200 : result.status || 503 });
     }
     if (path === '/report') return Response.json(await handleReport(env, body || {}));
     if (path === '/test-alarm') {
