@@ -13,7 +13,7 @@
  *   GET  /work, /work/<id>, /deals, /inquiries, /find, /access (who can open what, what is kept)
  *   GET  /money           (Scooter only)  GET /agents, /connections, /check, /help (public, no data)
  *   POST /login /forgot /password /logout /google /google/narrow /connect /disconnect /act /deal
- *        /deal/add /note /tick /choice /source /source/create /source/remove /refresh
+ *        /note /tick /choice /source /source/create /source/remove /refresh
  *        /keys (app keys pasted on Connections; never shown again)
  *   GET  /flow/<key>/discovery, /quote, /proposal, /delivery; /catalog (lead to delivery)
  *   POST /intake /lead/add /discovery /quote /catalog /catalog/import /proposal /delivery/team
@@ -37,10 +37,20 @@ import * as V from './pd/views.mjs';
 import * as D from './pd/views-deal.mjs';
 import {
   addAsset, addTask, catalogFromGrid, cleanQuote, deliveryOf, intakeAll, latestDiscovery, latestProposal, latestQuote, newPortal, portalView,
-  proposalDraft, readCatalog, readDirectory, rolesFromCatalog, saveDirectory, revokePortal, rulesWalk, saveCatalog, saveDiscovery, saveIntake, saveProposal, saveQuote, saveTeam, setTask, startDelivery, validKey
+  proposalDraft, proposalFromEstimate, readCatalog, readDirectory, rolesFromCatalog, saveDirectory, revokePortal, rulesWalk, saveCatalog, saveDiscovery, saveIntake, saveProposal, saveQuote, saveTeam, setTask, startDelivery, validKey
 } from './pd/deal.mjs';
 import { readSheetGrid } from './pd/data.mjs';
+import * as PV from './pd/views-pricing.mjs';
+import { cleanEstimate, defaultMilestones, estimateHistory, latestEstimate, readAllPricing, readPricing, savePricing, saveEstimate, savedAt } from './pd/pricing.mjs';
+import { estimateFromForm, peopleFromForm, servicesFromForm, settingsFromForm, templatesFromForm } from './pd/pricing-forms.mjs';
 import { wideGoogleScopes } from './pd/providers.mjs';
+import { lastTouches, trackNewLeads } from './pd/board.mjs';
+
+/** Every lead lands in his tracker by itself (board.mjs trackNewLeads), after each sync. */
+async function autoTrack(env, session, now) {
+  const view = await loadView(env, { sample: session.sample }, now);
+  return trackNewLeads(env, { list: journeys(view, { notes: await latestNotes(env, session.sample), now }), session }, now);
+}
 
 export { OWNER_IDS, COOKIE, SAMPLE_EMAIL, SAMPLE_PASSWORD, oneTimePasswordEmail, newOneTimePassword, normalOtp } from './pd/auth.mjs';
 export { hashSecret } from './pd/core.mjs';
@@ -50,7 +60,7 @@ export { OAUTH_SECRET_NAMES } from './pd/providers.mjs';
 
 const SECURITY_HEADERS = {
   'content-type': 'text/html; charset=utf-8',
-  'cache-control': 'no-store, private',
+  'cache-control': 'no-store, private, no-transform',
   'x-robots-tag': 'noindex, nofollow',
   'x-frame-options': 'DENY',
   'x-content-type-options': 'nosniff',
@@ -133,15 +143,17 @@ async function context(env, session, url, now) {
 const DEAL_WORDS = {
   intake_saved: 'Saved. It shows on this record on every device.', discovery_saved: 'Answers saved. They show on every device, and the quote starts from them.',
   quote_saved: 'Quote saved and read back. Costs, rates, names and margin stay on this page; the client never sees them.', team_dir_saved: 'Directory saved and read back, encrypted.', catalog_saved: 'Catalog saved and read back, encrypted.', catalog_read: 'Your rate card was read into the catalog. Check the lines, then build a quote.',
+  pricing_saved: 'Saved and checked. Private to you, encrypted.', estimate_step: 'Saved and checked.', estimate_saved: 'Quote saved and checked. The client view shows the services and the price only.',
+  estimate_sent: 'Saved and marked as sent: this version is frozen with today\'s settings and rates. Nothing was sent to anyone.',
   proposal_saved: 'Proposal saved.', proposal_drafted: 'A first draft was written from your quote. Edit it, then save it.', accepted: 'Accepted. The deal moved in your tracker, and delivery is set up below.',
   accepted_stage_failed: 'Accepted and delivery set up, but your tracker did not show the new stage when read back. Open your tracker to check it.',
   team_saved: 'Team saved.', task_saved: 'Task saved.', asset_saved: 'Asset added.', portal_off: 'The portal is off. No link opens it now.', portal_new: 'A new portal link was made. The old one no longer works.',
   lead_added: 'Added to your tracker as one new row, and read back.', copies_deleted: 'The synced copies are deleted. Your sheets were not touched.',
   money_held: 'Nothing about money was saved: see Who can see what.', no_token_key: 'That cannot be saved safely right now (no encryption key). Nothing was stored.',
   deal_failed: 'That did not save. Nothing was changed.', bad_link: 'That link could not be used. Use an https link.', no_rate_card: 'No Item and Rate (or Cost) columns were found in that sheet. Nothing was changed.',
-  needs_tracker: 'Add them to your tracker first, so the deal can move there.', note_kept_here: 'Note saved here. Your tracker has no Notes column, so it was not written there.', already_in_tracker: 'They are already in your tracker.'
+  needs_tracker: 'They land in your tracker by themselves at the next sync (or press Refresh now on the Pipeline); then the deal can move there.', note_kept_here: 'Note saved here. Your tracker has no Notes column, so it was not written there.', already_in_tracker: 'They are already in your tracker.'
 };
-const DEAL_GOOD = ['intake_saved', 'discovery_saved', 'quote_saved', 'team_dir_saved', 'catalog_saved', 'catalog_read', 'proposal_saved', 'proposal_drafted', 'accepted', 'team_saved', 'task_saved', 'asset_saved', 'portal_off', 'portal_new', 'lead_added', 'copies_deleted', 'note_kept_here'];
+const DEAL_GOOD = ['pricing_saved', 'estimate_step', 'estimate_saved', 'estimate_sent', 'intake_saved', 'discovery_saved', 'quote_saved', 'team_dir_saved', 'catalog_saved', 'catalog_read', 'proposal_saved', 'proposal_drafted', 'accepted', 'team_saved', 'task_saved', 'asset_saved', 'portal_off', 'portal_new', 'lead_added', 'copies_deleted', 'note_kept_here'];
 
 /** A client's portal: their own page, no sign-in, nothing but what is marked for them. */
 export async function handlePortal({ request, env = {} }) {
@@ -191,9 +203,10 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   if (post && path === '/dashboard/cron/sync') {
     if (!(await cronAllowed(env, request))) return new Response('refused', { status: 401 });
     const out = await syncAll(env, now);
+    const tracked = await autoTrack(env, { sample: false, ownerId: 'auto' }, now).catch((err) => { console.error('dashboard auto-track failed', err?.message || err); return null; });
     await resendRuleChanges(env, now).catch((err) => console.error('dashboard rule change resend failed', err?.message || err));
     const check = url.searchParams.get('check') === '1' ? await realCheck(env, now).catch(() => null) : null;
-    return new Response(JSON.stringify({ ok: out.ok, failed: out.failed, check: check && { ok: check.ok, lines: check.lines } }), { headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify({ ok: out.ok, failed: out.failed, tracked: tracked && { added: tracked.added, failed: tracked.failed, stop: tracked.stop || null }, check: check && { ok: check.ok, lines: check.lines } }), { headers: { 'content-type': 'application/json' } });
   }
 
   if (post && path === '/dashboard/logout') {
@@ -310,23 +323,17 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
       const r = await updateDeal(env, { rowId: field(form, 'row'), fields, session }, now);
       return redirect(withA(r.id));
     }
-    if (path === '/dashboard/deal/add' || path === '/dashboard/note') {
+    if (path === '/dashboard/note') {
       const key = field(form, 'key');
       const view = await loadView(env, { sample: session.sample }, now);
       const notes = await latestNotes(env, session.sample);
       const j = journeys(view, { notes, now }).find((x) => x.key === key);
-      if (path === '/dashboard/note') {
-        // Every save is a version here; the note itself goes into his tracker's Notes cell.
-        const kept = await saveNote(env, { subject: key, text: field(form, 'text'), session }, now);
-        if (!j?.deal) return redirect(withA(kept));
-        const layout = session.sample ? { columns: { notes: 'Notes' } } : view.settings['layout:deals'];
-        if (layout?.columns?.notes === undefined) return redirect(`${back}?m=note_kept_here`);
-        const r = await updateDeal(env, { rowId: j.deal._id, fields: { notes: field(form, 'text') }, session }, now);
-        return redirect(withA(r.id));
-      }
-      if (!j || j.deals.length || !j.inquiries.length) return redirect(back);
-      const intake = (await intakeAll(env, session.sample))[key] || {};
-      const r = await addDealFromInquiry(env, { journey: j, session, carry: { owner: intake.owner, need: intake.need, note: j.note?.text } }, now);
+      // Every save is a version here; the note itself goes into his tracker's Notes cell.
+      const kept = await saveNote(env, { subject: key, text: field(form, 'text'), session }, now);
+      if (!j?.deal) return redirect(withA(kept));
+      const layout = session.sample ? { columns: { notes: 'Notes' } } : view.settings['layout:deals'];
+      if (layout?.columns?.notes === undefined) return redirect(`${back}?m=note_kept_here`);
+      const r = await updateDeal(env, { rowId: j.deal._id, fields: { notes: field(form, 'text') }, session }, now);
       return redirect(withA(r.id));
     }
     const deal = await dealPost(env, { path, form, session, now, back, withA, url });
@@ -364,12 +371,15 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
       // Preview only: put the sample rows back as they started (first-run uses it when every sample deal has moved on).
       if (path === '/dashboard/sample/reset') {
         await db.prepare('DELETE FROM sample_sheet').run();
-        for (const t of ['tick', 'intake', 'discovery', 'catalog', 'team_directory', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal']) await db.prepare(`DELETE FROM ${t} WHERE sample = 1`).run();
+        // The sample's own "tried once" marks go with it, so its form request lands on the board again.
+        await db.prepare("DELETE FROM setting WHERE key LIKE 'auto_tracked:s:%'").run();
+        for (const t of ['tick', 'intake', 'discovery', 'catalog', 'team_directory', 'quote', 'pricing', 'estimate', 'proposal', 'delivery', 'task', 'asset', 'portal']) await db.prepare(`DELETE FROM ${t} WHERE sample = 1`).run();
       }
       return redirect('/dashboard');
     }
     if (path === '/dashboard/refresh') {
       const out = await syncAll(env, now);
+      await autoTrack(env, session, now).catch(() => null);
       return redirect(`${back}${back.includes('?') ? '&' : '?'}m=${out.failed ? 'refresh_failed' : 'refreshed'}`);
     }
     if (path === '/dashboard/connect') {
@@ -414,7 +424,14 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
   const ctx = await context(env, session, url, now);
   // Pipeline is the first screen; /dashboard/deals and /dashboard/flow (the old Deals and Lead to cash
   // lists) show the same lists, so an old bookmark or a quick action's back link still lands on it.
-  if (path === '/dashboard' || path === '/dashboard/deals' || path === '/dashboard/flow') return html(V.renderPipeline(ctx.view, ctx, journeys(ctx.view, { notes: ctx.notes, now })));
+  if (path === '/dashboard' || path === '/dashboard/deals' || path === '/dashboard/flow' || path.startsWith('/dashboard/board/')) {
+    // Sample mode has no sync, so its form requests land in the sample tracker when the board opens.
+    const c = session.sample && (await autoTrack(env, session, now)).added ? await context(env, session, url, now) : ctx;
+    const touches = await lastTouches(env, session.sample);
+    const list = journeys(c.view, { notes: c.notes, now });
+    if (path.startsWith('/dashboard/board/')) return html(V.renderBoardColumn(c.view, c, list, touches, decodeURIComponent(path.slice('/dashboard/board/'.length))));
+    return html(V.renderPipeline(c.view, c, list, touches));
+  }
   if (path === '/dashboard/work') return html(V.renderWork(ctx.view, ctx));
   if (path.startsWith('/dashboard/work/')) {
     const id = decodeURIComponent(path.slice('/dashboard/work/'.length));
@@ -424,22 +441,32 @@ export async function handleDashboard({ request, env = {}, now = Date.now(), wai
     return html(V.renderClient(ctx.view, p, ctx));
   }
   if (path.startsWith('/dashboard/flow/')) {
-    const [key, part = ''] = decodeURIComponent(path.slice('/dashboard/flow/'.length)).split('/');
+    const [key, part = '', sub = ''] = decodeURIComponent(path.slice('/dashboard/flow/'.length)).split('/');
     const j = journeys(ctx.view, { notes: ctx.notes, now }).find((x) => x.key === key);
     if (!j) return redirect('/dashboard');
     const s = session.sample;
     const held = moneyHeld(ctx);
-    const deal = { ...ctx, discovery: await latestDiscovery(env, key, s), quote: await latestQuote(env, key, s), proposal: await latestProposal(env, key, s), delivery: await deliveryOf(env, key, s), directory: held ? [] : await readDirectory(env, s) };
+    const deal = { ...ctx, discovery: await latestDiscovery(env, key, s), quote: await latestQuote(env, key, s), proposal: await latestProposal(env, key, s), delivery: await deliveryOf(env, key, s), directory: held ? [] : await readDirectory(env, s), estimate: held ? null : await latestEstimate(env, key, s), pricing: held ? null : await readAllPricing(env, s) };
     if (part === 'discovery') {
       return html(D.renderDiscovery(j, deal));
     }
-    if (part === 'quote') return html(D.renderQuote(j, { ...deal, catalog: held ? null : await readCatalog(env, s) }));
+    // The quote tool (19 Nov 2026). The earlier roles builder (15 Nov 2026) stays at /quote-roles for any quote made there.
+    if (part === 'quote' && sub === 'client') return html(PV.renderClientView(j, deal));
+    // The quote as five steps (Scooter, 23 Nov 2026): /quote is the first, /quote/2 to /quote/5 the rest.
+    if (part === 'quote' && (!sub || /^[1-5]$/.test(sub))) return html(PV.renderEstimate(j, { ...deal, step: Number(sub) || 1, history: held ? [] : await estimateHistory(env, key, s), newMilestones: defaultMilestones(deal.pricing?.settings || {}) }));
+    if (part === 'quote-roles') return html(D.renderQuote(j, { ...deal, catalog: held ? null : await readCatalog(env, s) }));
     if (part === 'proposal') return html(D.renderProposal(j, deal));
     if (part === 'delivery') return html(D.renderDelivery(j, deal, { origin: url.origin, token: /^[A-Za-z0-9_-]{20,64}$/.test(url.searchParams.get('portal') || '') ? url.searchParams.get('portal') : '' }));
     if (part) return redirect(`/dashboard/flow/${encodeURIComponent(key)}`);
     return html(V.renderFlowRecord(ctx.view, j, { ...deal, history: await noteHistory(env, key, s) }));
   }
   if (path === '/dashboard/team') return html(D.renderTeam({ ...ctx, back: safeBack(url.searchParams.get('back') || '', '/dashboard'), directory: moneyHeld(ctx) ? [] : await readDirectory(env, session.sample) }));
+  if (['/dashboard/quote-settings', '/dashboard/rates', '/dashboard/services', '/dashboard/templates'].includes(path)) {
+    const held = moneyHeld(ctx);
+    const pctx = { ...ctx, back: safeBack(url.searchParams.get('back') || '', '/dashboard'), pricing: held ? {} : await readAllPricing(env, session.sample), pricingAt: held ? {} : await savedAt(env, session.sample) };
+    const render = { '/dashboard/quote-settings': PV.renderPricingSettings, '/dashboard/rates': PV.renderRates, '/dashboard/services': PV.renderServices, '/dashboard/templates': PV.renderTemplates }[path];
+    return html(render(pctx));
+  }
   if (path === '/dashboard/catalog') return html(D.renderCatalog({ ...ctx, catalog: moneyHeld(ctx) ? null : await readCatalog(env, session.sample) }));
   if (path === '/dashboard/access') {
     return html(V.renderAccess({ ...ctx, access: await fileAccess(env, ctx.view, { sample: session.sample }), counts_stored: session.sample ? null : await storedCounts(env) }));
@@ -474,10 +501,10 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
   const s = session.sample;
   const key = field(form, 'key');
   const go = (m, to = back) => redirect(`${to.split('?')[0]}?m=${m}`);
-  const needsKey = ['/dashboard/intake', '/dashboard/discovery', '/dashboard/quote', '/dashboard/proposal', '/dashboard/delivery/team', '/dashboard/delivery/task', '/dashboard/delivery/task/set', '/dashboard/delivery/asset', '/dashboard/delivery/portal'];
+  const needsKey = ['/dashboard/estimate', '/dashboard/intake', '/dashboard/discovery', '/dashboard/quote', '/dashboard/proposal', '/dashboard/delivery/team', '/dashboard/delivery/task', '/dashboard/delivery/task/set', '/dashboard/delivery/asset', '/dashboard/delivery/portal'];
   if (needsKey.includes(path) && !validKey(key)) return redirect('/dashboard');
   // Money inputs (rates, quotes, prices, proposals) wait for the narrow Google grant and Money on.
-  const moneyPaths = ['/dashboard/quote', '/dashboard/team', '/dashboard/catalog', '/dashboard/catalog/import', '/dashboard/proposal'];
+  const moneyPaths = ['/dashboard/quote-settings', '/dashboard/rates', '/dashboard/services', '/dashboard/templates', '/dashboard/estimate', '/dashboard/quote', '/dashboard/team', '/dashboard/catalog', '/dashboard/catalog/import', '/dashboard/proposal'];
   if (moneyPaths.includes(path)) {
     const connections = s ? [] : await listConnections(env);
     const g = connections.find((c) => c.provider === 'google');
@@ -516,6 +543,36 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
     const event = { start: field(form, 'event_start'), end: field(form, 'event_end') };
     return go((await saveDiscovery(env, { key, profile, answers, event, sample: s }, now)) === 'saved' ? 'discovery_saved' : 'deal_failed', dealBack(key, 'discovery'));
   }
+  // The quote tool: settings, the rate list, the catalog and templates (owner only, encrypted, this host's
+  // own database, sample rows apart from his), and each deal's quote. Every save is read back.
+  const PRICING_KIND = { '/dashboard/quote-settings': 'settings', '/dashboard/rates': 'people', '/dashboard/services': 'services', '/dashboard/templates': 'templates' };
+  if (PRICING_KIND[path]) {
+    const kind = PRICING_KIND[path];
+    const current = await readPricing(env, kind, s);
+    if (current?.unreadable) return go('deal_failed', path);
+    const data = kind === 'settings' ? settingsFromForm(form) : kind === 'people' ? peopleFromForm(form, current) : kind === 'services' ? servicesFromForm(form, current) : templatesFromForm(form, current);
+    const r = await savePricing(env, { kind, data, sample: s }, now);
+    return go(r === 'saved' ? 'pricing_saved' : r === 'no_token_key' ? 'no_token_key' : 'deal_failed', path);
+  }
+  if (path === '/dashboard/estimate') {
+    // Each step saves what it shows, then Next or Back moves on. A step left unchanged writes no new
+    // row (so stepping through a sent quote never makes a version 2 by itself); marking sent always saves.
+    const step = Math.min(5, Math.max(1, Number(field(form, 'step')) || 1));
+    const act = field(form, 'do');
+    const goTo = act === 'next' ? Math.min(5, step + 1) : act === 'back' ? Math.max(1, step - 1) : step;
+    const to = PV.stepPath(key, goTo);
+    const pricing = await readAllPricing(env, s);
+    if (Object.values(pricing).some((x) => x?.unreadable)) return go('deal_failed', to);
+    const prev = await latestEstimate(env, key, s);
+    if (prev?.unreadable) return go('deal_failed', to);
+    const quote = estimateFromForm(form, prev, pricing);
+    if (!prev) { const { j } = await record(); if (!quote.client) quote.client = j?.name || ''; }
+    const send = act === 'send';
+    if (!send && prev && JSON.stringify(cleanEstimate(quote)) === JSON.stringify(cleanEstimate(prev))) return act === 'save' ? go('estimate_saved', to) : redirect(to);
+    const r = await saveEstimate(env, { key, quote, sample: s, send, pricing }, now);
+    if (r.outcome === 'saved' && !send && act !== 'save') return go('estimate_step', to);
+    return go(r.outcome === 'saved' ? (r.status === 'sent' ? 'estimate_sent' : 'estimate_saved') : r.outcome === 'no_token_key' ? 'no_token_key' : 'deal_failed', to);
+  }
   if (path === '/dashboard/quote') {
     // One entry per service the page carried from Discovery (svc), each with every row it showed.
     // A person added on a row goes into the team directory first, then is assigned to that row.
@@ -542,7 +599,7 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
     if (added.length) {
       const dir = await readDirectory(env, s);
       const d = await saveDirectory(env, { people: [...dir, ...added], sample: s }, now);
-      if (d !== 'saved') return go(d === 'no_token_key' ? 'no_token_key' : 'deal_failed', dealBack(key, 'quote'));
+      if (d !== 'saved') return go(d === 'no_token_key' ? 'no_token_key' : 'deal_failed', dealBack(key, 'quote-roles'));
     }
     const raw = {
       services, term: field(form, 'term'), months: field(form, 'months'), plan: field(form, 'plan'), split: field(form, 'split'), rationale: field(form, 'rationale'), title: field(form, 'title'),
@@ -552,7 +609,7 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
       include: { owner: field(form, 'inc_owner'), overhead: field(form, 'inc_overhead'), tax: field(form, 'inc_tax') }
     };
     const r = await saveQuote(env, { key, quote: cleanQuote(raw), sample: s }, now);
-    return go(r.outcome === 'saved' ? 'quote_saved' : r.outcome === 'no_token_key' ? 'no_token_key' : 'deal_failed', dealBack(key, 'quote'));
+    return go(r.outcome === 'saved' ? 'quote_saved' : r.outcome === 'no_token_key' ? 'no_token_key' : 'deal_failed', dealBack(key, 'quote-roles'));
   }
   if (path === '/dashboard/team') {
     const to = safeBack(field(form, 'back'), '/dashboard/team');
@@ -581,6 +638,12 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
     const what = field(form, 'do');
     const to = dealBack(key, 'proposal');
     if (what === 'draft') {
+      const est = await latestEstimate(env, key, s);
+      if (est && !est.unreadable) {
+        const { j } = await record();
+        const text = proposalFromEstimate({ name: j?.name || key, quote: est, discovery: await latestDiscovery(env, key, s) });
+        return go((await saveProposal(env, { key, text, status: 'draft', quoteId: null, sample: s }, now)) === 'saved' ? 'proposal_drafted' : 'deal_failed', to);
+      }
       const q = await latestQuote(env, key, s);
       if (!q || q.unreadable) return go('deal_failed', to);
       const { j } = await record();
@@ -603,7 +666,9 @@ async function dealPost(env, { path, form, session, now, back, withA, url }) {
       let stageOk = true;
       if (signed && signed !== j.deal.stage) stageOk = (await updateDeal(env, { rowId: j.deal._id, fields: { stage: signed }, session }, now)).outcome === 'saved';
       const q = await latestQuote(env, key, s);
-      const started = await startDelivery(env, { key, team: field(form, 'team'), quote: q && !q.unreadable ? q : null, sample: s }, now);
+      const est = await latestEstimate(env, key, s);
+      const tasks = est && !est.unreadable ? est.lines.filter((l) => !l.cut).map((l) => l.name) : null;
+      const started = await startDelivery(env, { key, team: field(form, 'team'), quote: q && !q.unreadable ? q : null, tasks, sample: s }, now);
       return redirect(`${dealBack(key, 'delivery')}?m=${stageOk ? 'accepted' : 'accepted_stage_failed'}${started.token ? `&portal=${started.token}` : ''}`);
     }
     return redirect(to);

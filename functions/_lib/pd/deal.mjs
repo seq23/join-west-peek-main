@@ -15,6 +15,7 @@
 import { dbOf, ensureSchema } from './schema.mjs';
 import { decryptJson, encryptJson, httpsOnly, isoDay, num, randomToken, sha256b64, toTime } from './core.mjs';
 import { EVENT_SERVICE, SERVICES, SERVICE_BY_ID, serviceFrom } from '../services.mjs';
+import { clientView } from './pricing.mjs';
 
 const DAY = 86400000;
 const KEY_RE = /^[a-z0-9~-]{1,120}$/;
@@ -162,6 +163,18 @@ export function discoveryQuestions(profile = {}) {
   for (const part of ['buyer', 'objective', 'budget']) out.push(...(BANK[part][profile[part]] || []));
   const seen = new Set();
   return out.filter((q) => (seen.has(q.id) ? false : seen.add(q.id)));
+}
+/**
+ * Every guided question there is, once each, with the picks that ask it ("svc:<id>", "buyer:<v>",
+ * "objective:<v>", "budget:<v>"; none = always asked). Discovery shows them all before he saves
+ * (Scooter, 23 Nov 2026: "Show every question before I save. Saving stores; nothing new appears after").
+ */
+export function allDiscoveryQuestions() {
+  const out = new Map(BANK.always.map((q) => [q.id, { ...q, when: [] }]));
+  const add = (q, tag) => { const was = out.get(q.id); if (was) { if (was.when.length) was.when.push(tag); } else out.set(q.id, { ...q, when: [tag] }); };
+  for (const x of SERVICES) for (const q of BANK.service[x.id] || []) add(q, `svc:${x.id}`);
+  for (const part of ['buyer', 'objective', 'budget']) for (const [v, qs] of Object.entries(BANK[part])) for (const q of qs) add(q, `${part}:${v}`);
+  return [...out.values()];
 }
 export function cleanProfile(p = {}) {
   return { services: servicesOf(p), ...Object.fromEntries(Object.keys(DISCOVERY_PROFILE).map((k) => [k, DISCOVERY_PROFILE[k].options[p[k]] ? p[k] : ''])) };
@@ -364,8 +377,9 @@ export const OWNER_MODELS = { hours: 'Hours at an hourly rate', monthly: 'A set 
  * by the value of the work and never built from costs; costs are roles at their billed unit plus other
  * costs, internal only; a discount lowers the price, not the cost, so it comes out of margin; margin is
  * price minus the costs it includes, provisional while anything it includes is unpriced or unassigned.
- * Owner time is its own visible cost (planned one of three ways), apart from overhead and the tax
- * reserve; which of those the margin includes is shown and chosen on the quote.
+ * Owner time is its own visible cost (planned one of three ways), apart from overhead; which of those
+ * the margin includes is shown and chosen on the quote. The tax reserve is a separate cash hold and never
+ * reduces the margin (Scooter, 19 Nov 2026: "It must not reduce the displayed company profit or margin").
  */
 export function quoteMath(q, dir = []) {
   const term = TERMS[q.term] !== undefined ? Number(q.term) : 0;
@@ -394,7 +408,7 @@ export function quoteMath(q, dir = []) {
   const discount = price === null || dv === null ? null : d.mode === 'pct' ? (price * dv) / 100 : dv;
   const net = price === null ? null : price - (discount || 0);
 
-  const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: q.include?.tax !== false };
+  const inc = { owner: q.include?.owner !== false, overhead: q.include?.overhead !== false, tax: false };
   const o = q.ownerPlan || {};
   const ownerPerson = dir.find((p) => p.id === o.who) || null;
   const ownerRate = num(o.rate) ?? (ownerPerson && ownerPerson.per === 'hour' ? num(ownerPerson.rate) : null);
@@ -408,13 +422,12 @@ export function quoteMath(q, dir = []) {
   const notSet = [];
   if (inc.owner && ownerTime === null) notSet.push('owner time');
   if (inc.overhead && overhead === null) notSet.push('overhead');
-  if (inc.tax && taxPct === null) notSet.push('tax reserve');
   const beforeTax = net === null ? null : net - cost - (inc.owner ? ownerTime || 0 : 0) - (inc.overhead ? overhead || 0 : 0);
   const tax = beforeTax === null || taxPct === null ? null : (Math.max(0, beforeTax) * taxPct) / 100;
-  const amount = beforeTax === null ? null : beforeTax - (inc.tax ? tax || 0 : 0);
+  const amount = beforeTax;
   const provisional = [...(unpriced.length ? [`${unpriced.length} not priced`] : []), ...(unassigned.length ? [`${unassigned.length} with nobody assigned`] : []), ...notSet.map((x) => `${x} not set`)];
-  const includes = ['roles', 'other costs', ...(inc.owner ? ['owner time'] : []), ...(inc.overhead ? ['overhead'] : []), ...(inc.tax ? ['tax reserve'] : [])];
-  const leftOut = [...(inc.owner ? [] : ['owner time']), ...(inc.overhead ? [] : ['overhead']), ...(inc.tax ? [] : ['tax reserve'])];
+  const includes = ['roles', 'other costs', ...(inc.owner ? ['owner time'] : []), ...(inc.overhead ? ['overhead'] : [])];
+  const leftOut = [...(inc.owner ? [] : ['owner time']), ...(inc.overhead ? [] : ['overhead'])];
   const margin = net === null ? null : { amount, pct: net ? (amount / net) * 100 : null, provisional, belowCost: amount < 0, includes, leftOut, atMost: provisional.length > 0 };
 
   const inflow = new Array(months).fill(0);
@@ -443,7 +456,8 @@ export function quoteMath(q, dir = []) {
   const place = (v, at) => { const m = Math.min(months, Math.max(0, Number(at) || 0)); if (m) outflow[m - 1] += v; else for (let i = 0; i < months; i += 1) outflow[i] += v / months; };
   if (inc.owner && ownerTime !== null) place(ownerTime, o.month);
   if (inc.overhead && overhead !== null) place(overhead, ov.month);
-  if (inc.tax && tax !== null && tax > 0 && net) inflow.forEach((cashIn, i) => { outflow[i] += (tax * cashIn) / net; });
+  // The tax reserve is held from each payment as it arrives: a cash hold, never inside the margin.
+  if (tax !== null && tax > 0 && net) inflow.forEach((cashIn, i) => { outflow[i] += (tax * cashIn) / net; });
   let running = 0;
   const timeline = inflow.map((cashIn, i) => { running += cashIn - outflow[i]; return { month: i + 1, cashIn, cashOut: outflow[i], position: running }; });
   return {
@@ -541,6 +555,37 @@ export function proposalDraft({ name, quote, discovery }) {
     'Reply to confirm and we will send the agreement for signature.'
   ].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
 }
+/**
+ * A first proposal from a quote-tool quote (19 Nov 2026): built from its client view only (the
+ * included services, what each is, the price), so no person, rate, cost, margin, cut line or flag can
+ * reach it.
+ */
+export function proposalFromEstimate({ name, quote, discovery }) {
+  const cv = clientView(quote);
+  const outcome = discovery?.answers?.outcome;
+  const audience = discovery?.answers?.audience;
+  const scope = cv.services.map((x) => `- ${x.name}${x.qty !== null && x.qty !== 1 ? ` (${x.qty} ${String(x.unit).replace(/^per /, '')})` : ''}${x.description ? `: ${x.description}` : ''}`);
+  const ev = discovery?.event;
+  const when = ev?.start ? `Event dates: ${ev.start}${ev.end && ev.end !== ev.start ? ` to ${ev.end}` : ''}.` : '';
+  const paid = (quote.milestones || []).filter((m) => m.label).map((m) => `${m.label}${num(m.pct) !== null ? ` ${num(m.pct)}%` : ''}${m.trigger ? ` ${m.trigger.toLowerCase()}` : ''}`).join(', ');
+  return [
+    quote.project ? `${quote.project}: proposal for ${cv.client || name}` : `Proposal for ${cv.client || name}`,
+    '',
+    'What you told us',
+    outcome ? `- Success looks like: ${outcome}` : '- Success looks like: (from our discovery conversation)',
+    audience ? `- Who needs to care: ${audience}` : '',
+    '',
+    'What we will do',
+    ...(scope.length ? scope : ['- (Services from the quote)']),
+    when,
+    '',
+    'Investment',
+    cv.total !== null ? `${usd(cv.total)} in total${cv.discount ? ` (${usd(cv.price)} less a ${usd(cv.discount)} discount)` : ''}.${paid ? ` Payment: ${paid}.` : ''}` : '(Set the client price on the quote.)',
+    '',
+    'Next step',
+    'Reply to confirm and we will send the agreement for signature.'
+  ].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
+}
 export const PROPOSAL_STATUS = { draft: 'Draft', sent: 'Sent to the client', accepted: 'Accepted', declined: 'Declined' };
 export async function saveProposal(env, { key, text, status, quoteId, sample }, now = Date.now()) {
   const db = dbOf(env);
@@ -570,7 +615,7 @@ export async function proposalStatuses(env, sample) {
 /* ------------------------------------------------------------------ the work side, and the portal */
 
 /** An accepted deal gets its work side: the account team, a task per quoted service, and a portal. */
-export async function startDelivery(env, { key, team, quote, sample }, now = Date.now()) {
+export async function startDelivery(env, { key, team, quote, tasks = null, sample }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
   const s = sample ? 1 : 0;
@@ -578,7 +623,9 @@ export async function startDelivery(env, { key, team, quote, sample }, now = Dat
   if (have) return { created: false };
   const stmts = [db.prepare('INSERT INTO delivery (key, sample, at, team) VALUES (?,?,?,?)').bind(key, s, now, clip(team, 1000))];
   // One task per service (or per line of an older quote); never a specialist's name or cost.
-  for (const x of (quote ? quoteServices(quote) : []).filter((y) => !y.team)) stmts.push(db.prepare('INSERT INTO task (key, sample, at, title, owner, due, done, client) VALUES (?,?,?,?,?,?,0,1)').bind(key, s, now, clip(x.name, 200), '', ''));
+  // From the quote tool: one task per included line (its name only). Else the earlier builder's services.
+  const titles = Array.isArray(tasks) ? tasks : (quote ? quoteServices(quote) : []).filter((y) => !y.team).map((y) => y.name);
+  for (const x of titles.map((name) => ({ name }))) stmts.push(db.prepare('INSERT INTO task (key, sample, at, title, owner, due, done, client) VALUES (?,?,?,?,?,?,0,1)').bind(key, s, now, clip(x.name, 200), '', ''));
   await db.batch(stmts);
   const token = await newPortal(env, { key, sample }, now);
   return { created: true, token };

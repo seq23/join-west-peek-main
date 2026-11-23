@@ -93,18 +93,37 @@ export const MIGRATIONS = [
     // list per mode, like the catalog. Additive only.
     version: 6,
     sql: ['CREATE TABLE IF NOT EXISTS team_directory (sample INTEGER PRIMARY KEY, data_enc TEXT NOT NULL, at INTEGER NOT NULL)']
+  },
+  {
+    // The quote tool (Scooter, 19 Nov 2026, the quote tool builder brief). pricing: one encrypted row
+    // per kind (settings, people, services, templates) and mode. estimate: every save of a deal's quote,
+    // encrypted, with its version and status (a sent version is frozen; edits make the next one).
+    // Additive only.
+    version: 7,
+    sql: [
+      'CREATE TABLE IF NOT EXISTS pricing (kind TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, data_enc TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (kind, sample))',
+      'CREATE TABLE IF NOT EXISTS estimate (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL, data_enc TEXT NOT NULL)',
+      'CREATE INDEX IF NOT EXISTS estimate_key ON estimate (key, sample)'
+    ]
+  },
+  {
+    // The Pipeline board (Scooter, 23 Nov 2026: "Each card shows how many days since its last update").
+    // When a synced row's cells last changed, so an edit made straight in his tracker counts as an
+    // update too. Additive only: one new nullable column; existing rows keep their data.
+    version: 8,
+    sql: ['ALTER TABLE row_cache ADD COLUMN changed_at INTEGER']
   }
 ];
 
 /** Every table a backup carries (restore replaces each one whole). */
-export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'note', 'web_inquiry', 'intake', 'discovery', 'catalog', 'team_directory', 'quote', 'proposal', 'delivery', 'task', 'asset', 'portal', 'schema_version'];
+export const BACKUP_TABLES = ['owner', 'session', 'connection', 'source', 'row_cache', 'sync_state', 'action_log', 'tick', 'choice', 'setting', 'sample_sheet', 'app_key', 'note', 'web_inquiry', 'intake', 'discovery', 'catalog', 'team_directory', 'quote', 'pricing', 'estimate', 'proposal', 'delivery', 'task', 'asset', 'portal', 'schema_version'];
 /** What each table keeps, in his words: the Access page lists every table a backup carries. */
 export const TABLE_WORDS = {
   owner: 'Your sign-in record: your work email, your name and a salted hash of your password (never the password itself)',
   session: 'Each signed-in device: a hash of its sign-in and when it ends',
   connection: 'Each connected account: its name, what it allows, and its access key, encrypted',
   source: 'Which sheets you named on Connections',
-  row_cache: 'A copy of the rows read from those sheets, replaced at every sync (every 15 minutes). While Money is on, it includes your money rows',
+  row_cache: 'A copy of the rows read from those sheets, replaced at every sync (every 15 minutes), with when each row last changed. While Money is on, it includes your money rows',
   sync_state: 'When each part last synced, and how many rows (counts only)',
   action_log: 'What you pressed here and what your sheet showed back',
   tick: 'The fault rows you hid on the Pipeline',
@@ -119,6 +138,8 @@ export const TABLE_WORDS = {
   catalog: 'Your service catalog and rates, encrypted',
   team_directory: 'The team directory: names, owner / team / contractor, and a standard rate where one is known, encrypted',
   quote: 'Each quote (the roles on each service, who is assigned, how each is billed, rates, client price, discount, owner time, overhead and tax reserve, rationale), encrypted, every version',
+  pricing: 'The quote tool\'s settings, your rate list (people and vendors), the service catalog and its cost components, and your templates, encrypted',
+  estimate: 'Each quote from the quote tool (lines, quantities, costs, flags, your price, discount, payment timing, and the settings and rates it was priced with), encrypted, every version',
   proposal: 'Each proposal version and whether it was sent or accepted, encrypted',
   delivery: 'The account team on each accepted deal',
   task: 'Tasks on each accepted deal, and which ones the client sees',

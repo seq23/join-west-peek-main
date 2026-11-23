@@ -184,16 +184,25 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     row may sit anywhere in the top forty and a summary block above it never wins (`parseGrid`; his
     Pipeline tab has its column names on row 11, Opportunity through Flag, A to N), and a tracker with no ID column is keyed by organization (`keyFrom`,
     `k:<orgKey>`). Stages are his dropdown's, else his rows' words. A change writes only the cells
-    that differ on that one row and re-reads them; "Add them to my tracker" appends ONE row; nothing
+    that differ on that one row and re-reads them; a new lead is appended as ONE row by itself (below); nothing
     ever adds a column. Connections → Your sheets shows "How your tracker is read" (column names only,
     setting `layout:deals`); the Pipeline shows the columns it saw only when the layout is not recognised.
-  - **Pipeline is the first screen** (`/dashboard`, `renderPipeline`; `/dashboard/deals` and
-    `/dashboard/flow` show the same; Scooter, 15 Nov 2026: "I don't need it to figure out what needs my
-    attention. I need organized, clearly labeled lists of what's in the sales funnel and where each deal
-    sits ... Less on the screen, clear labels, quick to click in and out"). Form requests (people who sent a form; renamed from New inquiries 15 Nov 2026) not yet in his
-    tracker, then one labelled list per stage in his tracker's order (`Stage · n`, empty stages one
-    line), each row the organization, owner and next action with a Next stage button. No triage list,
-    no tab counts; only sync or connection faults show above the lists. **Productions only** (Scooter, 15 Nov 2026):
+  - **Pipeline is the first screen: one board** (`/dashboard`, `renderPipeline`; `/dashboard/deals` and
+    `/dashboard/flow` show the same; Scooter, 23 Nov 2026, wpp-board-sketch.png: "One board, everything tracked").
+    Six columns in his order (`functions/_lib/pd/board.mjs` `COLUMNS`): New leads, Discovery, Quote, Proposal out,
+    Won, Lost / cold. His tracker's stage words decide the column (`columnOf`: lost words first, so "Closed lost" is
+    never a win); a stage it does not recognise sits under New leads with the stage on the card. Each card is the
+    organization and the days since its last update (`lastUpdate`: form dates, last contact, proposal sent, the row's
+    own change time `row_cache.changed_at` (migration 8), and any saved note, Discovery, quote, proposal or intake),
+    gold at 7 days, red at 14, stalest first; each column shows 4 and a "See all n" (`/dashboard/board/<col>`,
+    `renderBoardColumn`) listing every card with stage, owner, next action and Next stage. On a phone the board
+    scrolls sideways (CSS scroll-snap, no script). No triage list, no tab counts; only sync or connection faults show above it.
+  - **Every lead is tracked by itself** (Scooter, 23 Nov 2026: "Remove the 'Save to my tracker' step. If a lead
+    exists, it's tracked."). After each sync (the cron and Refresh), `trackNewLeads` appends ONE row to his tracker
+    for each form request not in it yet (carrying owner/need from intake and the latest note), then re-syncs once.
+    Each lead is tried once (setting `auto_tracked:r:<key>`): a row he deletes from his tracker is never put back;
+    at most 10 per run; nothing happens until his tracker's layout is recognised. The sample preview does the same on
+    its sample sheet (a sample reset clears the sample marks). **Productions only** (Scooter, 15 Nov 2026):
     Top Barz rows (SoundCloud, Overtime Elite, Sagaboy, Wendy's, Top Barz; `NOT_PRODUCTIONS` / `productionsOnly` in
     `data.mjs`) are dropped at READ time in `loadView` and refused by `currentRow`, so they are never shown or written;
     they stay in his tracker and in the synced copy unchanged, and the Pipeline says how many are not shown. Tabs: Pipeline, Inquiries,
@@ -201,8 +210,8 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   - **A deal record** (`/dashboard/flow/<key>`, `renderFlowRecord`): one record per organization joining
     inquiry → tracker deal → signed (DocuSign or a signed stage) → project → invoices → paid
     (`journeys`). One screen, no explanations or help links, "← Pipeline" back: Deal (stage, owner,
-    next action, next date in ONE form → his tracker; or Add to my tracker + owner/need for a new
-    inquiry), his NOTES, written into his tracker's Notes cell on that row (only
+    next action, next date in ONE form → his tracker; a form request shows owner/need until its row lands),
+    his NOTES, written into his tracker's Notes cell on that row (only
     that cell, read back; Scooter, 14 Nov 2026: "they need to live where I can see and edit them");
     D1 table `note` keeps every version. No Notes column → kept in D1 and said so; never a new column.
     Then Contact (person, title, email, service, event dates, need, timing, form request dates; no Source, 15 Nov 2026), Discovery to delivery (the four steps
@@ -214,8 +223,10 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     15 Nov 2026): the build writes them into the site (`<!--SERVICES:grid-->` / `<!--SERVICES:options-->`
     markers in `sites/productions/*.html`), and Discovery, Quote and the form handler read the same list.
     Per deal: Discovery (services first as the site's icon tiles, several at once; Organization type,
-    objective, scale; his six sales-call notes; guided questions per service; event start/end dates for
-    Virtual / hybrid, carried from the Get in touch form),
+    objective, scale; his six sales-call notes; event start/end dates for Virtual / hybrid, carried from the Get in touch
+    form; every question is on the page before he saves (Scooter, 23 Nov 2026: "Show every question before I save.
+    Saving stores; nothing new appears after."): `allDiscoveryQuestions` lists each once with the picks it belongs to,
+    and CSS `:has()` shows the ones for what is ticked as he ticks; a browser without `:has()` shows them all),
     Quote (Scooter, 15 Nov 2026, built to his quote-builder-format.pdf: each Discovery service loads its roles
     and cost categories from `SERVICE_ROLES` in `deal.mjs`, structure only, every box blank; each row has
     Assigned to (from the team directory, `/dashboard/team`, D1 `team_directory`, encrypted; owner / team
@@ -233,6 +244,49 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
     tasks and files marked "client sees"; token stored only as a hash; New link / Turn off). Catalog,
     quotes and proposals are AES-GCM encrypted. Money inputs are refused while Google holds a wider
     grant or Keep money out is on. No invoice or billing feature (Scooter's hold).
+  - **The quote tool** (Scooter, 19 Nov 2026, WPP-Quote-Tool-Builder-Brief.pdf; his three answers the same day: he types the
+    client price and the starting number / recommended price are shown, never filled in; Company profit = price − total
+    cost, with his pay shown on its own; default schedule deposit on signing, balance on delivery, deposit % blank until
+    set). Code: `functions/_lib/pd/pricing.mjs` (settings, rate list, the brief's 36 services, templates, ONE pure
+    `priceQuote`, `paymentTiming`, `clientView`, versions), `pricing-forms.mjs`, `views-pricing.mjs`. Screens:
+    `/dashboard/quote-settings` (about a dozen settings, all blank; owner hourly cost = pay ÷ hours, never typed),
+    `/dashboard/rates` (people and vendors: rate, unit, Agreed/Guess, source, as-of), `/dashboard/services` (the 36
+    services, names/categories/units only, each "incomplete" until he adds components), `/dashboard/templates`, and each
+    deal's Quote, five steps with one decision each (Scooter, 23 Nov 2026, wpp-quote-steps.png): 1 The work
+    `/dashboard/flow/<key>/quote` (the eight kinds of work as tiles, the one Discovery or the form named marked
+    "From Discovery" but never ticked for him; ticking one brings all its services in priced from the rate list,
+    unticking takes them out; Keep per line; his sets, one catalog service or a line of his own under "More ways to
+    add"; no money, settings links or warnings on this screen), 2 Who does what `/quote/2` (per line, type a name and
+    a price; "me" is his own hours at his hourly cost; a rate-list name uses that person's rate; any other name is
+    kept with the price typed; no role dropdown), 3 Other costs and your time `/quote/3` (vendor costs, travel, and only
+    his hours not already on a line: nothing counts twice), 4 The price `/quote/4` (the suggested price beside his empty
+    price box, a labelled Discount box, the key numbers, flags and payment timing), 5 Review and send `/quote/5` (the
+    client view as is; Save, or Save and mark as sent). Each step posts only its own fields (`estimateFromForm`), Next and
+    Back save the step, and a step with nothing changed saves no new version. Client view alone: `/quote/client`. D1 tables `pricing` (one encrypted
+    row per kind and mode) and `estimate` (every save, encrypted, with version and status), migration 7. The math is the
+    brief's section 5 and its section 7/8 synthetic tests are in `test:dashboard` verbatim. Rules: a missing cost is
+    counted, never summed as zero ("at least $X, n costs missing"); any Guess tags the figures "estimate"; flags (missing,
+    below the starting number with the lowest-value lines to cut, under the warning line, a short deposit) never block a
+    save or send; a cut line counts for nothing, stays struck through in his view and never reaches the client; an edit on
+    a quote (who, how much, a rate for this quote) starts as Guess; a draft reprices from the live settings and rates on
+    every edit, "Save and mark as sent" freezes that version with its settings and rates, and the next save makes the next
+    version. The client view (and a proposal drafted from it, `proposalFromEstimate`) carries the included services,
+    their descriptions and the price only. Payment timing is information only. **The quote tool never reads or writes
+    `cashPicture`, Money or his Money sheet** (pinned: a quote save leaves the synced rows, settings, sync state and action
+    log unchanged). Open in the brief (section 10), so it is HIS choice, never a fixed rule: Settings → "Contingency on
+    your own hours" (Not chosen yet / Yes / No). Not chosen counts as yes, matching the brief's test numbers; No leaves his
+    guessed hours out of the padded part (pinned both ways in `test:dashboard`). A monthly cost counts in full before the second payment (planning view). The 15 Nov roles builder
+    stays at `/dashboard/flow/<key>/quote-roles` for any quote made there and is linked from the deal only when one exists.
+  - **Addresses are never obfuscated** (Scooter, 19 Nov 2026: Inquiries showed "[email protected]"): Cloudflare's Email
+    Address Obfuscation rewrites addresses on westpeekproductions.com and decodes them with a script the dashboard CSP
+    (correctly) refuses. Every dashboard and portal page body sits inside `<!--email_off-->…<!--/email_off-->`
+    (`EMAIL_OFF` in `views.mjs`) and responses carry `Cache-Control: no-store, private, no-transform`; the CSP is unchanged
+    and no script is added. Inquiries and the deal record show the address as a `mailto:` link. Guard: `test:dashboard`
+    fails on any address or mailto outside the markers.
+  - **Inquiry emails link to the live dashboard** (Scooter, 19 Nov 2026): `inquiryDashboardOrigin` in `functions/api/lead.js`
+    — every production host (apex, www, aliases, the project's own pages.dev name) links to
+    `https://westpeekproductions.com/dashboard/inquiries`; only a branch preview or a local run links to itself, and its
+    subject starts "TEST:". Guard: `test:lead`.
   - **Cash rules** (`cashPicture`): "paid" without a Settled on date is neither cash nor forecast;
     actual and forecast are separate; a payment dated on/before the balance date (or a receipt matching
     an open invoice) is counted once; open invoices date by their terms (Net N from Issued; a
@@ -370,7 +424,7 @@ full why: `functions/_lib/lead-delivery.mjs`; guard: `npm run test:lead` (`scrip
 |---|---|
 | `scripts/validate_forms.mjs` | every form transmits; no success message without a server response; the thank-you panel appears only on a confirmed success (FORM-7); every page with a `data-westpeek-form` loads `shared/assets/js/forms.js` (FORM-12); every transmitting form is in `shared/forms-register.json` with a destination, and every form registered as reaching the sheet is actually wired through `functions/api/lead.js` to the Network OS intake door (FORM-10); every form on all three sites carries `data-bot-check="turnstile"` (FORM-13) and the widget mints its token only on submit, then posts it (FORM-7); the server gates themselves are proven in `scripts/test_lead_delivery.mjs` |
 | `scripts/validate_dashboard_privacy.mjs` | no owners file or dashboard loader input in the repo; sample rows are all "Sample …" with example.test addresses; no address (beyond the OS inbox and test domains) or dollar figure in dashboard code; no private package document; with `DASHBOARD_PRIVATE_NAMES_FILE`, none of those names anywhere |
-| `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout (a locked password never blocks a fresh emailed code); sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are Gmail compose links and no Gmail scope is asked; his tracker read under a title line with no ID column, only changed cells written, a moved row found by organization, an inquiry appended once, unrecognised columns named; Lead to cash joins inquiry and deal; notes go into his tracker's Notes cell only and persist on a second device; his Pipeline tab read from row 11 under a summary block; site inquiries, intake owner/need, researched lead appended once; discovery shaped per deal; quote floor/unknowns/price/margin/terms/timing, encrypted; proposal never shows costs; accept moves his tracker and starts delivery; portal isolation, revoke and new link; money hold; wide grant withdrawn by sync; delete synced copies; the cash rules; Who can see what names wider grants, sharing and every table; Narrow revokes then reconnects; Keep money out deletes the money copy; ticks persist; the Pipeline lists each deal under its stage with no triage; failed sync, broken connection and a disconnected account above the Pipeline; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
+| `scripts/test_dashboard.mjs` | /dashboard v1.0 against a real SQLite as D1 and stubbed Google: Scooter alone; password without email opens nothing; D1 sessions remembered 30 days, revoked on sign-out, others revoked on password change; pre-v1.0 password and cookie carry across; one-time code hashed, once, 7 days; lockout (a locked password never blocks a fresh emailed code); sample identity preview-only and never sees real rows; tokens encrypted; quick actions write the row by ID and a write not seen on re-read is reported failed; reminders are Gmail compose links and no Gmail scope is asked; his tracker read under a title line with no ID column, only changed cells written, a moved row found by organization, an inquiry appended once, unrecognised columns named; Lead to cash joins inquiry and deal; notes go into his tracker's Notes cell only and persist on a second device; his Pipeline tab read from row 11 under a summary block; site inquiries, intake owner/need, researched lead appended once; discovery shaped per deal; quote floor/unknowns/price/margin/terms/timing, encrypted; the quote tool (the brief's section 7 and 8 tests verbatim, settings/rates/catalog/templates persisted on a second device and encrypted, an unfinished line kept and flagged, cut lines, overrides as Guess, drafts reprice, sent versions frozen, the client view and its proposal carry no internal figure, no cash write, sample and Keep money out see and save nothing of his); every address inside email_off; dashboard:status counts only; proposal never shows costs; accept moves his tracker and starts delivery; portal isolation, revoke and new link; money hold; wide grant withdrawn by sync; delete synced copies; the cash rules; Who can see what names wider grants, sharing and every table; Narrow revokes then reconnects; Keep money out deletes the money copy; ticks persist; the Pipeline lists each deal under its stage with no triage; failed sync, broken connection and a disconnected account above the Pipeline; Disconnect revokes; Google sign-in refuses other accounts; cron door needs its secret; backup + restore; sending off |
 | `scripts/validate_disclosure.mjs` | `/disclosures` carries the approved language; every ventures page links to it, none inline; outbound links carry `rel="noopener"` |
 | `scripts/validate_ventures_isolation.mjs` | no sister-site links; canonical nav on every ventures page with the mobile toggle; anchors resolve; retired pages redirect |
 | `scripts/validate_community_site.mjs` | no sister-property links on the community site; no personal address, OS-inbox fallback on every form; The Update's Yes/No consent radios, intake field names and server-side gate |
@@ -400,8 +454,10 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   1. BEFORE the merge: `dashboard:setup -- --env production`. The binding rides on the live pre-v1.0 code harmlessly, and the merge's own deployment carries it. Expect `owner=copied_from_preview(1)`, `copied_from_preview_kv(1)` or `kept`.
   2. LAND merges and deploys.
   3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
+  4. Then `dashboard:status -- --env production`: its `OUTPUT` line is the live answer to "does the live dashboard read and write my tracker, and what is still disconnected" (reads_tracker / writes_tracker / not_connected), and its `email_obfuscation=` reading plus the merged `no-transform` header and `email_off` markers are the live proof for "[email protected]". It is read-only and safe before his approval: BUILD asks for it on production through `needs_runs` (his 19 Nov email asked for this confirmation), so the tracker answer is production's own; `address_readable=after_land` there is the observed proof that the address fix waits only on the merge, and LAND runs it again for `yes`.
+- `dashboard:status` — `node scripts/dashboard_status.mjs --env preview|production`: READ ONLY (SELECT statements only, refused otherwise) against that environment's D1: each connection (connected / broken / not connected), which sheets are named, synced kinds with row counts, whether his tracker is read (Google connected, tracker or Work sheet named, deals synced with rows) and written (count and time of the last saved-and-checked tracker write), and site inquiries kept; on production it also reads the westpeekproductions.com zone's Email Address Obfuscation setting (a GET; the cause of "[email protected]", which the dashboard opts out of with `no-transform` and `email_off` markers). Prints states, counts and times only, never a row, name, sheet title, address or figure; on production it also reads the live `/dashboard` Cache-Control header (no cookie, one GET) and gives `address_readable=yes|after_land|unknown`: `yes` when obfuscation is off or production already serves `no-transform`, `after_land` while production still serves the code before this fix, never `yes` on a missing reading; also reads whether the Google sign-in app's keys are on that environment (`google_app=set|not_set|unknown`: the Pages project's variable NAMES, or a pair pasted on Connections; never a value) and prints `next=`, the steps still between it and "reads and writes your tracker, addresses readable", in order: `land` (production still serves the old code), `set_google_app` (ask `pages_env` for `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` on `west-peek-productions`), `connect_google` (Scooter presses Connect Google on the live Connections page), `name_tracker_sheet`, `first_tracker_write`, `check_again` (a reading was missing), or `none`; ends with `OUTPUT dashboard:status env=… reads_tracker=… writes_tracker=… connected=… not_connected=… sheets_named=… site_inquiries=… email_obfuscation=… address_readable=… google_app=… next=…`. NAMED STOP (exit 2) on a missing `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`, an unknown env, no database or no owner row. Safe on production at any time (it changes nothing); it answers "does the live dashboard read and write my tracker".
 - `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
-- `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, (1) `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
+- `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, (1) `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview (or `http://localhost:<port>`, which the dashboard treats as a preview), signs in with the sample identity, sees rows on every tab (the Pipeline board: his six columns, days on every card, a See all per column, no add-to-tracker step), moves one deal a stage from its column's See all (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys; then the quote tool: saves settings (hourly cost shown on the second device), a rate-list person and a catalog service's components, walks the five-step quote (a clean first step with the eight kinds of work and no money, settings link or warning; a catalog line and an unfinished custom line that reload on the second device still flagged; the price box empty beside the suggestion; a price saved on step 4; the review step showing the client view), and checks the client view shows services, descriptions and the price with no person, rate, cost, margin or flag; then ticks Virtual events while one of its services is already in (its tile shown part-filled, never ticked) and checks every one of its services arrives once, on the second device. Prints `FIRST_RUN OK`.
 - `live-links` — `node scripts/live_links.mjs [--url https://<host> …]` (no `--url` = the three production hosts): fetches each site's home and /privacy (Productions also /work, /what-we-do, /about, /get-in-touch) and fails on a non-200, not exactly one GA4 tag with that site's ID, another site's ID, Clarity or any other tracker, and on Productions a favicon other than the WP mark, a link preview other than the "We make people care" card, or the old preview/client-permission line. Prints each link and `LIVE_LINKS OK <n> links`. LAND runs it with no `--url` after the deploy; its lines are the live links sent to Scooter (19 Nov 2026: "Please reply with the live links once complete").
 - `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
   (2) `node scripts/first_run_privacy.mjs --url <preview>`: loads `/privacy` and every sitemap page plus the 404 on each preview given; fails on a missing footer link, an unnamed tool, a missing contact or date, a placeholder or a bad status; then runs `scripts/first_run.mjs` (the GA4 first-run) on the same previews; prints `FIRST_RUN OK` only when both pass.

@@ -273,10 +273,11 @@ export function sampleRows(now = Date.now()) {
       { id: 'SW3', project: 'SP3', item: 'Sample approval on cut', since: d(-2), owner: 'Sample Lead', status: 'Waiting', received: '', email: '' }
     ],
     deals: [
-      { id: 'SD1', org: 'Sample Org D', stage: 'Discovery', owner: 'Sample Lead', next_action: 'Sample follow-up call', next_date: d(3), proposal_sent: '', follow_up: '', email: '' },
-      { id: 'SD2', org: 'Sample Org E', stage: 'Proposal', owner: 'Sample Lead', next_action: 'Sample proposal follow-up', next_date: d(-1), proposal_sent: d(-10), follow_up: d(-1), email: 'sample-e@example.test' },
-      { id: 'SD3', org: 'Sample Org F', stage: 'Relationship identified', owner: 'Sample Lead', next_action: 'Sample intro', next_date: d(7), proposal_sent: '', follow_up: '', email: '' },
+      { id: 'SD1', org: 'Sample Org D', stage: 'Discovery', owner: 'Sample Lead', next_action: 'Sample follow-up call', next_date: d(3), proposal_sent: '', follow_up: '', last_contact: d(-2), email: '' },
+      { id: 'SD2', org: 'Sample Org E', stage: 'Proposal', owner: 'Sample Lead', next_action: 'Sample proposal follow-up', next_date: d(-1), proposal_sent: d(-10), follow_up: d(-1), last_contact: d(-9), email: 'sample-e@example.test' },
+      { id: 'SD3', org: 'Sample Org F', stage: 'Relationship identified', owner: 'Sample Lead', next_action: 'Sample intro', next_date: d(7), proposal_sent: '', follow_up: '', last_contact: d(-6), email: '' },
       { id: 'SD4', org: 'Sample Org A', stage: 'Delivery handoff', owner: 'Sample Lead', next_action: 'Sample wrap call', next_date: d(12), proposal_sent: d(-50), follow_up: '', email: 'sample-a@example.test' },
+      { id: 'SD6', org: 'Sample Org H', stage: 'Solution and budget', owner: 'Sample Lead', next_action: 'Sample quote', next_date: d(2), proposal_sent: '', follow_up: '', last_contact: d(-3), email: '' },
       // A Top Barz row, so the preview shows it is left out of the Productions screens (never changed).
       { id: 'SD5', org: 'Sample Top Barz show', stage: 'Proposal', owner: 'Sample Lead', next_action: 'Sample sponsor call', next_date: d(2), proposal_sent: '', follow_up: '', email: '' }
     ],
@@ -316,7 +317,7 @@ export function sampleRows(now = Date.now()) {
     ]
   };
 }
-const SAMPLE_VERSION = 3; // 3: a Top Barz sample row (15 Nov 2026)
+const SAMPLE_VERSION = 4; // 3: a Top Barz sample row (15 Nov 2026); 4: last-contact dates and a Quote row for the board (23 Nov 2026)
 /** Fills the sample sheet once per sample version; rows already there (and moved) are kept. */
 async function ensureSample(db, now) {
   const have = await db.prepare("SELECT value FROM setting WHERE key = 'sample_version'").first();
@@ -371,8 +372,8 @@ export async function loadView(env, { sample }, now = Date.now()) {
     const hidden = productionsOnly(rows);
     return { sample: true, rows, sync, hidden, sources: { work: { title: 'Sample work sheet' }, money: { title: 'Sample money sheet' }, inquiries: { title: 'Sample form responses' } }, settings: {} };
   }
-  for (const r of (await db.prepare('SELECT kind, row_id, origin, data FROM row_cache').all()).results || []) {
-    if (rows[r.kind]) rows[r.kind].push({ ...JSON.parse(r.data), _id: r.row_id, _origin: JSON.parse(r.origin).title || '' });
+  for (const r of (await db.prepare('SELECT kind, row_id, origin, data, changed_at FROM row_cache').all()).results || []) {
+    if (rows[r.kind]) rows[r.kind].push({ ...JSON.parse(r.data), _id: r.row_id, _origin: JSON.parse(r.origin).title || '', _changed: r.changed_at ?? null });
   }
   for (const r of (await db.prepare('SELECT * FROM sync_state').all()).results || []) sync[r.kind] = r;
   // His own site's Get in touch form feeds the same inquiry list as his form's response sheet.
@@ -487,9 +488,15 @@ export async function syncAll(env, now = Date.now()) {
             }
           }
           const status = !tab && !origins.length ? 'missing_tab' : 'ok';
+          // When each row's cells last changed (the board's "days since last update"): kept from the
+          // last copy while the row reads the same; a row that is new or changed gets this sync's time.
+          // The row number is left out, so a row moved down his sheet is not "updated".
+          const before = new Map(((await db.prepare('SELECT row_id, data, changed_at FROM row_cache WHERE kind = ?').bind(kind).all()).results || []).map((x) => [x.row_id, x]));
+          const cells = (d) => { const { _row, _id, ...rest } = typeof d === 'string' ? JSON.parse(d) : d; return JSON.stringify(rest); };
+          const changedAt = (id, r) => { const was = before.get(id); return !was ? (before.size ? now : null) : cells(was.data) === cells(r) ? was.changed_at ?? null : now; };
           await db.batch([
             db.prepare('DELETE FROM row_cache WHERE kind = ?').bind(kind),
-            ...all.map(({ r, o, id }) => db.prepare('INSERT OR REPLACE INTO row_cache (kind, row_id, origin, data, synced_at) VALUES (?,?,?,?,?)').bind(kind, id, JSON.stringify({ id: o.id, tab: o.tab, title: o.title, sheet_row_id: r._id }), JSON.stringify(r), now)),
+            ...all.map(({ r, o, id }) => db.prepare('INSERT OR REPLACE INTO row_cache (kind, row_id, origin, data, synced_at, changed_at) VALUES (?,?,?,?,?,?)').bind(kind, id, JSON.stringify({ id: o.id, tab: o.tab, title: o.title, sheet_row_id: r._id }), JSON.stringify(r), now, changedAt(id, r))),
             db.prepare('INSERT INTO sync_state (kind, synced_at, status, error, rows, origins) VALUES (?,?,?,?,?,?) ON CONFLICT(kind) DO UPDATE SET synced_at=excluded.synced_at, status=excluded.status, error=excluded.error, rows=excluded.rows, origins=excluded.origins')
               .bind(kind, now, status, null, all.length, origins.map((o) => o.title).join(' + '))
           ]);
@@ -704,7 +711,7 @@ async function writeRow(env, db, { kind, rowId, changes, base, label, session },
     // Re-read: only what the sheet now says counts as saved.
     const after = parseGrid(kind, await readTab(env, origin.id, origin.tab)).rows.find((r) => r._id === origin.sheet_row_id);
     const ok = after && Object.entries(written).every(([k, v]) => sameCell(k, after[k], v));
-    if (ok) await db.prepare('UPDATE row_cache SET data = ?, synced_at = ? WHERE kind = ? AND row_id = ?').bind(JSON.stringify({ ...after, _id: row._id }), now, kind, rowId).run();
+    if (ok) await db.prepare('UPDATE row_cache SET data = ?, synced_at = ?, changed_at = ? WHERE kind = ? AND row_id = ?').bind(JSON.stringify({ ...after, _id: row._id }), now, now, kind, rowId).run();
     return { id: await logAction(db, { ...base, outcome: ok ? 'saved' : 'failed', detail: ok ? `${label}|${origin.title}` : 'not_confirmed' }), outcome: ok ? 'saved' : 'failed' };
   } catch (err) {
     return fail(err.message === 'needs_reconnect' ? 'needs_reconnect' : err.reason || 'write_failed');
@@ -772,11 +779,11 @@ export async function updateDeal(env, { rowId, fields, session }, now = Date.now
  * pipeline, never a change to an existing row), filled only in the columns his tracker has. Then it
  * re-reads the tab and only a row that is really there counts.
  */
-export async function addDealFromInquiry(env, { journey, session, carry = {} }, now = Date.now()) {
+export async function addDealFromInquiry(env, { journey, session, carry = {}, resync = true }, now = Date.now()) {
   const db = dbOf(env);
   await ensureSchema(db);
   const base = { at: now, owner: session.ownerId, sample: session.sample, kind: 'deals', rowId: journey.key, action: 'add_deal' };
-  const fail = async (detail) => ({ id: await logAction(db, { ...base, outcome: 'failed', detail }), outcome: 'failed' });
+  const fail = async (detail) => ({ id: await logAction(db, { ...base, outcome: 'failed', detail }), outcome: 'failed', detail });
   const inq = journey.inquiries.at(-1) || {};
   const { stages } = await dealStages(db, session.sample);
   const values = { org: journey.name, stage: stages[0] || FUNNEL_STAGES[0], contact: inq.name || '', email: inq.email || '', source: carry.source || (inq.from_site ? 'Website: Get in touch' : 'Website inquiry'), next_action: carry.next_action || 'Reply to the inquiry', next_date: isoDay(now) };
@@ -813,7 +820,7 @@ export async function addDealFromInquiry(env, { journey, session, carry = {} }, 
     await gfetch(env, `${SHEETS}/${layout.id}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, { method: 'POST', body: JSON.stringify({ values: [line] }) });
     const after = parseGrid('deals', await readTab(env, layout.id, layout.tab)).rows.find((r) => orgKey(r.org) === journey.key);
     if (!after) return fail('not_confirmed');
-    await syncAll(env, now).catch(() => null);
+    if (resync) await syncAll(env, now).catch(() => null);
     return { id: await logAction(db, { ...base, outcome: 'saved', detail: `${journey.name}: added to the tracker|${layout.title ? `${layout.title} · ` : ''}${layout.tab}` }), outcome: 'saved' };
   } catch (err) {
     return fail(err.message === 'needs_reconnect' ? 'needs_reconnect' : err.reason || 'write_failed');
@@ -1156,7 +1163,7 @@ export function journeys(view, { notes = {}, now = Date.now() } = {}) {
           : step === 3 ? 'Signed' : step === 2 ? `Deal · ${deal.stage || 'no stage yet'}` : 'Form request';
     const next = overdue.length ? { text: `Chase invoice ${overdue[0].id || ''}`.trim(), date: overdue[0].due, tone: 'red' }
       : deal?.next_action ? { text: deal.next_action, date: deal.next_date, tone: (daysSince(deal.next_date, now) ?? -1) > 0 ? 'gold' : '' }
-        : step === 1 ? { text: 'Reply, and add them to your tracker', date: j.inquiries.at(-1)?.at, tone: 'gold' } : null;
+        : step === 1 ? { text: 'Reply to them', date: j.inquiries.at(-1)?.at, tone: 'gold' } : null;
     const when = Math.max(0, ...j.inquiries.map((i) => toTime(i.at) || 0), ...j.invoices.map((i) => toTime(i.due) || 0), ...j.deals.map((d) => toTime(d.next_date) || 0));
     return { ...j, deal, signedBy, invoiced, paid, open: invoiced - paid - j.invoices.filter((i) => /draft/i.test(i.status || '')).reduce((a, i) => a + amount(i), 0), openRows, overdue, step, lost, where, next, when, note: deal?.notes ? { text: String(deal.notes), at: null } : notes[j.key] || null };
   });

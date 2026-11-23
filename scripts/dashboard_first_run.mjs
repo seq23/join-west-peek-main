@@ -14,6 +14,8 @@
  * dead while the second still opens. A deal record: one screen with the tracker form, notes and the
  * discovery-to-delivery steps; a note saved on it persists after a reload and on the second device, and Who can see what opens. One deal all the way through:
  * discovery, a priced quote, a proposal, accepted, delivery, and a client portal with no money.
+ * The quote tool (19 Nov 2026): settings, the rate list and a catalog service saved and read on a second
+ * device; a quote with an unfinished line that persists flagged; a client view with no internal figure.
  * Exits non-zero on any failure; prints one line starting "FIRST_RUN OK" when every step passed.
  */
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
@@ -171,17 +173,25 @@ const A = await signIn();
 ok('signed in with the preview test identity, remembered for 30 days');
 
 // 4. Real (synthetic, non-empty) rows on every tab.
-for (const [p, want] of [['/dashboard', /<h2 id="stage-\d+-h">[^<]+ · [1-9]/], ['/dashboard/inquiries', /Sample/], ['/dashboard/work', /Sample Org/], ['/dashboard/money', /Invoices due/], ['/dashboard/agents', /Drafts waiting/], ['/dashboard/connections', /Your choices/]]) {
+for (const [p, want] of [['/dashboard', /<h2 id="col-[a-z]+">[^<]+<span class="d-col__n">[1-9]/], ['/dashboard/inquiries', /Sample/], ['/dashboard/work', /Sample Org/], ['/dashboard/money', /Invoices due/], ['/dashboard/agents', /Drafts waiting/], ['/dashboard/connections', /Your choices/]]) {
   const r = await get(p, A);
   if (r.status !== 200) fail(`open ${p}`, `answered ${r.status}`);
-  if (!want.test(r.text) || !/class="d-row__title|class="d-conn"/.test(r.text)) fail(`open ${p}`, 'no rows shown');
+  if (!want.test(r.text) || !/class="d-row__title|class="d-conn"|class="d-card__name"/.test(r.text)) fail(`open ${p}`, 'no rows shown');
   if (PLACEHOLDER.test(r.text)) fail(`open ${p}`, 'placeholder text');
 }
-ok('Pipeline (deals listed under their stages), Inquiries, Clients, Money, Agents and Connections show rows');
+ok('Pipeline (a board of cards in their columns), Inquiries, Clients, Money, Agents and Connections show rows');
 {
   const p = (await get('/dashboard', A)).text;
-  if (/Sample Top Barz show/.test(p) || !/Top Barz row(s are| is) not shown here/.test(p) || !/Form requests ·/.test(p) || /New inquiries/.test(p)) fail('pipeline', 'Top Barz work shows, or Form requests is not named');
-  ok('Pipeline is Productions only (the Top Barz sample row is left out and said so) and names Form requests');
+  if (/Sample Top Barz show/.test(p) || !/Top Barz row(s are| is) not shown here/.test(p)) fail('pipeline', 'Top Barz work shows, or the one line saying it is left out is missing');
+  // Scooter, 23 Nov 2026: six columns in his order, each card with the days since its last update, each
+  // column a See all, and no "Save to my tracker" step anywhere.
+  const cols = [...p.matchAll(/<h2 id="col-([a-z]+)">([^<]+?) <span/g)].map((m) => m[2]).join('|');
+  if (cols !== 'New leads|Discovery|Quote|Proposal out|Won|Lost / cold') fail('pipeline', `the board columns are not his six in order (${cols})`);
+  const cards = (p.match(/<li class="d-card">/g) || []).length;
+  const days = (p.match(/<span class="d-days[^"]*" title="Days since its last update">(today|\d+ days?|no date)<\/span>/g) || []).length;
+  if (!cards || days !== cards) fail('pipeline', `not every card shows its days since the last update (${days} of ${cards})`);
+  if (!/class="d-seeall" href="\/dashboard\/board\/[a-z]+">See all \d+/.test(p) || /Save to my tracker|Add to my tracker|\/dashboard\/deal\/add/.test(p)) fail('pipeline', 'a column has no See all, or the tracker-add step is still there');
+  ok('Pipeline is one board in his six columns, each card with its days, each column a See all; Top Barz left out and said so; no add-to-tracker step');
 }
 {
   const m = await get('/dashboard/money', A);
@@ -199,41 +209,50 @@ if (!/cannot be saved in sample mode/.test(keyBack.text) || /first-run-test-(key
 ok('sample mode refuses to save app keys and says so');
 
 // 5. One quick action, written and read back.
+// Next stage sits on each column's See all page (the board cards stay calm).
+const COLS = ['new', 'discovery', 'quote', 'proposal', 'won', 'lost'];
 function dealRows(text) {
-  return text.split('<li class="d-row" data-stage="').slice(1).map((li) => ({
+  return text.split('<li class="d-row">').slice(1).map((li) => ({
     row: (li.match(/name="action" value="stage"><input type="hidden" name="row" value="([^"]+)"/) || [])[1],
-    stage: (li.match(/^([^"]*)"/) || [])[1].replace(/&amp;/g, '&').trim()
+    stage: ((li.match(/<span class="d-row__sub">([^<]*?)(?: · |<)/) || [])[1] || '').replace(/&amp;/g, '&').trim()
   })).filter((d) => d.row);
 }
-let deals = dealRows((await get('/dashboard', A)).text);
+async function allRows(cookie) {
+  const out = [];
+  for (const c of COLS) {
+    const r = await get(`/dashboard/board/${c}`, cookie);
+    if (r.status !== 200) fail('see all', `/dashboard/board/${c} answered ${r.status}`);
+    out.push(...dealRows(r.text));
+  }
+  return out;
+}
+let deals = await allRows(A);
 if (!deals.length) {
   await post('/dashboard/sample/reset', {}, A);
-  deals = dealRows((await get('/dashboard', A)).text);
+  deals = await allRows(A);
 }
 if (!deals.length) fail('quick action', 'no deal can move to a next stage');
 const pick = deals[0];
-const act = await post('/dashboard/act', { action: 'stage', row: pick.row, back: '/dashboard' }, A);
+const act = await post('/dashboard/act', { action: 'stage', row: pick.row, back: '/dashboard/board/new' }, A);
 if (act.status !== 303 || !/a=\d+/.test(act.location || '')) fail('quick action', `expected a 303 to the outcome, got ${act.status}`);
 const shown = await get(act.location, A);
 if (!/Saved and checked/.test(shown.text)) fail('quick action', 'the dashboard did not confirm the write');
 const STAGES = ['Relationship identified', 'Introductory conversation', 'Qualified opportunity', 'Discovery', 'Solution and budget', 'Proposal', 'Negotiation', 'Signed agreement', 'Deposit received', 'Delivery handoff'];
 const after = STAGES[STAGES.findIndex((x) => x.toLowerCase() === pick.stage.toLowerCase()) + 1];
-const moved = dealRows(shown.text).find((d) => d.row === pick.row);
-if (!after || (moved ? moved.stage !== after : !shown.text.includes(after))) fail('quick action', `deal ${pick.row} does not show "${after}" after the write`);
+const moved = (await allRows(A)).find((d) => d.row === pick.row);
+if (!after || !moved || moved.stage !== after) fail('quick action', `deal ${pick.row} does not show "${after}" after the write`);
 ok(`moved deal ${pick.row}: ${pick.stage} → ${after}, confirmed`);
 
 // 6. Reload, and a second device.
-const reload = await get('/dashboard', A);
-if (!reload.text.includes(after)) fail('reload', 'the change is gone after a reload');
+if ((await allRows(A)).find((d) => d.row === pick.row)?.stage !== after) fail('reload', 'the change is gone after a reload');
 const B = await signIn();
-const second = await get('/dashboard', B);
-if (!second.text.includes(after)) fail('second device', 'the change does not show on a second device');
+if ((await allRows(B)).find((d) => d.row === pick.row)?.stage !== after) fail('second device', 'the change does not show on a second device');
 ok('the change persists after a reload and on a second device');
 
 // 6b. A deal record from the pipeline: one screen to act on (tracker form, notes, the steps) and a
 // way back; a note saved on it persists across a reload and on the second device; Who can see what opens.
 const flow = await get('/dashboard', A);
-const recLink = (flow.text.match(/data-stage="[^"]*"><div class="d-row__main"><a class="d-row__title" href="(\/dashboard\/flow\/[a-z0-9~-]+)"/) || [])[1];
+const recLink = (flow.text.match(/<a class="d-card__name" href="(\/dashboard\/flow\/[a-z0-9~-]+)">Sample Org/) || [])[1];
 if (flow.status !== 200 || !/Sample Org/.test(flow.text) || !recLink) fail('pipeline', `no deal rows shown (${flow.status})`);
 if (PLACEHOLDER.test(flow.text)) fail('pipeline', 'placeholder text');
 const rec = await get(recLink, A);
@@ -258,11 +277,13 @@ const outcome = `First-run outcome ${Date.now()}`;
 // A clean sample deal each run, so an earlier run's accepted deal never stands in for this one.
 await post('/dashboard/sample/reset', {}, A);
 const disc = await get(`${deal}/discovery`, A);
-if (disc.status !== 200 || (disc.text.match(/name="p_services"/g) || []).length !== 6 || !/Organization type/.test(disc.text) || !/Which department are we working with/.test(disc.text)) fail('discovery', `no service picker, Organization type or sales-call notes (${disc.status})`);
+if (disc.status !== 200 || (disc.text.match(/<input type="checkbox" name="p_services"/g) || []).length !== 6 || !/Organization type/.test(disc.text) || !/Which department are we working with/.test(disc.text)) fail('discovery', `no service picker, Organization type or sales-call notes (${disc.status})`);
+// Scooter, 23 Nov 2026: "Show every question before I save. Saving stores; nothing new appears after."
+if (!/What should attendees do in the week after the event/.test(disc.text) || !/board or trustees/.test(disc.text)) fail('discovery', 'a question for a service or buyer only appears after saving');
 await post('/dashboard/discovery', [['key', dealKey], ['p_services', 'brand-strategy'], ['p_services', 'virtual-hybrid-events'], ['p_buyer', 'foundation'], ['p_objective', 'funding'], ['p_budget', 'unknown'], ['event_start', '2027-03-04'], ['event_end', '2027-03-05'], ['a_outcome', outcome], ['a_call_department', 'First-run department'], ['back', `${deal}/discovery`]], A);
 const discB = (await get(`${deal}/discovery`, B)).text;
 if (!discB.includes(outcome) || !/First-run department/.test(discB) || !/board or trustees/.test(discB) || !/What should attendees do in the week after the event/.test(discB) || !/name="event_start" type="date" value="2027-03-04"/.test(discB)) fail('discovery', 'services, event dates, call notes or answers do not show on a second device');
-ok('discovery: services first, questions shaped by them, event dates and call notes persist on a second device');
+ok('discovery: services first, every question on the page before saving, event dates and call notes persist on a second device');
 // The quote builder (Scooter, 15 Nov 2026): the services load their roles; people come from the team
 // directory; each role is billed its own way; price, discount, costs and margin sit together, and the
 // margin is provisional while a role is unpriced or unassigned. Saved, and read on a second device.
@@ -277,7 +298,7 @@ const formOf = (html) => {
   for (const m of f.matchAll(/<select [^>]*?name="([^"]*)"[^>]*>([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&')]);
   return out;
 };
-const q0 = await get(`${deal}/quote`, A);
+const q0 = await get(`${deal}/quote-roles`, A);
 if (q0.status !== 200 || !/>Brand lead<\/span>/.test(q0.text) || !/>Account management<\/span>/.test(q0.text) || !/Hourly, hours per month/.test(q0.text) || !/Assigned to/.test(q0.text)) fail('quote', `the services did not load their roles, Assigned to or Billed as (${q0.status})`);
 const td = await post('/dashboard/team', { n: '2', pname_0: 'Sample Person A', ptype_0: 'owner', prate_0: '150', pper_0: 'hour', pname_1: 'Sample Person C', ptype_1: 'contractor', prate_1: '2000', pper_1: 'job', back: `${deal}/quote` }, A);
 if (!/m=team_dir_saved/.test(td.location || '')) fail('team directory', `not saved (${td.location || td.status})`);
@@ -285,12 +306,12 @@ const tdB = (await get('/dashboard/team', B)).text;
 const ids = [...tdB.matchAll(/name="pid_(\d)" value="([^"]+)"/g)].map((x) => x[2]);
 if (!/value="Sample Person A"/.test(tdB) || ids.length !== 2) fail('team directory', 'the people do not show on a second device');
 ok('team directory: an owner and a contractor saved, read on a second device');
-const q1 = await get(`${deal}/quote`, A);
+const q1 = await get(`${deal}/quote-roles`, A);
 const body = formOf(q1.text).filter(([k]) => !['rl_brand-strategy_0_who', 'rl_brand-strategy_1_who', 'rl_brand-strategy_1_hours', 'price_brand-strategy', 'price_virtual-hybrid-events', 'term', 'plan', 'rationale'].includes(k));
 body.push(['rl_brand-strategy_0_who', ids[1]], ['rl_brand-strategy_1_who', ids[0]], ['rl_brand-strategy_1_hours', '10'], ['price_brand-strategy', '5000'], ['price_virtual-hybrid-events', '1000'], ['term', '3'], ['plan', 'monthly'], ['rationale', 'First-run rationale']);
 const q = await post('/dashboard/quote', body, A);
 if (!/m=quote_saved/.test(q.location || '')) fail('quote', `not saved (${q.location || q.status})`);
-const qv = await get(`${deal}/quote`, B);
+const qv = await get(`${deal}/quote-roles`, B);
 if (!/Client price<\/span><strong>[$]6,000/.test(qv.text) || !/Costs so far<\/span><strong>[$]3,500/.test(qv.text) || !/provisional/.test(qv.text) || !/selected>Sample Person C</.test(qv.text) || !/[$]2,000 a month for 3 months/.test(qv.text) || !/Month 3/.test(qv.text)) fail('quote', 'the price, the role costs from the directory, the provisional margin, the assignment or the 3-month bundle is missing on a second device');
 ok('quote: roles priced from the directory, client price, costs and a provisional margin together, the 3-month bundle and timing, on a second device');
 let prop = await get(`${deal}/proposal`, A);
@@ -313,6 +334,80 @@ if (portal.status !== 200 || !/Brand strategy/.test(portalText) || /[$]|Sample P
 await post('/dashboard/delivery/portal', { key: dealKey, do: 'off', back: `${deal}/delivery` }, A);
 if ((await get(`/portal/${token}`)).status !== 404) fail('portal', 'a turned-off portal link still opens');
 ok('delivery: team and tasks; the client portal shows their tasks, no money, and stops when turned off');
+
+// The quote tool (Scooter, 19 Nov 2026, the quote tool builder brief): owner-only settings, the rate
+// list, the catalog, a quote with an unfinished line that persists on a second device, and a client
+// view with no internal figure. Sample rows only (the reset above clears them every run).
+const formFor = (html, action) => {
+  const f = (html.match(new RegExp(`<form class="d-form" method="post" action="${action.replace(/\//g, '\\/')}">([\\s\\S]*?)<\\/form>`)) || [])[1] || '';
+  const out = [];
+  for (const m of f.matchAll(/<input([^>]*)>/g)) {
+    const a = m[1]; const name = (a.match(/name="([^"]+)"/) || [])[1]; if (!name) continue;
+    if (/type="checkbox"/.test(a) && !/ checked/.test(a)) continue;
+    out.push([name, ((a.match(/value="([^"]*)"/) || [])[1] || '').replace(/&quot;/g, '"').replace(/&amp;/g, '&')]);
+  }
+  for (const m of f.matchAll(/<select[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/select>/g)) out.push([m[1], ((m[2].match(/<option value="([^"]*)" selected>/) || m[2].match(/<option value="([^"]*)"/) || [])[1]) || '']);
+  for (const m of f.matchAll(/<textarea[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/textarea>/g)) out.push([m[1], m[2]]);
+  return out;
+};
+const put = (pairs, over) => [...pairs.filter(([k]) => !(k in over)), ...Object.entries(over)];
+{
+  const s0 = await get('/dashboard/quote-settings', A);
+  if (s0.status !== 200 || !/Leave anything you do not know yet blank/.test(s0.text) || /name="ownerPay" inputmode="decimal" value="\d/.test(s0.text)) fail('quote settings', 'the first screen does not say what it is, or a box is not blank');
+  const sv = await post('/dashboard/quote-settings', put(formFor(s0.text, '/dashboard/quote-settings'), { ownerPay: '100000', ownerHours: '1000', overheadPct: '10', contingencyPct: '10', targetMarginPct: '35', depositPct: '50' }), A);
+  if (!/m=pricing_saved/.test(sv.location || '')) fail('quote settings', `not saved (${sv.location || sv.status})`);
+  const s1 = (await get('/dashboard/quote-settings', B)).text;
+  if (!/Your hourly cost: <strong>[$]100\.00/.test(s1)) fail('quote settings', 'the saved settings and the hourly cost do not show on a second device');
+  if (!/<select id="qs-contingencyOwner" name="contingencyOwner"><option value="" selected>Not chosen yet/.test(s1)) fail('quote settings', 'contingency on your own hours is not offered as his choice (brief section 10 leaves it open)');
+  const r0 = await get('/dashboard/rates', A);
+  await post('/dashboard/rates', put(formFor(r0.text, '/dashboard/rates'), { p_0_name: 'Sample Person T', p_0_rate: '50', p_0_unit: 'hour', p_0_status: 'guess' }), A);
+  const r1 = (await get('/dashboard/rates', B)).text;
+  const pid = (r1.match(/name="p_0_id" value="([^"]+)"/) || [])[1];
+  if (!pid || !/value="Sample Person T"/.test(r1)) fail('rate list', 'the person does not show on a second device');
+  let c0 = await get('/dashboard/services', A);
+  if ((c0.text.match(/<details class="d-fold"><summary>/g) || []).length < 36) fail('service catalog', 'the 36 services are not listed');
+  await post('/dashboard/services', put(formFor(c0.text, '/dashboard/services'), { s_s01_new_who: pid, s_s01_new_qty: '4', s_s01_description: 'Sample description the client reads' }), A);
+  c0 = await get('/dashboard/services', A);
+  await post('/dashboard/services', put(formFor(c0.text, '/dashboard/services'), { s_s01_new_who: 'owner', s_s01_new_qty: '2' }), A);
+  if (!/1 of 3\d services are complete/.test((await get('/dashboard/services', B)).text)) fail('service catalog', 'the components do not persist on a second device');
+  ok('quote tool: settings, the rate list and a catalog service saved and read back on a second device');
+  // The quote as five steps, one decision each (Scooter, 23 Nov 2026), the first screen clean.
+  const q0 = await get(`${deal}/quote`, A);
+  const q0body = q0.text.slice(q0.text.indexOf('<h1>'));
+  if (q0.status !== 200 || !/What is the work\?/.test(q0.text) || (q0.text.match(/<li[^>]*><a href="\/dashboard\/flow\/[^"]+\/quote/g) || []).length !== 5 || (q0.text.match(/<input type="checkbox" name="cat"/g) || []).length !== 8) fail('quote tool', 'the first step is not the work with its eight kinds of work and the five steps');
+  if (/[$]\d|quote-settings|\/dashboard\/rates|d-flags|d-strip|cost missing/i.test(q0body)) fail('quote tool', 'the first screen carries money figures, a settings link or a warning');
+  const qa = await post('/dashboard/estimate', put(formFor(q0.text, '/dashboard/estimate'), { add_sid: 's01', add_custom: 'First-run unfinished line', do: 'stay' }), A);
+  if (!/m=estimate_step/.test(qa.location || '')) fail('quote tool', `not saved (${qa.location || qa.status})`);
+  const q1 = await get(`${deal}/quote`, B);
+  const q2w = await get(`${deal}/quote/2`, B);
+  const q4w = await get(`${deal}/quote/4`, B);
+  if (!/Event management/.test(q1.text) || !/First-run unfinished line/.test(q1.text) || !/Cost missing/.test(q2w.text) || !/value="me"/.test(q2w.text) || !/1 cost missing/.test(q4w.text) || !/Your pay<br>/.test(q4w.text) || !/at least [$]/.test(q4w.text) || !/name="price" inputmode="decimal" value=""/.test(q4w.text)) fail('quote tool', 'the unfinished line is not still there and flagged on a second device, or the price box is filled in');
+  const qp = await post('/dashboard/estimate', put(formFor(q4w.text, '/dashboard/estimate'), { price: '1500', do: 'next' }), B);
+  if (!/\/quote\/5\?m=estimate_step/.test(qp.location || '')) fail('quote tool', `the price did not save (${qp.location || qp.status})`);
+  const q2 = (await get(`${deal}/quote/4`, A)).text;
+  if (!/Client price<\/span><strong>[$]1,500\.00/.test(q2) || !/Company profit/.test(q2)) fail('quote tool', 'the price does not show after a reload');
+  const q5 = (await get(`${deal}/quote/5`, A)).text;
+  const doc5 = (q5.match(/<article class="d-client"[\s\S]*?<\/article>/) || [''])[0];
+  if (!/Event management/.test(doc5) || !/[$]1,500\.00/.test(doc5) || /Sample Person T|Starting number|profit|margin|missing|Guess/i.test(doc5) || !/Save and mark as sent/.test(q5)) fail('quote tool', 'the review step does not show the client view as is, or has no Save and mark as sent');
+  ok('quote tool: five steps, a clean first screen; a quote with an unfinished line saves, reloads on a second device still flagged, keeps its price, and the review shows the client view');
+  const cv = (await get(`${deal}/quote/client`, B)).text;
+  const doc = (cv.match(/<article class="d-client"[\s\S]*?<\/article>/) || [''])[0];
+  if (!/Event management/.test(doc) || !/Sample description the client reads/.test(doc) || !/[$]1,500\.00/.test(doc) || /Sample Person T|[$]50|[$]200|Starting number|profit|margin|missing|estimate|Guess/i.test(doc)) fail('client view', 'it is missing the services or price, or shows an internal figure');
+  ok('quote tool: the client view shows services, descriptions and the price only');
+  // Ticking a kind of work brings ALL its services in, even when one of them is already in the quote.
+  const qt0 = await get(`${deal}/quote`, A);
+  const tile = (html, cat) => (html.match(new RegExp(`<label class="d-cat"><input type="checkbox" name="cat" value="${cat}"([^>]*)>[\\s\\S]*?<span class="d-cat__sub">([^<]*)<`)) || []);
+  const [, ckd0, sub0] = tile(qt0.text, 'Virtual events');
+  const nVirtual = Number((sub0 || '').match(/of (\d+) in/)?.[1] || 0);
+  if (/checked/.test(ckd0 || '') || !nVirtual) fail('quote tool', `with one Virtual events service in, its tile is ticked or does not say how many are in (${sub0})`);
+  const qtk = await post('/dashboard/estimate', [...formFor(qt0.text, '/dashboard/estimate'), ['cat', 'Virtual events'], ['do', 'stay']], A);
+  if (!/m=estimate_step/.test(qtk.location || '')) fail('quote tool', `ticking a kind of work did not save (${qtk.location || qtk.status})`);
+  const qt1 = await get(`${deal}/quote`, B);
+  const vgroup = (qt1.text.match(/<h3 class="d-wgroup">Virtual events<\/h3><ul class="d-wlines">([\s\S]*?)<\/ul>/) || [])[1] || '';
+  const vcount = (vgroup.match(/<li class="d-wline[ "]/g) || []).length;
+  if (vcount !== nVirtual || !/checked/.test(tile(qt1.text, 'Virtual events')[1] || '')) fail('quote tool', `ticking Virtual events brought in ${vcount} of its ${nVirtual} services, or its tile is not ticked after`);
+  ok(`quote tool: ticking Virtual events brought all ${nVirtual} of its services in, once each, on a second device`);
+}
 
 // 7. Sign-out revokes the session.
 const so = await post('/dashboard/logout', {}, A);

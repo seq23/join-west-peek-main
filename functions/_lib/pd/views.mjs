@@ -11,6 +11,7 @@ import { MIN_PASSWORD, SAMPLE_EMAIL, SAMPLE_PASSWORD } from './auth.mjs';
 import { BILLED, cashPicture } from './deal.mjs';
 import { cashRulesSection, rulesWalkSection, dealSections, eventOf, eventWords, inquiriesBody } from './views-deal.mjs';
 import { SERVICE_BY_ID } from '../services.mjs';
+import { BOARD_SHOWN, COLUMNS, COLUMN_BY_ID, boardCards, daysWords } from './board.mjs';
 
 const HELP = '/dashboard/help';
 export const providerName = (p) => ({ google: 'Google', dropbox: 'Dropbox', docusign: 'DocuSign', quickbooks: 'QuickBooks', xero: 'Xero' }[p] || p);
@@ -122,6 +123,7 @@ details.d-fold[open] summary::after{content:'⌄'}
 .d-find{display:flex;gap:8px;margin:10px 0}
 .d-find input,.d-form input,.d-form select{flex:1;width:100%;font:inherit;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--ink-2);color:var(--white);min-height:44px}
 .d-form label{display:block;margin:14px 0 6px}
+.d-dq{margin:0;padding-left:1.4em}.d-dq__q::marker{font-weight:700;color:var(--muted,#aaa)}
 .d-form .d-svc{display:flex;margin:0}
 .d-form .d-svc input{width:22px;height:22px;min-height:0;padding:0;flex:none}
 .d-kv{list-style:none;margin:0;padding:0}
@@ -182,6 +184,51 @@ code{overflow-wrap:anywhere}
 @media (min-width:620px){.d-grid2{grid-template-columns:1fr 1fr}}
 .d-grid3{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
 @media (min-width:620px){.d-grid3{grid-template-columns:repeat(4,1fr)}}
+.d-stepbar{list-style:none;display:flex;gap:6px;margin:10px 0 14px;padding:0;overflow-x:auto;scroll-snap-type:x mandatory}
+.d-stepbar li{flex:1 0 auto;scroll-snap-align:start}
+.d-stepbar a{display:flex;gap:8px;align-items:center;min-height:44px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);text-decoration:none;font-size:14px;white-space:nowrap}
+.d-stepbar span{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid currentColor;font-weight:700;font-size:13px}
+.d-stepbar [aria-current] a{border-color:var(--orange);color:var(--white);background:#2a1a08}
+.d-stepbar [aria-current] span{background:var(--orange);border-color:var(--orange);color:#111}
+.d-stepbar .is-done a{color:var(--copy)}
+.d-qh{margin:6px 0 4px}
+.d-cats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px}
+@media (min-width:620px){.d-cats{grid-template-columns:repeat(4,1fr)}}
+.d-form .d-cat{position:relative;display:flex;flex-direction:column;gap:4px;min-height:84px;margin:0;padding:12px 40px 12px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--ink-2);cursor:pointer}
+.d-form .d-cat input{position:absolute;top:12px;right:12px;width:22px;height:22px;margin:0;min-height:0;padding:0;accent-color:var(--orange)}
+.d-cat:has(input:checked){border-color:var(--orange);background:#2a1a08}
+.d-cat:has(input:focus-visible){outline:3px solid var(--orange);outline-offset:2px}
+.d-cat__name{font-weight:700;line-height:1.25}
+.d-cat__sub{font-size:13px;color:var(--muted)}
+.d-cat__tag{align-self:flex-start;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--orange);border:1px solid var(--orange);border-radius:999px;padding:0 7px}
+.d-wgroup{margin:18px 0 4px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.d-wlines{list-style:none;margin:0;padding:0}
+.d-wline{display:grid;grid-template-columns:1fr 110px;gap:0 10px;align-items:end;padding:8px 0;border-bottom:1px solid var(--line)}
+.d-wline details{grid-column:1/-1}
+.d-form .d-wline__keep{margin:0;align-self:center}
+.d-wline__name{font-weight:600}
+.d-form .d-wline__qty label{margin-top:0;font-size:13px}
+.d-wline.d-cut .d-wline__name{text-decoration:line-through;color:var(--muted)}
+.d-wown{margin-top:16px}
+.d-addrow{display:flex;gap:8px}
+.d-addrow input{flex:1}
+.d-who{border-top:1px solid var(--line);padding:6px 0}
+.d-who__grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;align-items:end}
+.d-who__grid > div:first-child{grid-column:1/-1}
+@media (min-width:620px){.d-who__grid{grid-template-columns:2fr 1fr 1fr auto}.d-who__grid > div:first-child{grid-column:auto}}
+.d-form .d-who__ok{margin:0}
+.d-qsvc__cost{font-weight:700;white-space:nowrap}
+.d-callout{background:var(--ink-2);border-left:3px solid var(--orange);border-radius:8px;padding:10px 12px;margin:6px 0}
+.d-pricepair{display:grid;grid-template-columns:1fr;gap:10px;align-items:end}
+@media (min-width:620px){.d-pricepair{grid-template-columns:1fr 1fr}}
+.d-form .d-bigin{font-size:22px;font-weight:700}
+.d-suggest{border:1px dashed var(--line);border-radius:12px;padding:10px 12px}
+.d-suggest span{display:block;font-size:13px;color:var(--muted)}
+.d-suggest strong{font-size:22px}
+.d-suggest strong,.d-suggest em{display:block}.d-suggest em{font-style:normal;margin-top:2px}
+.d-discount{border:1px solid var(--line);border-radius:12px;padding:4px 12px 10px;margin:14px 0}
+.d-discount legend{padding:0 6px;font-weight:700}
+.d-acts--step{justify-content:space-between;margin-top:18px}
 .d-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 4px}
 @media (min-width:620px){.d-strip{grid-template-columns:repeat(4,1fr)}}
 .d-strip div{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--ink-2)}
@@ -199,6 +246,34 @@ code{overflow-wrap:anywhere}
 ${Object.entries(BILLED).map(([v, x]) => { const on = `.d-role:has(.d-billed option[value="${v}"]:checked)`; return `${on} .d-box:not(${x.needs.map((k) => `[data-box="${k}"]`).join(',')}){display:none}${on} [data-only]:not([data-only="${v}"]){display:none}`; }).join('\n')}
 .d-role details{margin:4px 0 0}
 .d-role details summary{cursor:pointer;color:var(--orange);font-size:14px;min-height:36px;display:flex;align-items:center}
+.d-green{color:var(--green)}
+.d-tag{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:0 7px;margin-left:6px;vertical-align:middle}
+.d-strip .d-tag{display:inline-block;margin:4px 0 0}
+.d-strip .d-strip__sub{display:block;text-transform:none;letter-spacing:0;font-size:13px;color:var(--muted);margin-top:2px;font-style:normal}
+.d-strip strong.d-red{color:var(--red)}
+.d-strip strong span{display:inline;font-size:inherit;text-transform:none;letter-spacing:0}
+.d-form .d-check input{flex:none;width:22px;height:22px;min-height:0;padding:0}
+.d-qsvc .d-role__head .d-check{margin:0}
+.d-cut .d-qline__name{text-decoration:line-through;color:var(--muted)}
+.d-cut>*:not(.d-role__head){opacity:.55}
+.d-flags{margin:8px 0 0;padding-left:20px}
+.d-flags li{margin:4px 0}
+.d-client{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--ink-2)}
+.d-wide{max-width:1320px}
+.d-board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(200px,1fr);gap:12px;overflow-x:auto;padding:12px 0 14px;margin:0 -16px;padding-left:16px;padding-right:16px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.d-col{background:var(--ink-2);border:1px solid var(--line);border-radius:14px;padding:12px;min-width:200px;scroll-snap-align:start;align-self:start}
+.d-col h2{font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.d-col__n{color:var(--muted);font-weight:400;font-size:14px}
+.d-cards{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.d-card{background:var(--ink-3);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.d-card__name{color:var(--white);text-decoration:none;font-weight:700;overflow-wrap:anywhere;min-height:24px}
+.d-card__name:hover{text-decoration:underline}
+.d-card__stage{color:var(--muted);font-size:13px}
+.d-days{display:inline-block;font-size:13px;color:var(--copy);border:1px solid var(--line);border-radius:999px;padding:1px 9px}
+.d-days--gold{color:var(--gold);border-color:var(--gold)}.d-days--red{color:var(--red);border-color:var(--red)}
+.d-seeall{display:inline-flex;align-items:center;min-height:44px;font-size:14px;margin-top:4px}
+@media (max-width:620px){.d-board{grid-auto-columns:78%}}
+@media (min-width:760px){.d-board{margin:0;padding-left:0;padding-right:0}}
 .d-helpdoc code{background:var(--ink-3);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
 @media (max-width:620px){.d-row{flex-wrap:wrap}.d-row__main{flex:1 1 70%}.d-row__act{flex:1 1 100%;justify-content:flex-start;padding-left:20px}.d-row--today{flex-wrap:nowrap;align-items:center}.d-row--today .d-row__main{flex:1 1 auto}.d-row--today .d-row__act{flex:none;flex-wrap:nowrap;justify-content:flex-end;align-items:center;padding-left:0}.d-row--today .d-row__act button,.d-row--today .d-row__act .d-btn{padding:9px 12px;white-space:nowrap}}
 @media (min-width:760px){body{font-size:16px}main{padding:0 24px 24px}}
@@ -206,13 +281,24 @@ ${Object.entries(BILLED).map(([v, x]) => { const on = `.d-role:has(.d-billed opt
 `;
 
 const TABS = [['pipeline', '/dashboard', 'Pipeline'], ['inquiries', '/dashboard/inquiries', 'Inquiries'], ['work', '/dashboard/work', 'Clients'], ['money', '/dashboard/money', 'Money'], ['agents', '/dashboard/agents', 'Agents']];
-export function page(title, body, { tab = null, counts = null, sample = false, signedIn = false, head = '' } = {}) {
+/**
+ * Cloudflare's Email Address Obfuscation (on for westpeekproductions.com) rewrites every address in a
+ * page into "[email protected]" and decodes it with a script; the dashboard's CSP allows no script, so the
+ * address never came back (Scooter, 19 Nov 2026: "Inquiries shows [email protected] instead of the
+ * submitter's address"). Every page body sits inside Cloudflare's own markers, which tell the edge to
+ * leave the text alone; the CSP is unchanged and no script is added. Responses also carry
+ * Cache-Control no-transform. Pinned in scripts/test_dashboard.mjs.
+ */
+export const EMAIL_OFF = ['<!--email_off-->', '<!--/email_off-->'];
+/** A clickable address (mailto), plain text in the page. */
+export const mailto = (email) => (email ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : '');
+export function page(title, body, { tab = null, counts = null, sample = false, signedIn = false, head = '', wide = false } = {}) {
   // Plain labelled tabs, no "to look at" counts (Scooter, 15 Nov 2026: "I don't need it to figure out
   // what needs my attention ... Less on the screen, clear labels").
   void counts;
   const tabs = signedIn ? `<nav class="d-tabs" aria-label="Dashboard">${TABS.map(([k, h, l]) => `<a href="${h}"${tab === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>` : '';
   const top = signedIn ? `<header class="d-head"><p class="d-brand">West Peek Productions</p><nav class="d-headlinks" aria-label="Settings"><a href="/dashboard/connections"${tab === 'connections' ? ' aria-current="page"' : ''}>Connections</a><a href="${HELP}"${tab === 'help' ? ' aria-current="page"' : ''}>Help</a></nav></header>${sample ? '<p class="d-sample">Sample mode (preview only): every row here is made up. Nothing is real and nothing reaches a client.</p>' : ''}` : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0b0c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="WPP Dashboard"><meta name="apple-mobile-web-app-status-bar-style" content="black"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/img/dashboard-icon-180.png"><title>${esc(title)} · West Peek Productions</title><style>${CSS}</style>${head}</head><body><main>${top}${body}</main>${tabs}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0b0c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="WPP Dashboard"><meta name="apple-mobile-web-app-status-bar-style" content="black"><link rel="manifest" href="/dashboard/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/img/dashboard-icon-180.png"><title>${esc(title)} · West Peek Productions</title><style>${CSS}</style>${head}</head><body>${EMAIL_OFF[0]}<main${wide ? ' class="d-wide"' : ''}>${top}${body}</main>${tabs}${EMAIL_OFF[1]}</body></html>`;
 }
 
 export function flashBox(a) {
@@ -300,44 +386,67 @@ export function renderForgot({ sent = false, message = '' } = {}) {
 /* ------------------------------------------------------------------ Pipeline (the first screen) */
 
 /**
- * The sales funnel as labelled lists: new inquiries not yet in his tracker, then one list per stage of
- * his tracker in its own order, each deal under the stage it sits in (Scooter, 15 Nov 2026: "organized,
- * clearly labeled lists of what's in the sales funnel and where each deal sits"). No triage and no
- * "needs you" list; only a sync or connection fault shows above it, because then the lists are wrong.
+ * The Pipeline is one board (Scooter, 23 Nov 2026: "Pipeline - one board, everything tracked"):
+ * Trello-style columns New leads, Discovery, Quote, Proposal out, Won, Lost / cold; each card carries
+ * the days since its last update; each column a "See all". Every lead lands on it by itself (no "add"
+ * step). On a phone the board scrolls sideways. Only a sync or connection fault shows above it,
+ * because then the board is wrong. Top Barz rows stay out of it (the note under the board says so).
  */
-export function renderPipeline(view, ctx, list) {
-  const { now } = ctx;
-  const deals = view.rows.deals;
-  const layout = ctx.sample ? null : ctx.settings['layout:deals'];
-  const opts = stageOptions(deals, layout?.stages);
-  const lower = opts.stages.map(stageKey);
-  const keyOf = (d) => encodeURIComponent(orgKey(d.org));
+function pipelineFaults(ctx) {
   const faults = (ctx.items || []).filter((i) => i.kind === 'connection' || i.kind === 'sync');
-  const faultList = faults.length ? `<ul class="d-list d-faults">${faults.map((i) => `<li class="d-row d-row--today"><span class="d-dot ${i.tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.title)}</span><span class="d-row__sub ${i.tone === 'plain' ? '' : i.tone}">${esc(i.sub)}</span></div><div class="d-row__act">${todayAction(i)}<form method="post" action="/dashboard/tick" class="d-inline"><input type="hidden" name="item" value="${esc(i.key)}"><button type="submit" class="d-tick" aria-label="Hide ${esc(i.title)}" title="Hide">✓</button></form></div></li>`).join('')}</ul>` : '';
-  const dealRow = (d) => {
-    const i = lower.indexOf(stageKey(d.stage));
-    const canMove = opts.ordered && i > -1 && i < opts.stages.length - 1;
-    const bits = [d.owner ? esc(d.owner) : '', d.proposal_sent && toTime(d.proposal_sent) !== null ? `Proposal sent ${esc(usDay(d.proposal_sent))}` : '', d.next_action ? `${esc(d.next_action)}${toTime(d.next_date) !== null ? ` · ${esc(usDay(d.next_date))}` : ''}` : ''].filter(Boolean).join(' · ');
-    return `<li class="d-row" data-stage="${esc(d.stage || '')}"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${keyOf(d)}">${esc(d.org || 'Deal')} ›</a>${bits ? `<span class="d-row__sub">${bits}</span>` : ''}</div><div class="d-row__act">${canMove ? act('stage', d._id, 'Next stage', '/dashboard') : ''}</div></li>`;
-  };
-  const fresh = list.filter((j) => !j.deal && j.inquiries.length && !j.lost);
-  const groups = groupByStage(deals, opts.stages);
-  const stageSecs = groups.listed.map((g, n) => g.deals.length
-    ? sec(`stage-${n + 1}`, `${g.label} · ${g.deals.length}`, `<ul class="d-list">${g.deals.map(dealRow).join('')}</ul>`)
-    : `<section class="d-sec d-sec--none" id="stage-${n + 1}"><h2>${esc(g.label)} · 0</h2></section>`).join('');
-  const otherSec = [...groups.extra.map((g, n) => sec(`stage-x${n + 1}`, `${g.label} · ${g.deals.length}`, `<ul class="d-list">${g.deals.map(dealRow).join('')}</ul>`)),
-    groups.blank.length ? sec('stage-other', `No stage set · ${groups.blank.length}`, `<ul class="d-list">${groups.blank.map(dealRow).join('')}</ul>`) : ''].join('');
-  // "Form requests" = people who submitted a form, not yet in his tracker (Scooter, 15 Nov 2026).
-  const freshSec = sec('new', `Form requests · ${fresh.length}`, fresh.length
-    ? `<ul class="d-list">${fresh.map((j) => { const q = j.inquiries.at(-1) || {}; return `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="/dashboard/flow/${encodeURIComponent(j.key)}">${esc(j.name)} ›</a><span class="d-row__sub">${[q.name ? esc(q.name) : '', toTime(q.at) !== null ? esc(usDay(q.at)) : ''].filter(Boolean).join(' · ') || 'Inquiry'}</span></div></li>`; }).join('')}</ul>`
-    : '<p class="d-sub">None.</p>');
+  return faults.length ? `<ul class="d-list d-faults">${faults.map((i) => `<li class="d-row d-row--today"><span class="d-dot ${i.tone}" aria-hidden="true"></span><div class="d-row__main"><span class="d-row__title">${esc(i.title)}</span><span class="d-row__sub ${i.tone === 'plain' ? '' : i.tone}">${esc(i.sub)}</span></div><div class="d-row__act">${todayAction(i)}<form method="post" action="/dashboard/tick" class="d-inline"><input type="hidden" name="item" value="${esc(i.key)}"><button type="submit" class="d-tick" aria-label="Hide ${esc(i.title)}" title="Hide">✓</button></form></div></li>`).join('')}</ul>` : '';
+}
+/** Why the board cannot show (not connected, no tracker named, columns not recognised), or ''. */
+function boardOff(ctx) {
+  const layout = ctx.sample ? null : ctx.settings['layout:deals'];
   const unread = layout && !layout.recognised ? layoutBox(layout) : '';
-  const off = notConnected(ctx, 'Your pipeline') || (!ctx.sample && !ctx.sources.work && !ctx.sources.tracker ? empty('Name your deal tracker and every deal shows here under its stage.', '/dashboard/connections#sheets', 'Name your tracker', 'deals') : '');
-  const lists = off || unread ? '' : `${freshSec}${stageSecs}${otherSec}`;
+  const off = notConnected(ctx, 'Your pipeline') || (!ctx.sample && !ctx.sources.work && !ctx.sources.tracker ? empty('Name your deal tracker and every lead shows here on the board.', '/dashboard/connections#sheets', 'Name your tracker', 'deals') : '');
+  return unread + off;
+}
+function topBarzNote(view) {
   const tb = (view.hidden?.deals || 0) + (view.hidden?.inquiries || 0);
-  const leftOut = lists && tb ? `<p class="d-src">Productions only: ${tb} Top Barz ${tb === 1 ? 'row is' : 'rows are'} not shown here. ${tb === 1 ? 'It stays' : 'They stay'} in your tracker, unchanged.</p>` : '';
-  const body = `<h1>Pipeline</h1>${lists ? `<p class="d-count">Deals · ${deals.length} · Form requests · ${fresh.length}</p>` : ''}${faultList}${ctx.flash || ''}${unread}${off}${lists}${leftOut}${source(view, ['deals', 'inquiries'].filter((k) => view.sync[k]), now)}${refreshButton(ctx)}`;
-  return page('Pipeline', body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
+  return tb ? `<p class="d-src">Productions only: ${tb} Top Barz ${tb === 1 ? 'row is' : 'rows are'} not shown here. ${tb === 1 ? 'It stays' : 'They stay'} in your tracker, unchanged.</p>` : '';
+}
+const cardHref = (c) => `/dashboard/flow/${encodeURIComponent(c.key)}`;
+function boardCard(c) {
+  const days = daysWords(c.days);
+  const tone = c.days === null ? '' : c.days >= 14 ? ' d-days--red' : c.days >= 7 ? ' d-days--gold' : '';
+  return `<li class="d-card"><a class="d-card__name" href="${cardHref(c)}">${esc(c.name)}</a>${c.unknownStage ? `<span class="d-card__stage">${esc(c.stage)}</span>` : ''}<span class="d-days${tone}" title="Days since its last update">${esc(days)}</span></li>`;
+}
+export function renderPipeline(view, ctx, list, touches) {
+  const { now } = ctx;
+  const off = boardOff(ctx);
+  const cols = boardCards(list, { touches, now });
+  const total = Object.values(cols).reduce((a, c) => a + c.length, 0);
+  const board = off ? '' : `<div class="d-board" role="list" aria-label="Pipeline board">${COLUMNS.map((col) => {
+    const cards = cols[col.id];
+    return `<section class="d-col" role="listitem" aria-labelledby="col-${col.id}"><h2 id="col-${col.id}">${esc(col.label)} <span class="d-col__n">${cards.length}</span></h2>${cards.length ? `<ul class="d-cards">${cards.slice(0, BOARD_SHOWN).map(boardCard).join('')}</ul>` : '<p class="d-sub">None.</p>'}${cards.length ? `<a class="d-seeall" href="/dashboard/board/${col.id}">See all ${cards.length}</a>` : ''}</section>`;
+  }).join('')}</div>`;
+  const body = `<h1>Pipeline</h1>${board ? `<p class="d-count">${total} ${total === 1 ? 'lead' : 'leads'} · the number on each card is days since its last update</p>` : ''}${pipelineFaults(ctx)}${ctx.flash || ''}${off}${board}${board ? topBarzNote(view) : ''}${source(view, ['deals', 'inquiries'].filter((k) => view.sync[k]), now)}${refreshButton(ctx)}`;
+  return page('Pipeline', body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true, wide: true });
+}
+
+/** "See all" for one column: every card in it, with the stage and next step, and Next stage. */
+export function renderBoardColumn(view, ctx, list, touches, colId) {
+  const { now } = ctx;
+  const col = COLUMN_BY_ID[colId];
+  if (!col) return renderPipeline(view, ctx, list, touches);
+  const back = `/dashboard/board/${col.id}`;
+  const layout = ctx.sample ? null : ctx.settings['layout:deals'];
+  const opts = stageOptions(view.rows.deals, layout?.stages);
+  const lower = opts.stages.map(stageKey);
+  const cards = boardCards(list, { touches, now })[col.id];
+  const row = (c) => {
+    const d = c.deal;
+    const i = d ? lower.indexOf(stageKey(d.stage)) : -1;
+    const canMove = d && opts.ordered && i > -1 && i < opts.stages.length - 1;
+    const q = c.inquiry ? (list.find((j) => j.key === c.key)?.inquiries.at(-1) || {}) : {};
+    const bits = [d?.stage ? esc(d.stage) : 'Form request', d?.owner ? esc(d.owner) : q.name ? esc(q.name) : '', d?.next_action ? `${esc(d.next_action)}${toTime(d.next_date) !== null ? ` · ${esc(usDay(d.next_date))}` : ''}` : ''].filter(Boolean).join(' · ');
+    return `<li class="d-row"><div class="d-row__main"><a class="d-row__title" href="${cardHref(c)}">${esc(c.name)} ›</a><span class="d-row__sub">${bits} · <span class="d-days">${esc(daysWords(c.days))}</span></span></div><div class="d-row__act">${canMove ? act('stage', d._id, 'Next stage', back) : ''}</div></li>`;
+  };
+  const off = boardOff(ctx);
+  const body = `<p><a class="d-help" href="/dashboard">← Pipeline</a></p><h1>${esc(col.label)} · ${cards.length}</h1>${ctx.flash || ''}${off}${off ? '' : cards.length ? `<ul class="d-list">${cards.map(row).join('')}</ul>` : '<p class="d-sub">None.</p>'}${off ? '' : topBarzNote(view)}`;
+  return page(col.label, body, { tab: 'pipeline', counts: ctx.counts, sample: ctx.sample, signedIn: true });
 }
 function todayAction(i) {
   if (i.action === 'reconnect') return `<a class="d-btn d-primary" href="/dashboard/connections">${String(i.key).startsWith('off:') ? 'Connect' : 'Reconnect'}</a>`;
@@ -416,13 +525,15 @@ export function renderFlowRecord(view, j, ctx) {
         <div><label for="dl-owner">Owner</label><input id="dl-owner" name="owner" type="text" maxlength="120" value="${esc(d.owner || '')}"></div></div>
         <label for="dl-act">Next action</label><input id="dl-act" name="next_action" type="text" maxlength="300" value="${esc(d.next_action || '')}">
         <label for="dl-date">Next date</label><input id="dl-date" name="next_date" type="date" value="${esc(dateVal)}">
-        <p><button type="submit" class="d-primary">Save to my tracker</button></p></form>`;
+        <p><button type="submit" class="d-primary">Save</button></p></form>`;
   } else if (j.inquiries.length) {
     const saved = ctx.intake?.[j.key] || {};
     const inq = j.inquiries.at(-1) || {};
+    // No "add" step (Scooter, 23 Nov 2026: "If a lead exists, it's tracked"): it is on the board now and
+    // lands in his tracker by itself at the next sync (board.mjs trackNewLeads).
     deal = !ctx.sample && !layout?.recognised
-      ? empty('Name your tracker to add them to it.', '/dashboard/connections#sheets', 'Name your tracker', 'deals')
-      : `<form method="post" action="/dashboard/deal/add"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}"><button type="submit" class="d-primary">Add to my tracker</button></form>
+      ? empty('Name your tracker and new leads land in it by themselves.', '/dashboard/connections#sheets', 'Name your tracker', 'deals')
+      : `<p class="d-sub">On your board under New leads. It lands in your tracker by itself within 15 minutes.</p>
         <form class="d-form" method="post" action="/dashboard/intake"><input type="hidden" name="key" value="${esc(j.key)}"><input type="hidden" name="back" value="${esc(back)}">
         <label for="in-owner">Owner</label><input id="in-owner" name="owner" maxlength="120" value="${esc(saved.owner || '')}">
         <label for="in-need">What they need</label><textarea id="in-need" name="need" maxlength="1000">${esc(saved.need || inq.initiative || '')}</textarea>
@@ -446,7 +557,7 @@ export function renderFlowRecord(view, j, ctx) {
   // No Source here (Scooter, 15 Nov 2026: "Remove 'Source' from the deal view"); his tracker keeps it.
   const service = SERVICE_BY_ID[inq.service]?.name || '';
   const evWords = eventWords(eventOf(j, ctx.discovery));
-  const contactKv = `${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${inq.title ? `<li><span>Title</span><span>${esc(inq.title)}</span></li>` : ''}${email ? `<li><span>Email</span><span><a href="mailto:${esc(email)}">${esc(email)}</a></span></li>` : ''}${service ? `<li><span>Service</span><span>${esc(service)}</span></li>` : ''}${evWords ? `<li><span>Event dates</span><span>${esc(evWords)}</span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Form request</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}`;
+  const contactKv = `${person ? `<li><span>Person</span><span>${esc(person)}</span></li>` : ''}${inq.title ? `<li><span>Title</span><span>${esc(inq.title)}</span></li>` : ''}${email ? `<li><span>Email</span><span>${mailto(email)}</span></li>` : ''}${service ? `<li><span>Service</span><span>${esc(service)}</span></li>` : ''}${evWords ? `<li><span>Event dates</span><span>${esc(evWords)}</span></li>` : ''}${need ? `<li><span>Needs</span><span>${esc(need)}</span></li>` : ''}${inq.timing ? `<li><span>Timing</span><span>${esc(inq.timing)}</span></li>` : ''}${d?.value ? `<li><span>Value</span><span>${esc(d.value)}</span></li>` : ''}${j.inquiries.length ? `<li><span>Form request</span><span>${j.inquiries.map((i) => dayOr(i.at)).join(', ')}</span></li>` : ''}`;
   const contact = contactKv ? sec('contact', 'Contact', `<ul class="d-kv">${contactKv}</ul>`) : '';
 
   const envs = ctx.settings.envelopes || {};
@@ -720,7 +831,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
 
   <h2 id="sections">What each section shows, and where it comes from</h2>
   <ul>
-   <li id="flow"><strong>Pipeline</strong>: the first screen. Form requests (people who sent a form) not yet in your tracker, then one list per stage of your tracker, in its order, each deal under the stage it sits in. Tap a deal to change its stage, owner, next action and date, keep a note, and run discovery, the quote, the proposal and delivery, all on that deal. A red row above the lists means a sheet or account stopped syncing; ✓ hides it.</li>
+   <li id="flow"><strong>Pipeline</strong>: the first screen, one board with six columns: New leads, Discovery, Quote, Proposal out, Won, Lost / cold. Every lead lands on it by itself (a form request, a lead your AI employee found, a row you typed in your tracker), and a form request not in your tracker yet is added to it as one new row at the next sync. Your tracker's stage decides the column; a stage the board does not know shows on its card under New leads. The number on each card is days since its last update (a change in your tracker, a note, discovery, a quote or a proposal). <strong>See all</strong> lists every card in a column, with Next stage. On a phone the board scrolls sideways. Top Barz rows stay out of the board. Tap a deal to change its stage, owner, next action and date, keep a note, and run discovery, the quote, the proposal and delivery, all on that deal. A red row above the board means a sheet or account stopped syncing; ✓ hides it.</li>
    <li id="projects"><strong>Clients</strong>: the Projects tab of your Work sheet. Tap a project for its binder, Drive folder, contacts, approval owners, next meeting (your Google Calendar), what the client owes you (the Waiting on client tab), deliverables and SOW signature (DocuSign).</li>
    <li id="deals"><strong>How your tracker is read</strong>: your own deal tracker, read as it is laid out (Connections → Your deal tracker; until it is named, the Work sheet's Deals tab). The tab is found by its columns, so it needs one for the organization and one for the stage; a title line above the column names is fine, and no ID column is needed. Stages are your tracker's own. A deal with a Proposal sent date shows it on its Pipeline row.</li>
    <li><strong>Inquiries</strong>: your inquiry form's response sheet, read only.</li>
@@ -733,7 +844,7 @@ export function renderHelp({ origin, signedIn = false, counts = null, sample = f
   <p>On Connections, paste each sheet's link, or press <strong>Create it for me</strong> and the dashboard makes the Work or Money sheet in your Google Drive with every tab and column ready. Each row needs a value in its <code>ID</code> column (any short code, like <code>P12</code>); that is how a quick action finds the same row again. Extra columns are fine; the dashboard reads columns by their header.</p>
 
   <h2 id="change">How to change a number</h2>
-  <ul><li>Open the source sheet (every block names it, and Connections links it), change the cell, then press Refresh now.</li><li>Or use the quick action on the row: <strong>Mark received</strong>, <strong>Move to next stage</strong>, <strong>Mark paid</strong>, <strong>Approve</strong>. The dashboard writes it to that row of your sheet, reads it back, and only says "Saved and checked" when the sheet shows it. If it could not, it says so and nothing is assumed.</li><li><strong>Chase</strong> and <strong>Write a reminder in Gmail</strong> open the reminder, written, in your own Gmail; you press Send. The dashboard has no Gmail access and sends nothing.</li><li>On a <strong>Lead to cash</strong> record, <strong>Save to my tracker</strong> writes the stage, next action and next date to that row of your tracker, only the cells you changed. <strong>Save note</strong> keeps your note in the dashboard, never in your tracker.</li></ul>
+  <ul><li>Open the source sheet (every block names it, and Connections links it), change the cell, then press Refresh now.</li><li>Or use the quick action on the row: <strong>Mark received</strong>, <strong>Move to next stage</strong>, <strong>Mark paid</strong>, <strong>Approve</strong>. The dashboard writes it to that row of your sheet, reads it back, and only says "Saved and checked" when the sheet shows it. If it could not, it says so and nothing is assumed.</li><li><strong>Chase</strong> and <strong>Write a reminder in Gmail</strong> open the reminder, written, in your own Gmail; you press Send. The dashboard has no Gmail access and sends nothing.</li><li>On a deal, <strong>Save</strong> writes the stage, next action and next date to that row of your tracker, only the cells you changed. <strong>Save note</strong> keeps your note in the dashboard, never in your tracker.</li></ul>
 
   <h2 id="connecting">Connecting, reconnecting and disconnecting</h2>
   <ul>${Object.entries(PROVIDERS).map(([, p]) => `<li><strong>${esc(p.label)}</strong>: ${esc(p.gives)} ${esc(p.never)}</li>`).join('')}</ul>

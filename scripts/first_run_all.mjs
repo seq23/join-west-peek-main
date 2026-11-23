@@ -28,7 +28,8 @@ const run = (f, args) => {
   return r.status === 0 && /FIRST_RUN OK/.test(r.stdout || "");
 };
 const failed = [];
-const productions = bases.filter((b) => /productions/i.test(new URL(b).hostname));
+// A local run (localhost) is the Productions site too: the dashboard treats it as a preview (core.mjs isPreviewHost).
+const productions = bases.filter((b) => /productions/i.test(new URL(b).hostname) || ["localhost", "127.0.0.1"].includes(new URL(b).hostname));
 for (const b of productions) if (!run("dashboard_first_run.mjs", ["--url", b])) failed.push(`dashboard ${b}`);
 if (!run("first_run_privacy.mjs", bases.flatMap((b) => ["--url", b]))) failed.push("privacy + GA4");
 if (failed.length) { console.error(`FIRST_RUN FAIL ${failed.join(", ")}`); process.exit(1); }

@@ -503,6 +503,13 @@ try {
     check('inquiry: a preview submission is TEST in the subject', tm.subject === 'TEST: New inquiry: Dana Reyes', tm.subject);
     check('inquiry: an empty field is left out, not shown blank', !/Organization:/.test(tm.text || '') && /Needs: Something else: A gala film\n/.test(tm.text || ''), tm.text);
     check('inquiry: on a preview the link opens that preview\'s Inquiries', (tm.text || '').includes('https://work-wpc.west-peek-productions.pages.dev/dashboard/inquiries'));
+    // Scooter, 19 Nov 2026: "confirm new inquiry emails link to the live dashboard, not the preview address".
+    const live = 'https://westpeekproductions.com/dashboard/inquiries';
+    const hosts = ['westpeekproductions.com', 'www.westpeekproductions.com', 'productions.joinwestpeek.com', 'productions.westpeek.co', 'westpeek-productions.com', 'west-peek-productions.pages.dev'];
+    const linked = hosts.map((h) => lead.productionsInquiryMail({ name: 'Dana Reyes', email: 'dana@harborfund.org' }, `https://${h}/api/lead`));
+    check('inquiry: every production host links to the live dashboard, never its own host', linked.every((x) => x.dashboard === live && x.text.includes(live) && x.html.includes(`href="${live}"`)), linked.map((x) => x.dashboard).join(' '));
+    const pv = lead.productionsInquiryMail({ name: 'Dana Reyes', email: 'dana@harborfund.org' }, 'https://work-wpc.west-peek-productions.pages.dev/api/lead');
+    check('inquiry: only a branch preview links to itself, and it is marked TEST', pv.dashboard === 'https://work-wpc.west-peek-productions.pages.dev/dashboard/inquiries' && pv.test === true && /^TEST: /.test(pv.subject));
     check('inquiry: a test address on production is TEST too', lead.isTestInquiry({ email: 'scooter+x@example.test', name: 'Scooter' }, 'https://westpeekproductions.com/api/lead') && !lead.isTestInquiry({ email: 'a@testament.org', name: 'Testament Fund' }, 'https://westpeekproductions.com/api/lead'));
 
     const c = world({ cloudflare: 'down' });
