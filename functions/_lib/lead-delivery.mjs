@@ -15,7 +15,7 @@
  * Only when BOTH fail does the visitor see the error with the os@ fallback.
  *
  * Alarms (any channel failure, delivery_not_configured, bot_check_not_configured,
- * bot_check_unavailable) go to the addresses in FORMS_ALARM_TO, an env var on the Worker and on
+ * bot_check_unavailable, count_unreadable) go to the addresses in FORMS_ALARM_TO, an env var on the Worker and on
  * each Pages project, never in this public repo. The Worker keeps one record per incident code
  * in KV: first seen, how many submissions, how many still delivered. At most one alarm per code
  * per hour, and a "fixed" email once a later submission proves that code healthy again. Each alarm
@@ -37,8 +37,9 @@ export const INCIDENTS = {
   resend_failed: 'Resend (the backup way form submissions reach you) is failing.',
   delivery_failed: 'BOTH ways of delivering form submissions failed. Visitors saw an error and their submission did not reach you.',
   delivery_not_configured: 'Neither way of delivering form submissions is set up on this site. Visitors saw an error.',
-  bot_check_not_configured: 'The ventures bot check (Turnstile) has no keys. Ventures submissions are still delivered, but unchecked.',
-  bot_check_unavailable: 'The ventures bot check (Turnstile) could not be reached. Ventures submissions were still delivered, but unchecked.',
+  bot_check_not_configured: 'The bot check (Turnstile) has no keys on this site, so its form submissions are being REFUSED. Visitors saw an error and were shown the email fallback. Set TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY on its Pages project.',
+  bot_check_unavailable: 'The bot check (Turnstile) could not be reached. Submissions were still delivered, but unchecked: without attachments and within the daily caps.',
+  count_unreadable: 'The daily submission count (forms-mailer KV) could not be read. Unchecked submissions are being REFUSED with a "try again" message; checked ones are still delivered.',
   mailer_unreachable: 'The Cloudflare email Worker could not be reached from the site, so alarms are going out through Resend directly.',
   cloudflare_unverified: 'Cloudflare email (the main way form submissions reach you) is waiting for its address to be verified. Submissions still reach you through Resend. Open the Cloudflare verification email sent to the address under Detail and click the link; nothing else needs changing.'
 };
@@ -51,6 +52,7 @@ export function incidentsFor(outcome) {
   const codes = [];
   if (outcome.bot_check === 'not_configured') codes.push('bot_check_not_configured');
   if (outcome.bot_check === 'unavailable') codes.push('bot_check_unavailable');
+  if (outcome.quota === 'unreadable') codes.push('count_unreadable');
   const ch = outcome.channels || {};
   if (ch.cloudflare === 'failed') codes.push('cloudflare_failed');
   if (ch.cloudflare === 'unverified') codes.push('cloudflare_unverified');
@@ -64,6 +66,7 @@ export function incidentsFor(outcome) {
 export function healthyFor(outcome) {
   const codes = [];
   if (outcome.bot_check === 'ok') codes.push('bot_check_not_configured', 'bot_check_unavailable');
+  if (outcome.quota === 'ok') codes.push('count_unreadable');
   const ch = outcome.channels || {};
   if (ch.cloudflare === 'ok') codes.push('cloudflare_failed', 'cloudflare_unverified', 'mailer_unreachable');
   if (ch.resend === 'ok') codes.push('resend_failed');

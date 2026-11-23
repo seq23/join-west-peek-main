@@ -57,7 +57,7 @@
     <div class="wpc-steps__progress"><div class="wpc-steps__bar" id="update-progress"></div></div>
     <p class="small" id="update-step-label">Step 1 of 4 &middot; Takes 3 minutes</p>
 
-    <form data-westpeek-form action="/api/lead" method="POST" id="update-form"
+    <form data-westpeek-form data-bot-check="turnstile" action="/api/lead" method="POST" id="update-form"
           data-fallback-email="os@joinwestpeek.com"
           data-success-panel="#update-form-wrap"
           data-success-title="Thank you for sharing."

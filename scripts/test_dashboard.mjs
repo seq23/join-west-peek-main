@@ -911,9 +911,14 @@ const realFetch = globalThis.fetch;
     check('row 11: a stage change writes row 12 only, in the Stage column', pipeline[11][5] === 'Solution and budget' && JSON.stringify(pipeline.slice(0, 11)) === JSON.stringify(JSON.parse(snap).slice(0, 11)) && pipeline[12][5] === 'Proposal' && pipeline.length === 13);
 
     // His own site's Start a project form lands in Inquiries (productions host; email to Scooter, never the network sheet).
-    const leadEnv = { ...env, LEAD_TO: 'owner-a@example.test' };
+    // The lead path's own gates (bot check, daily caps, delivery) are proven in test_lead_delivery;
+    // here the form posts like a browser whose widget did not load: same origin, keys set, the
+    // mailer answering, so it rides the unchecked lane through to Inquiries.
+    const mailer = { fetch: async (u) => Response.json(String(u).endsWith('/quota') ? { ok: true, allowed: true } : { ok: true }) };
+    const leadEnv = { ...env, LEAD_TO: 'owner-a@example.test', TURNSTILE_SITE_KEY: '0x4AAAAAAAsite', TURNSTILE_SECRET_KEY: '0x4AAAAAAAsecret', FORMS_MAILER: mailer, FORMS_MAILER_SECRET: 'mailer-secret' };
+    const leadHeaders = { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://westpeekproductions.com' };
     const body = new URLSearchParams({ lead_type: 'productions_start_a_project', name: 'Person M', email: 'org-m@example.test', organization: 'Org M', initiative: 'A member summit in spring', timing: 'Next quarter', heard_about: 'Referral', source_page: '/start' });
-    const lead = await onRequestPost({ request: new Request('https://westpeekproductions.com/api/lead', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body }), env: leadEnv });
+    const lead = await onRequestPost({ request: new Request('https://westpeekproductions.com/api/lead', { method: 'POST', headers: leadHeaders, body }), env: leadEnv });
     const leadBody = await lead.json();
     check('intake: a Start a project submission is delivered by email and never written to the network sheet', lead.status === 200 && leadBody.ok === true && leadBody.sheet === 'not_applicable');
     const inq = await call(env, '/dashboard/inquiries', { cookie: s.cookie });
@@ -933,7 +938,7 @@ const realFetch = globalThis.fetch;
     // The Get in touch form (15 Nov 2026): first and last name, title, the service from the six, and
     // for Virtual / hybrid event production the event dates, carried into the deal and his tracker.
     const gt = new URLSearchParams({ lead_type: 'productions_start_a_project', first_name: 'Person', last_name: 'P', job_title: 'Director P', email: 'org-p@example.test', organization: 'Org P', initiative: 'A two-day member summit', service: 'Virtual / hybrid event production', event_start: '2027-04-08', event_end: '2027-04-09', heard_about: 'Search', source_page: '/get-in-touch' });
-    const gtRes = await onRequestPost({ request: new Request('https://westpeekproductions.com/api/lead', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: gt }), env: leadEnv });
+    const gtRes = await onRequestPost({ request: new Request('https://westpeekproductions.com/api/lead', { method: 'POST', headers: leadHeaders, body: gt }), env: leadEnv });
     const recP = await call(env, '/dashboard/flow/org-p', { cookie: s.cookie });
     check('get in touch: the person, title, service and event dates reach the deal record; no Source line', gtRes.status === 200 && /Person P/.test(recP.text) && /Title<\/span><span>Director P/.test(recP.text) && /Service<\/span><span>Virtual &#x2F; hybrid event production|Service<\/span><span>Virtual \/ hybrid event production/.test(recP.text) && /Event dates<\/span><span>Thu, Apr 8 to Fri, Apr 9/.test(recP.text) && !/<span>Source<\/span>/.test(recP.text) && /Form request/.test(recP.text));
     const gtInq = await call(env, '/dashboard/inquiries', { cookie: s.cookie });
