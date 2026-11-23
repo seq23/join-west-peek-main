@@ -1374,6 +1374,20 @@ const realFetch = globalThis.fetch;
   check('steps: a step posts only its own fields; the price, other costs, payment timing and client are kept as they were', eN.price === 2500 && eN.others.length === 1 && eN.others[0].item === 'Hotel' && eN.client === 'Client C' && eN.milestones.length === 1 && eN.milestones[0].pct === 50, JSON.stringify({ p: eN.price, o: eN.others, c: eN.client, m: eN.milestones }));
   const e1 = PQ.cleanEstimate(PF.estimateFromForm(fd([['step', '1'], ['add_custom', 'Extra edit']]), eN, { settings: S, people: guessV, services: [] }));
   check('steps: the work step adds a line and leaves who does what on the other lines untouched', e1.lines.length === 2 && JSON.stringify(e1.lines[0].components) === JSON.stringify(cN) && e1.price === 2500);
+  // Step 1's tiles (fresh-eyes review, 23 Nov 2026): a tick brings in every service of that kind not already in;
+  // a part-filled kind can still be filled; a cut line stays cut; unticking a full kind removes it; other steps' fields survive.
+  const svcK = [['k1', 'Kind K'], ['k2', 'Kind K'], ['k3', 'Kind K'], ['j1', 'Kind J']].map(([id, category]) => ({ id, category, name: `Svc ${id}`, unit: 'each', components: [] }));
+  const PK = { settings: S, people: guessV, services: svcK };
+  const partK = { ...eN, lines: [...eN.lines, { lid: 'p1', sid: 'k1', category: 'Kind K', name: 'Svc k1', unit: 'each', qty: 1, cut: true, components: [{ who: '', name: 'Editor E', qty: 1, rate: 100, qtyStatus: 'guess', rateStatus: 'guess' }] }] };
+  const tk = PQ.cleanEstimate(PF.estimateFromForm(fd([['step', '1'], ['cats', '1'], ['cat', 'Kind K']]), partK, PK));
+  const kLines = tk.lines.filter((l) => l.category === 'Kind K');
+  check('quote step 1: ticking a part-filled kind brings in the rest of its services once each; the cut line stays cut with its costs; the other lines, price and client are kept', kLines.length === 3 && new Set(kLines.map((l) => l.sid)).size === 3 && kLines.find((l) => l.sid === 'k1').cut === true && kLines.find((l) => l.sid === 'k1').components.length === 1 && tk.lines.some((l) => l.lid === 'n') && tk.price === 2500 && tk.client === 'Client C' && !tk.lines.some((l) => l.category === 'Kind J'), JSON.stringify(tk.lines.map((l) => [l.sid, l.cut])));
+  const keepPart = PQ.cleanEstimate(PF.estimateFromForm(fd([['step', '1'], ['cats', '1']]), partK, PK));
+  check('quote step 1: a part-filled kind left unticked keeps its lines exactly as they were (never removed behind his back)', keepPart.lines.length === partK.lines.length && keepPart.lines.some((l) => l.sid === 'k1'), JSON.stringify(keepPart.lines.map((l) => l.sid)));
+  const untick = PQ.cleanEstimate(PF.estimateFromForm(fd([['step', '1'], ['cats', '1'], ['catwas', 'Kind K'], ['cat', 'Kind J']]), tk, PK));
+  check('quote step 1: unticking a kind shown ticked removes its lines; ticking another brings that one in; his own lines stay', !untick.lines.some((l) => l.category === 'Kind K') && untick.lines.filter((l) => l.sid === 'j1').length === 1 && untick.lines.some((l) => l.lid === 'n') && untick.price === 2500, JSON.stringify(untick.lines.map((l) => l.sid)));
+  const again = PQ.cleanEstimate(PF.estimateFromForm(fd([['step', '1'], ['cats', '1'], ['catwas', 'Kind J'], ['cat', 'Kind J']]), untick, PK));
+  check('quote step 1: a kind already full and still ticked is not doubled', again.lines.filter((l) => l.sid === 'j1').length === 1 && again.lines.length === untick.lines.length);
 
   // The screens, as the owner on production.
   const { recordWebInquiry } = await import('../functions/_lib/pd/deal.mjs');
@@ -1439,16 +1453,17 @@ const realFetch = globalThis.fetch;
   check('quote step 1: clean: no money figures, no settings links, no key numbers or warnings', clean1(q0.text));
   const qA = await step(q0.text, { add_tid: 't1', add_custom: 'Custom film', do: 'stay' });
   const q1 = await Q(1, two);
-  check('quote step 1: a set and a line of his own save, read back, and show on a second device', /\/quote\?m=estimate_step/.test(qA.location || '') && /<span class="d-wline__name">Event management</.test(q1.text) && /<span class="d-wline__name">Custom film</.test(q1.text) && /Your own lines/.test(q1.text) && /name="cat" value="Virtual events" checked/.test(q1.text) && clean1(q1.text), [qA.location, /Saved and checked/.test(q1.text), /Event management</.test(q1.text), /Custom film</.test(q1.text), /Your own lines/.test(q1.text), /name="cat" value="Virtual events" checked/.test(q1.text), clean1(q1.text), (q1.text.match(/name="cat"[^>]*>/g)||[]).join(' ')].join(' | '));
+  check('quote step 1: a set and a line of his own save, read back, and show on a second device', /\/quote\?m=estimate_step/.test(qA.location || '') && /<span class="d-wline__name">Event management</.test(q1.text) && /<span class="d-wline__name">Custom film</.test(q1.text) && /Your own lines/.test(q1.text) && !/name="cat" value="Virtual events" checked/.test(q1.text) && /value="Virtual events"><span class="d-cat__name">Virtual events<\/span><span class="d-cat__sub">1 of \d+ in · tick to bring in the rest</.test(q1.text) && clean1(q1.text), [qA.location, (q1.text.match(/value="Virtual events"><span class="d-cat__name">Virtual events<\/span><span class="d-cat__sub">[^<]*/) || [])[0], /Saved and checked/.test(q1.text), /Event management</.test(q1.text), /Custom film</.test(q1.text), /Your own lines/.test(q1.text), /name="cat" value="Virtual events" checked/.test(q1.text), clean1(q1.text), (q1.text.match(/name="cat"[^>]*>/g)||[]).join(' ')].join(' | '));
   // A kind of work ticked brings in all its services, priced from the rate list; unticked, they go again.
-  await step(q1.text, { cat: ['Virtual events', 'Podcast production'], do: 'stay' });
+  // Virtual events stays part-filled (one service from the set) and unticked: its line is left alone.
+  await step(q1.text, { cat: ['Podcast production'], do: 'stay' });
   const eCat = await PQ.latestEstimate(env, 'org-q', false);
   const q1b = await Q(1);
-  await step(q1b.text, { cat: ['Virtual events'], do: 'stay' });
+  await step(q1b.text, { cat: [], do: 'stay' });
   const eUn = await PQ.latestEstimate(env, 'org-q', false);
   check('quote step 1: ticking a kind of work brings its services in together; unticking takes them out again', eCat.lines.filter((l) => l.category === 'Podcast production').length === 7 && eCat.lines.some((l) => l.name === 'Event management') && eUn.lines.map((l) => l.name).sort().join('|') === 'Custom film|Event management', eUn.lines.map((l) => l.name).join('|') + ' / ' + eCat.lines.map((l) => l.category+':'+l.name).join('|'));
   const q1c = await Q(1);
-  await step(q1c.text, { cat: ['Virtual events', 'Podcast production'], do: 'stay' });
+  await step(q1c.text, { cat: ['Podcast production'], do: 'stay' });
   const eVE = await PQ.latestEstimate(env, 'org-q', false);
   const q1d = await Q(1);
   const keepOnly = Object.fromEntries(eVE.lines.filter((l) => l.name !== 'Event management' && l.name !== 'Custom film').map((l) => [`l_${l.lid}_keep`, null]));

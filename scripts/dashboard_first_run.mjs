@@ -394,6 +394,19 @@ const put = (pairs, over) => [...pairs.filter(([k]) => !(k in over)), ...Object.
   const doc = (cv.match(/<article class="d-client"[\s\S]*?<\/article>/) || [''])[0];
   if (!/Event management/.test(doc) || !/Sample description the client reads/.test(doc) || !/[$]1,500\.00/.test(doc) || /Sample Person T|[$]50|[$]200|Starting number|profit|margin|missing|estimate|Guess/i.test(doc)) fail('client view', 'it is missing the services or price, or shows an internal figure');
   ok('quote tool: the client view shows services, descriptions and the price only');
+  // Ticking a kind of work brings ALL its services in, even when one of them is already in the quote.
+  const qt0 = await get(`${deal}/quote`, A);
+  const tile = (html, cat) => (html.match(new RegExp(`<label class="d-cat"><input type="checkbox" name="cat" value="${cat}"([^>]*)>[\\s\\S]*?<span class="d-cat__sub">([^<]*)<`)) || []);
+  const [, ckd0, sub0] = tile(qt0.text, 'Virtual events');
+  const nVirtual = Number((sub0 || '').match(/of (\d+) in/)?.[1] || 0);
+  if (/checked/.test(ckd0 || '') || !nVirtual) fail('quote tool', `with one Virtual events service in, its tile is ticked or does not say how many are in (${sub0})`);
+  const qtk = await post('/dashboard/estimate', [...formFor(qt0.text, '/dashboard/estimate'), ['cat', 'Virtual events'], ['do', 'stay']], A);
+  if (!/m=estimate_step/.test(qtk.location || '')) fail('quote tool', `ticking a kind of work did not save (${qtk.location || qtk.status})`);
+  const qt1 = await get(`${deal}/quote`, B);
+  const vgroup = (qt1.text.match(/<h3 class="d-wgroup">Virtual events<\/h3><ul class="d-wlines">([\s\S]*?)<\/ul>/) || [])[1] || '';
+  const vcount = (vgroup.match(/<li class="d-wline[ "]/g) || []).length;
+  if (vcount !== nVirtual || !/checked/.test(tile(qt1.text, 'Virtual events')[1] || '')) fail('quote tool', `ticking Virtual events brought in ${vcount} of its ${nVirtual} services, or its tile is not ticked after`);
+  ok(`quote tool: ticking Virtual events brought all ${nVirtual} of its services in, once each, on a second device`);
 }
 
 // 7. Sign-out revokes the session.

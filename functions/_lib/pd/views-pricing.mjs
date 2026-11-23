@@ -204,11 +204,13 @@ function stepActs(step, frozen, est) {
 function stepWork(j, q, ctx, live) {
   const services = (live.services || []).filter((s) => !s.archived);
   const cats = CATEGORIES.filter((c) => services.some((s) => s.category === c)).concat([...new Set(services.map((s) => s.category))].filter((c) => !CATEGORIES.includes(c)));
-  const present = new Set((q.lines || []).map((l) => lineCategory(l, services)).filter(Boolean));
+  // A tile is ticked only when every one of its services is in the quote; a part-filled one says how many.
+  const sids = new Set((q.lines || []).map((l) => l.sid).filter(Boolean));
+  const inOf = (c) => services.filter((s) => s.category === c && sids.has(s.id)).length;
   // Discovery's saved services; before Discovery is saved, the service their form or tracker row named.
   const picked = ctx.discovery?.at ? ctx.discovery.profile?.services || [] : [serviceFrom(j.deal?.service), serviceFrom(j.inquiries?.at(-1)?.service)];
   const suggested = new Set(picked.map((id) => SUGGEST[id]).filter(Boolean));
-  const tiles = `<div class="d-cats">${cats.map((c) => { const n = services.filter((s) => s.category === c).length; return `<label class="d-cat"><input type="checkbox" name="cat" value="${esc(c)}"${present.has(c) ? ' checked' : ''}><span class="d-cat__name">${esc(c)}</span><span class="d-cat__sub">${n} ${n === 1 ? 'service' : 'services'}</span>${suggested.has(c) ? '<span class="d-cat__tag">From Discovery</span>' : ''}</label>`; }).join('')}</div>${hidden('cats', '1')}
+  const tiles = `<div class="d-cats">${cats.map((c) => { const n = services.filter((s) => s.category === c).length; const k = inOf(c); const full = n > 0 && k === n; return `<label class="d-cat"><input type="checkbox" name="cat" value="${esc(c)}"${full ? ' checked' : ''}>${full ? hidden('catwas', c) : ''}<span class="d-cat__name">${esc(c)}</span><span class="d-cat__sub">${k && !full ? `${k} of ${n} in · tick to bring in the rest` : `${n} ${n === 1 ? 'service' : 'services'}`}</span>${suggested.has(c) ? '<span class="d-cat__tag">From Discovery</span>' : ''}</label>`; }).join('')}</div>${hidden('cats', '1')}
     <p><button type="submit" name="do" value="stay">Bring in their services</button></p>`;
   const lines = q.lines || [];
   const row = (l) => {

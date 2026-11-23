@@ -135,12 +135,15 @@ export function estimateFromForm(form, prev, pricing) {
     if (gh('cn')) next.components = componentsFromForm(g, l, people);
     lines.push(next);
   }
-  // Step 1: a category ticked brings all its services in, priced from the rate list; unticked, its lines go.
+  // Step 1: ticking a kind of work brings in every one of its services not already in the quote (a line he
+  // cut stays cut, never doubled), priced from the rate list. Unticking removes its lines only when the tile
+  // was shown ticked (catwas); a tile shown part-filled and left unticked leaves his lines exactly as they are.
   if (has('cats')) {
     const picked = new Set(form.getAll('cat').map(String));
-    const present = new Set(lines.map((l) => lineCategory(l, services)).filter(Boolean));
-    lines = lines.filter((l) => { const c = lineCategory(l, services); return !c || picked.has(c); });
-    for (const c of picked) if (!present.has(c)) for (const s of services.filter((x) => x.category === c)) lines.push(lineFromService(s));
+    const was = new Set(form.getAll('catwas').map(String));
+    const sids = new Set(lines.map((l) => l.sid).filter(Boolean));
+    lines = lines.filter((l) => { const c = lineCategory(l, services); return !c || picked.has(c) || !was.has(c); });
+    for (const c of picked) for (const s of services.filter((x) => x.category === c && !sids.has(x.id))) lines.push(lineFromService(s));
   }
   // More ways to add: one of his sets, one catalog service, or a line of his own.
   const svc = (sid) => services.find((s) => s.id === sid);
