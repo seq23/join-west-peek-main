@@ -30,7 +30,8 @@
       'view episodes': 'cta_view_episodes',
       'submit update': 'cta_submit_update',
       'see pitch competition': 'cta_pitch_competition',
-      'see next workshops': 'cta_workshops'
+      'see next workshops': 'cta_workshops',
+      'see who you can help': 'cta_give_and_take'
     },
     ventures: {
       'submit your company': 'cta_submit_company',
