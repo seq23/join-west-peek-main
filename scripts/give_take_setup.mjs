@@ -2,7 +2,7 @@
 /**
  * give-take:setup — give one environment of Give and Take (joinwestpeek.com) its own store.
  *
- *   npm run give-take:setup -- --env preview|production [--redeploy]
+ *   npm run give-take:setup -- --env preview|production [--branch <git branch>] [--redeploy]
  *
  * Every step is safe to repeat:
  *   1. finds the community Pages project (the one serving joinwestpeek.com; --project overrides);
@@ -116,7 +116,13 @@ done.push(`binding ${patch.d1_databases ? 'bound' : 'present'}`, `signing key ${
 // 6. A fresh deployment of the same commit, so the binding and key are live when setup ends.
 let redeployState = 'not_needed';
 if (patch.d1_databases || patch.env_vars || flag('redeploy')) {
-  const newest = async () => (await cf(`/pages/projects/${PROJECT}/deployments?env=${env}&per_page=1`))?.[0];
+  // On preview, several branches share the environment: --branch picks this PR's own newest build,
+  // so the binding goes live on the preview the partner is sent, not on another branch's.
+  const branch = arg('branch');
+  const newest = async () => {
+    const list = (await cf(`/pages/projects/${PROJECT}/deployments?env=${env}`)) || [];
+    return branch ? list.find((d) => d.deployment_trigger?.metadata?.branch === branch) : list[0];
+  };
   const settled = async (pick) => {
     const until = Date.now() + DEPLOY_WAIT_MS;
     for (;;) {

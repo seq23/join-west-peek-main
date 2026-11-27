@@ -5,7 +5,7 @@
  * 400 8000024 (the preview run of 27 Nov 2026 stopped there), and the project serving
  * joinwestpeek.com sits on the SECOND page. D1 queries run on a real SQLite (node:sqlite).
  * Proves: the project is found across pages, the DB is created, migrations apply, the binding and
- * signing key are patched, and a second run changes nothing. Prints `GIVE_TAKE_SETUP_TEST OK`.
+ * signing key are patched, only --branch's own preview is redeployed, and a second run changes nothing. Prints `GIVE_TAKE_SETUP_TEST OK`.
  */
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -17,6 +17,7 @@ const projects = Array.from({ length: 13 }, (_, i) => ({ name: `other-${i}`, dom
 projects.splice(11, 0, { name: 'join-west-peek-main', domains: ['join-west-peek-main.pages.dev', 'joinwestpeek.com'], deployment_configs: { preview: {}, production: {} } });
 const dbs = new Map();
 const calls = [];
+const retried = [];
 
 const server = http.createServer(async (req, res) => {
   let raw = '';
@@ -56,7 +57,14 @@ const server = http.createServer(async (req, res) => {
     }
     return send(200, proj);
   }
-  if (/\/deployments(\?|$)/.test(req.url) && req.method === 'GET') return send(200, []);
+  if (/\/deployments\?/.test(req.url) && req.method === 'GET') return send(200, [
+    { id: 'other-branch-dep', deployment_trigger: { metadata: { branch: 'work/other' } }, latest_stage: { name: 'deploy', status: 'success' } },
+    { id: 'our-branch-dep', deployment_trigger: { metadata: { branch: 'work/ours' } }, latest_stage: { name: 'deploy', status: 'success' } }
+  ]);
+  const retry = p.match(/\/deployments\/([^/]+)\/retry$/);
+  if (retry && req.method === 'POST') { retried.push(retry[1]); return send(200, { id: `re-${retry[1]}` }); }
+  const one = p.match(/\/deployments\/(re-[^/]+)$/);
+  if (one) return send(200, { id: one[1], latest_stage: { name: 'deploy', status: 'success' } });
   return send(404, null, [{ code: 404 }]);
 });
 
@@ -64,7 +72,7 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const fails = [];
 const run = () => new Promise((resolve) => {
-  const c = spawn(process.execPath, [SETUP, '--env', 'preview'], { env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_BASE: base, GIVE_TAKE_SETUP_FAST: '1' } });
+  const c = spawn(process.execPath, [SETUP, '--env', 'preview', '--branch', 'work/ours'], { env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_BASE: base, GIVE_TAKE_SETUP_FAST: '1' } });
     let out = '';
     c.stdout.on('data', (b) => { out += b; });
     c.stderr.on('data', (b) => { out += b; });
@@ -77,10 +85,11 @@ if (!/project join-west-peek-main/.test(first.out)) fails.push('first run did no
 if (!/d1 created/.test(first.out) || !/binding bound/.test(first.out) || !/signing key added/.test(first.out)) fails.push(`first run did not create/bind/key: ${first.out.trim().split('\n').pop()}`);
 const proj = projects.find((x) => x.name === 'join-west-peek-main');
 if (!proj.deployment_configs.preview.d1_databases?.GIVE_TAKE_DB?.id) fails.push('GIVE_TAKE_DB not bound on preview');
+if (retried.join() !== 'our-branch-dep') fails.push(`redeployed ${retried.join() || 'nothing'}, not this branch's own preview`);
 if (proj.deployment_configs.production.d1_databases) fails.push('production was touched by a preview run');
 const second = await run();
 if (second.code !== 0 || !/d1 found/.test(second.out) || !/binding present/.test(second.out) || !/signing key present/.test(second.out) || !/migrations applied=0/.test(second.out)) fails.push(`second run was not a no-op: ${second.out.trim().split('\n').pop()}`);
 server.close();
 
 if (fails.length) { for (const f of fails) console.error(`FAIL ${f}`); process.exit(1); }
-console.log(`GIVE_TAKE_SETUP_TEST OK project found on page 2, created, bound, keyed; second run a no-op (${calls.length} API calls)`);
+console.log(`GIVE_TAKE_SETUP_TEST OK project found on page 2, created, bound, keyed; redeployed this branch only; second run a no-op (${calls.length} API calls)`);

@@ -435,7 +435,7 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   2. LAND merges and deploys.
   3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
 - `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
-- `give-take:setup` — `node scripts/give_take_setup.mjs --env preview|production [--redeploy]`: finds the
+- `give-take:setup` — `node scripts/give_take_setup.mjs --env preview|production [--branch <git branch>] [--redeploy]`: finds the
   Pages project serving joinwestpeek.com, finds or creates D1 `west-peek-community-give-take-<env>`,
   applies the additive migrations (`MIGRATIONS` in `functions/_lib/give-take.mjs`, mirrored in
   `migrations/give-take/`), binds `GIVE_TAKE_DB`, adds `GIVE_TAKE_SIGNING_KEY` if absent (never
@@ -445,6 +445,8 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   The Pages project list pages at 10 (a larger `per_page` is refused 400 8000024); the script walks the
   pages. `test:give-take-setup` (`scripts/test_give_take_setup.mjs`, in `validate` and CI) runs it against
   a fake API that refuses per_page > 10 and puts the project on page 2, and proves a second run is a no-op.
+  On preview always pass `--branch <the PR's branch>`: other branches share the preview environment, and
+  without it the redeploy would rebuild whichever branch deployed last.
 - `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, on a community URL
   `scripts/community_first_run.mjs` (homepage tiles and line, episode order and pages, both feeds, and on a
   preview a marked-TEST Give and Take ask: saved, not on the board, approved through its signed link,
