@@ -66,6 +66,32 @@
     },
     {
       "repo": "join-west-peek-main",
+      "site": "community",
+      "file": "sites/community/give-and-take.html",
+      "form": "give_and_take_ask",
+      "host": "joinwestpeek.com",
+      "description": "Give and Take ask box (on /give-and-take and in the homepage Give and Take tile)",
+      "destination": "own_store",
+      "via": "functions/api/lead.js -> GIVE_TAKE_DB (functions/_lib/give-take.mjs); email to Scooter; never the network sheet",
+      "reason": "Scooter, 27 Nov 2026: 'Submitting a Give and Take ask should not add anyone to the network list. Someone posting an ask has not signed up for updates.' Asks and offers are kept in Give and Take's own D1 and emailed to Scooter for review; a list option would be a separate unchecked box, not built until he decides it (his build spec marks it OPEN).",
+      "named_by": "Scooter Taylor",
+      "date": "2026-11-27"
+    },
+    {
+      "repo": "join-west-peek-main",
+      "site": "community",
+      "file": "sites/community/give-and-take.html",
+      "form": "give_and_take_offer",
+      "host": "joinwestpeek.com",
+      "description": "Give and Take \"I can help with this\" offer form on /give-and-take",
+      "destination": "own_store",
+      "via": "functions/api/lead.js -> GIVE_TAKE_DB (functions/_lib/give-take.mjs); email to Scooter; never the network sheet",
+      "reason": "Scooter, 27 Nov 2026: 'Submitting a Give and Take ask should not add anyone to the network list. Someone posting an ask has not signed up for updates.' Asks and offers are kept in Give and Take's own D1 and emailed to Scooter for review; a list option would be a separate unchecked box, not built until he decides it (his build spec marks it OPEN).",
+      "named_by": "Scooter Taylor",
+      "date": "2026-11-27"
+    },
+    {
+      "repo": "join-west-peek-main",
       "site": "productions",
       "file": "sites/productions/get-in-touch.html",
       "form": "productions_start_a_project",

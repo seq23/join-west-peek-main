@@ -109,17 +109,18 @@
   });
 
   // ---------------------------------------------------------------- Live hero
-  // Scooter, 28 Sep 2026: keep "West Peek" fixed while the rest types out,
-  // backspaces and rotates through the phrases the h1 carries in
-  // data-phrases. The brief's exact line is the h1's real text and stays in
-  // the DOM (moved off-screen with .wpc-visually-hidden) so screen readers,
-  // no-JS visitors and prefers-reduced-motion visitors all get the full
-  // sentence; the typed copy is aria-hidden decoration.
+  // Scooter, 27 Nov 2026 (his corrected screenshot): the wordmark stays fixed and ONE line under it
+  // types out, backspaces and rotates through the phrases in data-phrases. The first phrase is the
+  // line's real text and stays in the DOM (moved off-screen with .wpc-visually-hidden), so screen
+  // readers, no-JS and prefers-reduced-motion visitors all get it; the typed copy is aria-hidden.
+  // The sizer holds the LONGEST phrase invisibly in the same grid cell, so the Join button and the
+  // tiles below never jump as phrases grow and shrink.
   (function heroTyping() {
     var title = document.getElementById('hero-title');
     var line = document.getElementById('hero-line');
     var live = document.getElementById('hero-live');
     var rotor = document.getElementById('hero-rotor');
+    var sizer = document.getElementById('hero-sizer');
     if (!title || !line || !live || !rotor) return;
     var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) return; // static line, no typing
@@ -127,8 +128,9 @@
     try { phrases = JSON.parse(title.getAttribute('data-phrases') || '[]'); } catch (e) { phrases = []; }
     phrases = phrases.filter(function (s) { return typeof s === 'string' && s.length; });
     if (!phrases.length) return;
+    if (sizer) sizer.textContent = phrases.reduce(function (a, b) { return b.length > a.length ? b : a; }, '');
 
-    var TYPE_MS = 55, ERASE_MS = 26, HOLD_MS = 2000, GAP_MS = 350;
+    var TYPE_MS = 45, ERASE_MS = 22, HOLD_MS = 2200, GAP_MS = 350;
     var i = 0, pos = 0, erasing = false;
     title.setAttribute('data-typing', '');
     line.classList.add('wpc-visually-hidden');
@@ -152,6 +154,137 @@
     tick();
   })();
 
+  // ---------------------------------------------------------------- Homepage tiles
+  // Scooter, 27 Nov 2026: six coloured tiles; "Hover shows the description, after a short pause,
+  // like the podcast page. On a phone, a tap does the same." and "Hover and tap should just work"
+  // (so no instruction line is shown). Each title is a real <button aria-expanded>:
+  //   - a mouse resting on a tile for HOVER_MS opens it; leaving closes it again, unless the tile was
+  //     clicked open or something inside it has focus (someone typing an ask never loses the box);
+  //   - a click or tap toggles it and keeps it open; Enter and Space do the same from the keyboard.
+  // Without JavaScript every tile ships open (aria-expanded="true" in the HTML).
+  var HOVER_MS = 250;
+  var LEAVE_MS = 350;
+  function wireTiles() {
+    var tiles = Array.prototype.slice.call(document.querySelectorAll('.wpc-tile'));
+    if (!tiles.length) return;
+    tiles.forEach(function (tile) {
+      var btn = tile.querySelector('.wpc-tile__btn');
+      if (!btn) return;
+      Array.prototype.forEach.call(tile.querySelectorAll('.wpc-rise'), function (el, n) {
+        el.style.setProperty('--i', String(n));
+      });
+      var openTimer = null;
+      var closeTimer = null;
+      var pinned = false;
+      function set(open) {
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) tile.setAttribute('data-open', ''); else tile.removeAttribute('data-open');
+      }
+      function isOpen() { return btn.getAttribute('aria-expanded') === 'true'; }
+      set(false);
+      tile.setAttribute('data-js', '');
+      tile.addEventListener('pointerenter', function (e) {
+        if (e.pointerType !== 'mouse') return;
+        clearTimeout(closeTimer);
+        if (isOpen()) return;
+        openTimer = setTimeout(function () { set(true); }, HOVER_MS);
+      });
+      tile.addEventListener('pointerleave', function (e) {
+        if (e.pointerType !== 'mouse') return;
+        clearTimeout(openTimer);
+        if (pinned || !isOpen()) return;
+        closeTimer = setTimeout(function () {
+          if (!pinned && !tile.contains(document.activeElement)) set(false);
+        }, LEAVE_MS);
+      });
+      btn.addEventListener('click', function () {
+        clearTimeout(openTimer);
+        clearTimeout(closeTimer);
+        if (isOpen() && !pinned && tile.matches(':hover')) { pinned = true; return; } // hover opened it; the click keeps it
+        pinned = !isOpen();
+        set(pinned);
+      });
+      tile.addEventListener('focusin', function () { clearTimeout(closeTimer); });
+    });
+    // A link to a tile (/#give-and-take) opens it.
+    var hash = (window.location.hash || '').slice(1);
+    var target = hash && document.getElementById(hash);
+    if (target && target.classList.contains('wpc-tile')) {
+      var b = target.querySelector('.wpc-tile__btn');
+      if (b) b.click();
+    }
+  }
+  wireTiles();
+
+  // ---------------------------------------------------------------- Episodes
+  // One list for the /episodes grid, the homepage Podcasts tile and each episode page.
+  // episodes.json is the record and always wins; it is sorted newest first by NUMBER (Scooter,
+  // 27 Nov 2026: "Order, newest first"), never by row order. /api/podcast-feed adds what the
+  // podcast's own RSS feed has published: a record is matched by its feedGuid, else by the guest's
+  // name in the feed title, and a released match gains a Spotify link. A feed item with no record
+  // shows on its own (title, date, artwork, Spotify) until its record is added. The feed never
+  // releases a record that is still coming soon. If the feed is down, the site shows the records.
+  function norm(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function matchFeed(record, items) {
+    for (var k = 0; k < items.length; k++) if (record.feedGuid && items[k].guid === record.feedGuid) return items[k];
+    var name = norm(record.guest);
+    if (!name) return null;
+    for (var j = 0; j < items.length; j++) if ((' ' + norm(items[j].title) + ' ').indexOf(' ' + name + ' ') > -1) return items[j];
+    return null;
+  }
+  var episodesPromise = null;
+  function loadEpisodes() {
+    if (episodesPromise) return episodesPromise;
+    var records = fetch('/assets/data/episodes.json').then(function (r) {
+      if (!r.ok) throw new Error('episodes ' + r.status);
+      return r.json();
+    });
+    var feed = fetch('/api/podcast-feed').then(function (r) { return r.ok ? r.json() : { items: [] }; })
+      .then(function (d) { return (d && d.items) || []; }).catch(function () { return []; });
+    episodesPromise = Promise.all([records, feed]).then(function (both) {
+      var list = both[0].slice().sort(function (a, b) { return b.number - a.number; });
+      var items = both[1];
+      var used = {};
+      list.forEach(function (ep) {
+        var hit = matchFeed(ep, items);
+        if (hit) used[hit.guid] = true;
+        ep.listen = hit && ep.youtube && hit.link ? hit.link : null;
+      });
+      var feedOnly = items.filter(function (it) { return !used[it.guid] && it.link; });
+      return { records: list, feedOnly: feedOnly };
+    });
+    return episodesPromise;
+  }
+
+  // "Coming Monday, Nov 30" is written by the build while the date is ahead. Once it has passed and
+  // there is still no video, the visitor sees "Coming soon": never a date in the past.
+  function soonText(ep) {
+    if (!ep.releaseDate) return 'Coming soon';
+    var d = new Date(ep.releaseDate + 'T23:59:59-06:00');
+    if (isNaN(d) || Date.now() > d.getTime()) return 'Coming soon';
+    return 'Coming ' + new Date(ep.releaseDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-soon-label]'), function (el) {
+    el.textContent = soonText({ releaseDate: el.getAttribute('data-release-date') });
+  });
+
+  function initialsTile(name, cls) {
+    var div = document.createElement('div');
+    div.className = cls + ' wpc-initials';
+    div.setAttribute('role', 'img');
+    div.setAttribute('aria-label', name + ': headshot to come');
+    var span = document.createElement('span');
+    span.textContent = String(name || '').split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
+    var small = document.createElement('small');
+    small.textContent = 'Headshot to come';
+    div.appendChild(span);
+    div.appendChild(small);
+    return div;
+  }
+  function shortDate(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Chicago' });
+  }
   // ---------------------------------------------------------------- Parallax
   // Transform-only layered scroll motion on any [data-parallax-speed]
   // element, desktop and mobile alike (the scroll event fires on touch
@@ -354,30 +487,63 @@
     }).catch(function () {});
   }
 
-  // The episode grid on /episodes links out to each guest's own page
-  // (/episodes/<slug>, generated at build time) rather than expanding in
-  // place - the winner grid below still uses the shared expand-in-place
-  // pattern, since winners have no page of their own.
+  // The episode grid on /episodes links out to each guest's own page (/episodes/<slug>, generated
+  // at build time). A feed-only release links to the episode on Spotify until its record is added.
   var episodeGrid = document.getElementById('episode-grid');
   if (episodeGrid) {
-    fetch('assets/data/episodes.json').then(function (r) { return r.json(); }).then(function (episodes) {
-      episodes.forEach(function (ep) {
+    loadEpisodes().then(function (data) {
+      data.feedOnly.forEach(function (it) {
+        var card = document.createElement('a');
+        card.className = 'wpc-card';
+        card.href = it.link;
+        card.target = '_blank';
+        card.rel = 'noopener';
+        if (it.image) {
+          var art = document.createElement('img');
+          art.className = 'wpc-card__photo';
+          art.src = it.image;
+          art.alt = '';
+          art.loading = 'lazy';
+          card.appendChild(art);
+        }
+        var body = document.createElement('div');
+        body.className = 'wpc-card__body';
+        var num = document.createElement('p');
+        num.className = 'wpc-card__number';
+        num.textContent = 'New' + (it.date ? ' · ' + shortDate(it.date) : '');
+        var name = document.createElement('h3');
+        name.className = 'wpc-card__name';
+        name.textContent = it.title;
+        var listen = document.createElement('p');
+        listen.className = 'wpc-card__listen';
+        listen.textContent = 'Listen on Spotify';
+        body.appendChild(num);
+        body.appendChild(name);
+        body.appendChild(listen);
+        card.appendChild(body);
+        episodeGrid.appendChild(card);
+      });
+      data.records.forEach(function (ep) {
         var card = document.createElement('a');
         card.className = 'wpc-card';
         card.href = '/episodes/' + ep.slug + '/';
 
-        var photo = document.createElement('img');
-        photo.className = 'wpc-card__photo';
-        photo.src = ep.headshot;
-        photo.alt = ep.headshotAlt || ep.guest;
-        photo.loading = 'lazy';
-        card.appendChild(photo);
+        if (ep.headshot) {
+          var photo = document.createElement('img');
+          photo.className = 'wpc-card__photo';
+          photo.src = '/' + ep.headshot;
+          photo.alt = ep.headshotAlt || ep.guest;
+          photo.loading = 'lazy';
+          card.appendChild(photo);
+        } else {
+          card.appendChild(initialsTile(ep.guest, 'wpc-card__photo'));
+        }
 
         var body = document.createElement('div');
         body.className = 'wpc-card__body';
         var num = document.createElement('p');
         num.className = 'wpc-card__number';
-        num.textContent = 'Episode ' + ep.number + (ep.youtube ? '' : ' · coming soon');
+        num.textContent = 'Episode ' + ep.number + (ep.youtube ? '' : ' · ' + soonText(ep));
         var name = document.createElement('h3');
         name.className = 'wpc-card__name';
         name.textContent = ep.guest;
@@ -387,9 +553,174 @@
 
         episodeGrid.appendChild(card);
       });
+    }).catch(function () {
+      var p = document.createElement('p');
+      p.className = 'wpc-placeholder--empty';
+      p.textContent = 'The episodes could not be loaded just now. Reload the page, or watch them on YouTube.';
+      episodeGrid.appendChild(p);
     });
   }
 
+  // Each episode page: a "Listen on Spotify" link once the podcast feed carries that released episode.
+  var listenSlot = document.querySelector('.wpc-episode__listen');
+  if (listenSlot && !document.querySelector('.wpc-episode .wpc-card__soon')) {
+    loadEpisodes().then(function (data) {
+      var guest = listenSlot.getAttribute('data-guest');
+      var ep = data.records.filter(function (r) { return r.guest === guest; })[0];
+      if (!ep || !ep.listen) return;
+      var a = document.createElement('a');
+      a.href = ep.listen;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Listen on Spotify';
+      listenSlot.appendChild(a);
+      listenSlot.hidden = false;
+    }).catch(function () {});
+  }
+
+  // Homepage Podcasts tile: the three newest, each linking to its own page.
+  var tileEpisodes = document.getElementById('tile-episodes');
+  if (tileEpisodes) {
+    loadEpisodes().then(function (data) {
+      var rows = data.feedOnly.map(function (it) {
+        return { href: it.link, external: true, title: it.title, sub: 'New' + (it.date ? ' · ' + shortDate(it.date) : '') + ' · Listen on Spotify' };
+      }).concat(data.records.map(function (ep) {
+        return { href: '/episodes/' + ep.slug + '/', title: 'Episode ' + ep.number + ': ' + ep.guest, sub: ep.youtube ? 'Out now' : soonText(ep), soon: !ep.youtube };
+      })).slice(0, 3);
+      tileEpisodes.textContent = '';
+      rows.forEach(function (row) {
+        var li = document.createElement('li');
+        if (row.soon) li.setAttribute('data-soon', '');
+        var a = document.createElement('a');
+        a.href = row.href;
+        if (row.external) { a.target = '_blank'; a.rel = 'noopener'; }
+        var t = document.createElement('span');
+        t.className = 'wpc-tile__item-title';
+        t.textContent = row.title;
+        var sub = document.createElement('span');
+        sub.className = 'wpc-tile__item-sub';
+        sub.textContent = row.sub;
+        a.appendChild(t);
+        a.appendChild(sub);
+        li.appendChild(a);
+        tileEpisodes.appendChild(li);
+      });
+    }).catch(function () {
+      tileEpisodes.innerHTML = '<li class="wpc-tile__note">The latest episodes could not be loaded. <a href="/episodes">See every episode</a>.</li>';
+    });
+  }
+
+  // Homepage Workshops tile: upcoming Luma events (title, date, registration link) from
+  // /api/workshops. None, or the feed unreadable: "Coming soon" and the Luma calendar link.
+  var tileUpcoming = document.getElementById('tile-upcoming');
+  if (tileUpcoming) {
+    var CAL = 'https://luma.com/westpeekcommunity';
+    var showNone = function (calendar) {
+      tileUpcoming.textContent = '';
+      var li = document.createElement('li');
+      li.className = 'wpc-tile__note';
+      li.appendChild(document.createTextNode('Coming soon. '));
+      var a = document.createElement('a');
+      a.href = calendar || CAL;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Follow the Luma calendar';
+      li.appendChild(a);
+      li.appendChild(document.createTextNode(' to hear first.'));
+      tileUpcoming.appendChild(li);
+    };
+    fetch('/api/workshops').then(function (r) { return r.json(); }).then(function (data) {
+      var list = (data && data.ok && data.upcoming) || [];
+      if (!list.length) { showNone(data && data.calendar); return; }
+      tileUpcoming.textContent = '';
+      list.slice(0, 3).forEach(function (ev) {
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.href = ev.url || (data.calendar || CAL);
+        a.target = '_blank';
+        a.rel = 'noopener';
+        var t = document.createElement('span');
+        t.className = 'wpc-tile__item-title';
+        t.textContent = ev.title || 'Workshop';
+        var sub = document.createElement('span');
+        sub.className = 'wpc-tile__item-sub';
+        var when = new Date(ev.start);
+        sub.textContent = when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) + ', ' +
+          when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) + ' CT · Register';
+        a.appendChild(t);
+        a.appendChild(sub);
+        li.appendChild(a);
+        tileUpcoming.appendChild(li);
+      });
+    }).catch(function () { showNone(); });
+  }
+
+  // ---------------------------------------------------------------- Give and Take board
+  // /give-and-take: approved asks from /api/give-take/board (words only; never a name, email or
+  // avatar). "I can help with this" moves the ONE offer form under that ask and fills ask_id.
+  var board = document.getElementById('gt-board');
+  if (board) {
+    var offer = document.getElementById('gt-offer');
+    var offerAsk = document.getElementById('gt-offer-ask');
+    var offerQuote = document.getElementById('gt-offer-quote');
+    var cancel = document.getElementById('gt-offer-cancel');
+    var opener = null;
+    var note = function (text) {
+      board.textContent = '';
+      var li = document.createElement('li');
+      li.className = 'wpc-tile__note';
+      li.textContent = text;
+      board.appendChild(li);
+    };
+    var closeOffer = function () {
+      if (!offer) return;
+      offer.hidden = true;
+      if (opener) { opener.setAttribute('aria-expanded', 'false'); opener.focus(); }
+      opener = null;
+    };
+    if (cancel) cancel.addEventListener('click', closeOffer);
+    fetch('/api/give-take/board', { cache: 'no-store' }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+    }).then(function (res) {
+      if (!res.ok || !res.d || !res.d.ok) { note('The board could not be loaded just now. Try again in a minute; you can still send an ask above.'); return; }
+      var asks = res.d.asks || [];
+      if (!asks.length) { note('No asks on the board yet. Be the first: ask above.'); return; }
+      board.textContent = '';
+      asks.forEach(function (a) {
+        var li = document.createElement('li');
+        li.className = 'wpc-board__item';
+        var text = document.createElement('p');
+        text.className = 'wpc-board__ask';
+        text.textContent = a.ask;
+        li.appendChild(text);
+        var meta = document.createElement('p');
+        meta.className = 'wpc-board__meta';
+        meta.textContent = (a.help ? a.help + ' · ' : '') + 'On the board since ' + shortDate(a.approved + 'T12:00:00Z');
+        li.appendChild(meta);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'wpc-btn';
+        btn.textContent = 'I can help with this';
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-controls', 'gt-offer');
+        btn.addEventListener('click', function () {
+          if (!offer) return;
+          if (opener === btn && !offer.hidden) { closeOffer(); return; }
+          if (opener) opener.setAttribute('aria-expanded', 'false');
+          li.appendChild(offer);
+          offerAsk.value = a.id;
+          offerQuote.textContent = a.ask;
+          offer.hidden = false;
+          opener = btn;
+          btn.setAttribute('aria-expanded', 'true');
+          var first = offer.querySelector('textarea');
+          if (first) first.focus();
+        });
+        li.appendChild(btn);
+        board.appendChild(li);
+      });
+    }).catch(function () { note('The board could not be loaded just now. Try again in a minute; you can still send an ask above.'); });
+  }
   var winnerGrid = document.getElementById('winner-grid');
   if (winnerGrid) {
     fetch('assets/data/winners.json').then(function (r) { return r.json(); }).then(function (winners) {

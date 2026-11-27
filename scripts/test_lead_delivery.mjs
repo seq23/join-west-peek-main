@@ -11,6 +11,11 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { signProbe } from '../functions/_lib/lead-delivery.mjs';
 import worker from '../workers/forms-mailer/src/index.js';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fakeD1 } from './lib/fake_d1.mjs';
+import { MIGRATIONS as GT_MIGRATIONS, resetGiveTakeSchemaMemo } from '../functions/_lib/give-take.mjs';
+import * as gtBoard from '../functions/api/give-take/board.js';
+import * as gtReview from '../functions/api/give-take/review.js';
 
 const handlerPath = resolve(process.env.LEAD_HANDLER || 'functions/api/lead.js');
 const lead = await import(pathToFileURL(handlerPath).href);
@@ -519,6 +524,94 @@ try {
     const gAt = gOrder.map((l) => (gm.text || '').indexOf(l));
     check('get in touch: title, service and event dates in his order', gAt.every((i, n) => i >= 0 && (n === 0 || i > gAt[n - 1])), JSON.stringify(gAt) + (gm.text || ''));
     check('get in touch: no raw field names in his email', !/first_name|last_name|job_title|event_start|event_end/.test(`${gm.text}${gm.html}`));
+  }
+  // Give and Take (joinwestpeek.com, Scooter 27 Nov 2026). An ask is saved as waiting and emailed to
+  // Scooter with signed review links; it is NEVER added to the network list; it is on the board only
+  // after he approves it, and the board carries words only. Offers need the giver's consent, are
+  // private, and follow his spec's rules (no own ask, one per giver per ask, approved asks only).
+  {
+    resetGiveTakeSchemaMemo();
+    const GT = { GIVE_TAKE_DB: fakeD1(), GIVE_TAKE_SIGNING_KEY: 'k'.repeat(43) };
+    const w = world({ pages: GT });
+    const gtMails = (x) => [...x.sent.cloudflare, ...x.sent.resend].filter((m) => /^(TEST: )?Give and Take/.test(m.subject));
+    const ask = { lead_type: 'give_and_take_ask', site: 'community', name: 'Asker Person', email: 'asker@example.test', ask: 'Looking for a warm intro to a food-safety consultant.', help_kind: 'Introduction' };
+    const a = await submit(w, { body: ask });
+    const row = await GT.GIVE_TAKE_DB.prepare('SELECT * FROM gt_ask').first();
+    check('give and take: an ask is saved as waiting', a.status === 200 && a.body.give_take === 'saved' && row?.status === 'waiting' && row?.help_kind === 'Introduction', JSON.stringify(a.body));
+    check('give and take: an ask never reaches the network list', w.sheet.length === 0 && a.body.sheet === 'not_applicable', JSON.stringify(w.sheet));
+    const mail = gtMails(w)[0] || {};
+    const mailText = String(mail.text || '');
+    check('give and take: Scooter gets the ask with three signed review links', /Approve for the board.*\/api\/give-take\/review\?t=/.test(mailText) && /Decline: /.test(mailText) && /Take down/.test(mailText) && /NOT added to the network list/.test(mailText), mailText.slice(0, 400));
+    check('give and take: production never returns the review links to the browser', !a.body.review);
+    const prev = await submit(w, { host: 'work-x.west-peek-community.pages.dev', body: { ...ask, email: 'asker2@example.test', ask: 'Second ask, preview host.' }, token: 'test-key', env: { ...w.pagesEnv, TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' } });
+    check('give and take: a preview returns the review links (first-run approves its own TEST ask)', prev.status === 200 && /\/api\/give-take\/review\?t=/.test(prev.body.review?.approve || ''), JSON.stringify(prev.body));
+
+    const boardRead = async () => { const r = await gtBoard.onRequestGet({ request: new Request('https://joinwestpeek.com/api/give-take/board'), env: w.pagesEnv }); return { status: r.status, text: await r.text() }; };
+    check('give and take: a waiting ask is not on the board', JSON.parse((await boardRead()).text).asks.length === 0);
+
+    const link = /Approve for the board[^:]*: (\S+)/.exec(mailText)?.[1] || '';
+    const tok = new URL(link || 'https://x/').searchParams.get('t') || '';
+    const getPage = await gtReview.onRequestGet({ request: new Request(link || 'https://joinwestpeek.com/api/give-take/review'), env: w.pagesEnv });
+    const after = await GT.GIVE_TAKE_DB.prepare('SELECT status FROM gt_ask WHERE public_id = ?').bind(row.public_id).first();
+    check('give and take: opening a review link changes nothing (a mail scanner approves nothing)', getPage.status === 200 && after.status === 'waiting' && /<form method="POST"/.test(await getPage.text()));
+    const post = (t, origin = 'https://joinwestpeek.com') => gtReview.onRequestPost({ request: new Request('https://joinwestpeek.com/api/give-take/review', { method: 'POST', headers: { origin, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ t }) }), env: w.pagesEnv });
+    const forged = await post(tok.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')));
+    const crossSite = await post(tok, 'https://evil.example');
+    check('give and take: a forged or cross-site approval is refused', forged.status === 400 && crossSite.status === 403 && (await GT.GIVE_TAKE_DB.prepare('SELECT status FROM gt_ask WHERE public_id = ?').bind(row.public_id).first()).status === 'waiting');
+    const ok = await post(tok);
+    const board = await boardRead();
+    const asks = JSON.parse(board.text).asks;
+    check('give and take: approving puts the words on the board', ok.status === 200 && asks.length === 1 && asks[0].ask === ask.ask && asks[0].help === 'Introduction', board.text);
+    check('give and take: the board carries no name, email or row id', !/Asker|asker@|"name"|"email"|"id":\d/.test(board.text) && Object.keys(asks[0]).sort().join() === 'approved,ask,help,id', board.text);
+    const log = await GT.GIVE_TAKE_DB.prepare('SELECT action, result FROM gt_review_log').all();
+    check('give and take: every review action is logged', log.results.some((r) => r.action === 'approve' && r.result === 'done'), JSON.stringify(log.results));
+
+    const offer = { lead_type: 'give_and_take_offer', site: 'community', ask_id: asks[0].id, name: 'Giver Person', email: 'giver@example.test', offer: 'I know two consultants and can introduce you.', help_kind: 'Introduction', share_consent: 'yes' };
+    const noConsent = await submit(w, { body: { ...offer, share_consent: '' } });
+    check('give and take: an offer without the giver\'s consent is refused', noConsent.status === 400 && noConsent.body.error === 'missing_consent');
+    const badKind = await submit(w, { body: { ...offer, help_kind: 'Money' } });
+    check('give and take: an unknown kind of help is refused, not guessed', badKind.status === 400 && badKind.body.error === 'invalid_help_kind');
+    const waitingId = (await GT.GIVE_TAKE_DB.prepare("SELECT public_id FROM gt_ask WHERE status = 'waiting'").first())?.public_id || 'AAAAAAAAAAAAAAAA';
+    const onWaiting = await submit(w, { body: { ...offer, ask_id: waitingId } });
+    check('give and take: an ask that is not approved takes no offer', onWaiting.status === 400 && onWaiting.body.error === 'ask_not_found');
+    const own = await submit(w, { body: { ...offer, email: 'ASKER@example.test' } });
+    check('give and take: nobody offers on their own ask', own.status === 409 && own.body.error === 'own_ask');
+    const before = gtMails(w).length;
+    const o = await submit(w, { body: offer });
+    const orow = await GT.GIVE_TAKE_DB.prepare('SELECT * FROM gt_offer').first();
+    const omail = String((gtMails(w)[before] || {}).text || '');
+    check('give and take: an offer is saved with the consent time', o.status === 200 && orow?.offer === offer.offer && Number(orow?.consent_at) > 0, JSON.stringify(o.body));
+    check('give and take: the offer email carries both people for the intro, by hand', /asker@example\.test/.test(omail) && /giver@example\.test/.test(omail) && /by hand/.test(omail), omail.slice(0, 300));
+    check('give and take: an offer never reaches the network list or the board', w.sheet.length === 0 && !/Giver|giver@|consultants/.test((await boardRead()).text));
+    const again = await submit(w, { body: { ...offer, offer: 'Second try.' } });
+    check('give and take: one offer per giver per ask', again.status === 409 && again.body.error === 'already_offered');
+
+    // Board order: the fewest offers first, then the newest.
+    const t2 = prev.body.review ? new URL(prev.body.review.approve).searchParams.get('t') : '';
+    await post(t2);
+    const order = JSON.parse((await boardRead()).text).asks.map((x) => x.ask);
+    check('give and take: the ask with no offers comes first', order[0] === 'Second ask, preview host.' && order[1] === ask.ask, JSON.stringify(order));
+
+    // No store on this deployment: refused before anything is sent.
+    const bare = world();
+    const nostore = await submit(bare, { body: ask });
+    check('give and take: no store means refused, nothing emailed', nostore.status === 503 && nostore.body.error === 'give_take_unavailable' && gtMails(bare).length === 0);
+    // Not the community site: not here.
+    const v = await submit(world({ pages: GT }), { host: 'westpeek.ventures', body: ask });
+    check('give and take: only joinwestpeek.com takes an ask', v.status === 404);
+    // Both mail channels down: the ask is not kept to sit unseen.
+    resetGiveTakeSchemaMemo();
+    const GT2 = { GIVE_TAKE_DB: fakeD1(), GIVE_TAKE_SIGNING_KEY: 'k'.repeat(43) };
+    const down = world({ cloudflare: 'down', resend: 'down', pages: GT2 });
+    const dr = await submit(down, { body: ask });
+    check('give and take: an ask nobody was told about is not kept', dr.status >= 500 && !(await GT2.GIVE_TAKE_DB.prepare('SELECT id FROM gt_ask').first()));
+    const missing = await submit(w, { body: { ...ask, ask: '   ' } });
+    check('give and take: an empty ask is refused', missing.status === 400 && missing.body.error === 'missing_ask');
+
+    // The migration files are the same statements the code applies.
+    const fileSql = readdirSync('migrations/give-take').sort().map((f) => readFileSync(`migrations/give-take/${f}`, 'utf8').split('\n').filter((l) => !l.startsWith('--')).join('\n')).join('\n');
+    const norm = (x) => x.replace(/\s+/g, ' ').replace(/;\s*/g, ';').trim();
+    check('give and take: migrations/ and MIGRATIONS match', norm(fileSql) === norm(GT_MIGRATIONS.flatMap((m) => m.sql).map((q) => `${q};`).join('\n')), norm(fileSql).slice(0, 120));
   }
 } finally {
   console.error = quiet;

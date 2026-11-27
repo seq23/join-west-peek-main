@@ -54,13 +54,37 @@ if (target === "community") {
   const episodesPath = path.join(src, "assets", "data", "episodes.json");
   if (exists(templatePath) && exists(episodesPath)) {
     const template = fs.readFileSync(templatePath, "utf8");
-    const episodes = JSON.parse(fs.readFileSync(episodesPath, "utf8"));
+    // Newest first, by episode number (Scooter, 27 Nov 2026: "Order, newest first"). The order of
+    // rows in episodes.json never decides it; community.js sorts the /episodes grid the same way.
+    const episodes = JSON.parse(fs.readFileSync(episodesPath, "utf8")).sort((a, b) => b.number - a.number);
+    const numbers = episodes.map((e) => e.number);
+    if (new Set(numbers).size !== numbers.length) fail(`community episodes: two episodes share a number (${numbers.join(", ")})`);
     const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    // "Coming Monday, Nov 30" while the release date is ahead; community.js turns it back into
+    // "Coming soon" on the visitor's screen once the date has passed and there is still no video,
+    // so a built page can never show a date in the past.
+    const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const soonLabel = (ep) => {
+      if (!ep.releaseDate) return "Coming soon";
+      if (!DAY_RE.test(ep.releaseDate)) fail(`community episode "${ep.guest}": releaseDate must be YYYY-MM-DD`);
+      const d = new Date(`${ep.releaseDate}T12:00:00Z`);
+      return `Coming ${d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })}`;
+    };
+    const releaseAttr = (ep) => (ep.releaseDate ? ` data-release-date="${esc(ep.releaseDate)}"` : "");
+    const initials = (name) => String(name || "").split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+    // A guest with no headshot yet gets a marked initials tile, never a guessed photo.
+    const photoTag = (ep, cls) => ep.headshot
+      ? `<img class="${cls}" src="/${esc(ep.headshot)}" alt="${esc(ep.headshotAlt || ep.guest)}" loading="lazy">`
+      : `<div class="${cls} wpc-initials" role="img" aria-label="${esc(ep.guest)}: headshot to come"><span>${esc(initials(ep.guest))}</span><small>Headshot to come</small></div>`;
     const videoBlock = (ep) => ep.youtube
       ? `      <div class="wpc-card__player"><iframe src="https://www.youtube-nocookie.com/embed/${esc(ep.youtube)}" title="${esc(ep.guest)} on Good People Should Meet Good People" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
-      : `      <div class="wpc-card__soon">Episode coming soon</div>`;
+      : `      <div class="wpc-card__soon"${releaseAttr(ep)} data-soon-label>${esc(soonLabel(ep))}</div>`;
+    const synopsisBlock = (ep) => ep.synopsis
+      ? `<p>${esc(ep.synopsis)}</p>`
+      : `<p class="wpc-placeholder-line">Synopsis to come${ep.youtube ? "; watch the episode above" : ""}.</p>`;
+    const numberLine = (ep) => `Episode ${ep.number}${ep.youtube ? "" : ` &middot; <span${releaseAttr(ep)} data-soon-label>${esc(soonLabel(ep))}</span>`}`;
     const otherEpisodeCard = (ep) =>
-      `      <a class="wpc-card" href="/episodes/${esc(ep.slug)}/"><img class="wpc-card__photo" src="/${esc(ep.headshot)}" alt="${esc(ep.headshotAlt || ep.guest)}" loading="lazy"><div class="wpc-card__body"><p class="wpc-card__number">Episode ${ep.number}${ep.youtube ? "" : " &middot; coming soon"}</p><h3 class="wpc-card__name">${esc(ep.guest)}</h3></div></a>`;
+      `      <a class="wpc-card" href="/episodes/${esc(ep.slug)}/">${photoTag(ep, "wpc-card__photo")}<div class="wpc-card__body"><p class="wpc-card__number">${numberLine(ep)}</p><h3 class="wpc-card__name">${esc(ep.guest)}</h3></div></a>`;
 
     for (const ep of episodes) {
       if (!ep.slug) fail(`community episode "${ep.guest}" has no slug; cannot generate /episodes/${"<slug>"}`);
@@ -70,11 +94,12 @@ if (target === "community") {
         .replaceAll("{{NUMBER}}", esc(ep.number))
         .replaceAll("{{GUEST}}", esc(ep.guest))
         .replaceAll("{{TITLE}}", esc(ep.title))
-        .replaceAll("{{SYNOPSIS}}", esc(ep.synopsis))
-        .replaceAll("{{HEADSHOT}}", esc(ep.headshot))
-        .replaceAll("{{HEADSHOT_ALT}}", esc(ep.headshotAlt || ep.guest))
+        .replaceAll("{{FEED_GUID}}", esc(ep.feedGuid || ""))
+        .replace("{{PHOTO}}", photoTag(ep, "wpc-episode__img"))
+        .replace("{{SYNOPSIS_BLOCK}}", synopsisBlock(ep))
         .replace("{{VIDEO_BLOCK}}", videoBlock(ep))
         .replace("{{OTHER_EPISODES}}", others);
+      if (/\{\{[A-Z_]+\}\}/.test(page)) fail(`community episode "${ep.slug}": template marker left unfilled: ${page.match(/\{\{[A-Z_]+\}\}/)[0]}`);
       const outDir = path.join(out, "episodes", ep.slug);
       fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(path.join(outDir, "index.html"), page);

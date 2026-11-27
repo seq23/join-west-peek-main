@@ -122,16 +122,50 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   graph on the homepage is exempt, since structured data is not navigation. `/join` carries the
   same nav and the community's sheet-writing join form, reachable from the hero Join button and
   the footer. **Footer carries no LinkedIn link** (27 Sep 2026). Guard (sister links, personal address, Update consent and gate): `npm run validate:community-site`.
-- **Community homepage order is fixed**: Hero (the brief's exact line, a Join button, and a photo
-  slot that stays hidden until `assets/data/hero.json` names a photo) &middot; Origin/History
-  &middot; Podcast &middot; The Update &middot; Pitch Competition &middot; Workshops. `/podcast`
-  and `/history` are retired and 301 to `/episodes` and `/about` respectively, in
-  `sites/community/_redirects`.
-- **The hero is live** (Scooter, 28 Sep 2026): "West Peek" stays fixed while the phrases in the
-  h1's `data-phrases` type out, backspace and rotate (`assets/community.js`, `heroTyping`). The
-  brief's exact line remains the h1's real shipped text (`#hero-line`) - what no-JS and
-  `prefers-reduced-motion` visitors see and what screen readers hear; the typed copy is
-  `aria-hidden`. Change the phrases in `sites/community/index.html`.
+- **Community homepage order is fixed** (Scooter, 27 Nov 2026): Hero &middot; six coloured tiles in
+  this order: About, Core Values, Give and Take, Podcasts, Pitch Competitions, Workshops. Each tile
+  title is a `<button aria-expanded>`; a mouse resting ~250 ms opens it, a tap (or Enter/Space)
+  toggles it, and without JS every tile ships open (`wireTiles` in `assets/community.js`). No
+  "hover on a computer, tap on a phone" line anywhere (his words: "Hover and tap should just work").
+  Motion (lift, spring, staggered rise, button grow/squish) is transform/opacity only and fully off
+  under `prefers-reduced-motion`. Core Values carry his three sentences word for word; the Give and
+  Take line is exactly "Ask for what you need. Give what you can." (the proposed longer description
+  was NOT approved and must not ship). The Update left the homepage and stays in the nav and at
+  `/update`. `/podcast` and `/history` 301 to `/episodes` and `/about` (`sites/community/_redirects`).
+  Guard: `npm run validate:community-site`.
+- **The hero is live** (Scooter, 27 Nov 2026, corrected screenshot): the "West Peek" wordmark stays
+  fixed and ONE line under it types, backspaces and rotates through the four phrases in the line's
+  `data-phrases` (`heroTyping`), in his order. The first phrase is the line's real text (`#hero-line`):
+  what no-JS and reduced-motion visitors see and screen readers hear; the typed copy is `aria-hidden`
+  and a sizer holds the longest phrase so nothing below jumps. Change the phrases in
+  `sites/community/index.html`.
+- **Episodes**: sorted newest first by `number` in code (`community.js` and `scripts/build.mjs`),
+  never by row order. A record with no `youtube` is "coming soon"; with a `releaseDate` it reads
+  "Coming <weekday>, <Mon d>" until that day passes, then "Coming soon". A record with no headshot or
+  synopsis shows a marked initials tile / "Synopsis to come" (never invented).
+- **Podcast feed** (`functions/api/podcast-feed.js`, `/api/podcast-feed`): reads
+  `https://anchor.fm/s/1010e60d0/podcast/rss` server-side, 15-minute cache, `{ok:false, items:[]}` on
+  any failure. `episodes.json` stays the record and wins (numbers, slugs, headshots, YouTube ids). A
+  record matches a feed item by `feedGuid`, else by the guest's name in the title, and a released match
+  gains "Listen on Spotify". A feed item with no record shows on `/episodes` and the Podcasts tile with
+  its Spotify link until its record is added. The feed never releases a coming-soon record.
+- **Workshops feed** (`functions/api/workshops.js`): the Luma calendar ICS, 15-minute cache; each
+  upcoming event carries `title`, `start`, `end`, `url`; an event stays listed until it ENDS. None, or
+  the feed unreadable: the tile says "Coming soon" with the Luma calendar link.
+- **Give and Take** (Scooter, 27 Nov 2026; `functions/_lib/give-take.mjs`, `/give-and-take`, the
+  homepage tile): asks and offers post to `/api/lead` (`give_and_take_ask` / `give_and_take_offer`)
+  with every gate the other forms have, and are kept in their own D1 per environment
+  (`west-peek-community-give-take-<env>`, binding `GIVE_TAKE_DB`; review links signed with
+  `GIVE_TAKE_SIGNING_KEY`), both set by `npm run give-take:setup`. **Never the network list** (his
+  words: "Submitting a Give and Take ask should not add anyone to the network list"):
+  `NEVER_SHEET_FORMS` in `lead.js`, registered `own_store`. Any list option would be a separate
+  unchecked box; not built. An ask is saved `waiting`; Scooter's email carries signed Approve /
+  Decline / Take down links, each opening a one-button confirmation (a mail scanner changes nothing).
+  The board (`/api/give-take/board`) returns only approved words, optional kind of help, a public id
+  and a day. Offers need the giver's consent box, are never shown, and are emailed to Scooter, who
+  makes introductions by hand. The privacy page is NOT changed for this until Scooter approves wording.
+  Without the store the forms refuse (503), never half-save. Guards: `npm run test:lead` (G&T cases),
+  `validate:community-site`, FORM-10.
 - **Pitch competition naming** (Scooter, 28 Sep 2026): it is "the pitch competition" or the
   "Sengo pitch competition", never "West Peek pitch competition"; the partner is spelled Sengo (owner, 28 Sep 2026; "Sango" was a misspelling).
   `/pitch` carries one winners heading, not a tag plus an h2.
@@ -401,7 +435,18 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   2. LAND merges and deploys.
   3. After the deploy: `dashboard:setup -- --env production --redeploy` (all steps idempotent; redeploys the newest = merged commit), then `first-run -- --url https://westpeekproductions.com`: `/dashboard` must answer 401 with the sign-in screen, never 503 "not set up".
 - `validate:dashboard-privacy` — `node scripts/validate_dashboard_privacy.mjs`
-- `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, (1) `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
+- `give-take:setup` — `node scripts/give_take_setup.mjs --env preview|production [--redeploy]`: finds the
+  Pages project serving joinwestpeek.com, finds or creates D1 `west-peek-community-give-take-<env>`,
+  applies the additive migrations (`MIGRATIONS` in `functions/_lib/give-take.mjs`, mirrored in
+  `migrations/give-take/`), binds `GIVE_TAKE_DB`, adds `GIVE_TAKE_SIGNING_KEY` if absent (never
+  printed), and redeploys that environment's newest deployment when anything changed. Safe to repeat.
+  Prints `GIVE_TAKE_SETUP OK`. Order, as for the dashboard: preview in BUILD; production BEFORE the
+  merge (after Scooter approves the preview); after the deploy `--env production --redeploy`.
+- `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, on a community URL
+  `scripts/community_first_run.mjs` (homepage tiles and line, episode order and pages, both feeds, and on a
+  preview a marked-TEST Give and Take ask: saved, not on the board, approved through its signed link,
+  on the board after a reload and on a second device with no name or email, an offer saved and never
+  shown, a second offer refused, then taken down), and (1) `node scripts/dashboard_first_run.mjs --url <preview>` (or `FIRST_RUN_URL`): public pages load clean; signed out shows nothing; on a preview, signs in with the sample identity, sees rows on every tab (Pipeline deals under their stage headings), moves one deal a stage (confirmed), reloads, sees it on a second device, opens a deal from the Pipeline (tracker form, notes, steps, ← Pipeline) and saves a note that persists on reload and the second device, builds a team directory and a quote whose roles price from it (price, costs and a provisional margin on the second device), checks the proposal and portal carry no role, person, rate or cost, opens Who can see what, signs out and proves that session dead; checks Help asks for no app key by email and that sample mode refuses to save app keys. Prints `FIRST_RUN OK`.
 - `live-links` — `node scripts/live_links.mjs [--url https://<host> …]` (no `--url` = the three production hosts): fetches each site's home and /privacy (Productions also /work, /what-we-do, /about, /get-in-touch) and fails on a non-200, not exactly one GA4 tag with that site's ID, another site's ID, Clarity or any other tracker, and on Productions a favicon other than the WP mark, a link preview other than the "We make people care" card, or the old preview/client-permission line. Prints each link and `LIVE_LINKS OK <n> links`. LAND runs it with no `--url` after the deploy; its lines are the live links sent to Scooter (19 Nov 2026: "Please reply with the live links once complete").
 - `dashboard:owners` — `node scripts/dashboard_owners.mjs --env preview|production --file <owners JSON outside the repo> [--url https://<site>] [--send]`: writes the owner row (`{"owners":[{"id","name","email"}]}`, Scooter alone) into that environment's D1; an unchanged email keeps his password and sessions; `--send` presses that site's "Forgot it?" for an owner with no password and no unused code. Prints ids and counts only.
   (2) `node scripts/first_run_privacy.mjs --url <preview>`: loads `/privacy` and every sitemap page plus the 404 on each preview given; fails on a missing footer link, an unnamed tool, a missing contact or date, a placeholder or a bad status; then runs `scripts/first_run.mjs` (the GA4 first-run) on the same previews; prints `FIRST_RUN OK` only when both pass.

@@ -39,13 +39,16 @@
   <article class="wpc-episode">
     <div class="wpc-episode__photo">
       <p class="wpc-card__number">Episode {{NUMBER}}</p>
-      <img src="/{{HEADSHOT}}" alt="{{HEADSHOT_ALT}}" loading="lazy">
+      {{PHOTO}}
     </div>
     <div class="wpc-episode__player">
       <h1>{{GUEST}}</h1>
       <p class="wpc-episode__title">{{TITLE}}</p>
 {{VIDEO_BLOCK}}
-      <p>{{SYNOPSIS}}</p>
+      {{SYNOPSIS_BLOCK}}
+      <!-- Filled by community.js from /api/podcast-feed when the podcast feed carries this episode
+           (matched by its feed id, else the guest's name in the feed title). Hidden otherwise. -->
+      <p class="wpc-episode__listen" data-feed-guid="{{FEED_GUID}}" data-guest="{{GUEST}}" hidden></p>
     </div>
   </article>
 

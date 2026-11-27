@@ -5,7 +5,9 @@
  *   list several URLs separated by " · ", commas or spaces)
  * 1. scripts/dashboard_first_run.mjs on each Productions URL given (public pages,
  *    favicon/link preview, the /dashboard sign-in, read, write and reload);
- * 2. scripts/first_run_privacy.mjs on every URL (privacy pages, then the GA4 first-run).
+ * 2. scripts/community_first_run.mjs on each community URL given (homepage tiles, episode order,
+ *    workshops and podcast feeds, a TEST Give and Take ask approved, on the board, offered on, taken down);
+ * 3. scripts/first_run_privacy.mjs on every URL (privacy pages, then the GA4 first-run).
  * Prints `FIRST_RUN OK` only when every part passed; exits 1 otherwise.
  */
 import { spawnSync } from "node:child_process";
@@ -30,6 +32,8 @@ const run = (f, args) => {
 const failed = [];
 const productions = bases.filter((b) => /productions/i.test(new URL(b).hostname));
 for (const b of productions) if (!run("dashboard_first_run.mjs", ["--url", b])) failed.push(`dashboard ${b}`);
+const community = bases.filter((b) => /community|join-west-peek|joinwestpeek|localhost|127\.0\.0\.1/i.test(new URL(b).hostname));
+for (const b of community) if (!run("community_first_run.mjs", ["--url", b])) failed.push(`community ${b}`);
 if (!run("first_run_privacy.mjs", bases.flatMap((b) => ["--url", b]))) failed.push("privacy + GA4");
 if (failed.length) { console.error(`FIRST_RUN FAIL ${failed.join(", ")}`); process.exit(1); }
-console.log(`FIRST_RUN OK ${productions.length} productions dashboard run(s); privacy + GA4 on ${bases.length} site(s)`);
+console.log(`FIRST_RUN OK ${productions.length} productions dashboard run(s); ${community.length} community run(s); privacy + GA4 on ${bases.length} site(s)`);

@@ -6,3 +6,6 @@ dist/.DS_Store
 .env.*
 !.env.example
 .wrangler/
+
+# Local Pages dev secrets (wrangler pages dev); never committed
+.dev.vars
