@@ -133,6 +133,9 @@ export async function verifyReview(env, token) {
   if (!m || !giveTakeReady(env)) return null;
   let sig;
   try { sig = fromB64url(m[3]); } catch { return null; }
+  // Only the one canonical spelling of the signature: the last character's two spare bits are ignored
+  // by the decoder, so without this four different tokens would verify as one.
+  if (b64url(sig) !== m[3]) return null;
   const ok = await crypto.subtle.verify('HMAC', await hmacKey(env), sig, new TextEncoder().encode(`gt-review:${m[1]}:${m[2]}`));
   return ok ? { publicId: m[1], action: m[2] } : null;
 }

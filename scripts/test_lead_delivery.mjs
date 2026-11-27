@@ -555,9 +555,16 @@ try {
     const after = await GT.GIVE_TAKE_DB.prepare('SELECT status FROM gt_ask WHERE public_id = ?').bind(row.public_id).first();
     check('give and take: opening a review link changes nothing (a mail scanner approves nothing)', getPage.status === 200 && after.status === 'waiting' && /<form method="POST"/.test(await getPage.text()));
     const post = (t, origin = 'https://joinwestpeek.com') => gtReview.onRequestPost({ request: new Request('https://joinwestpeek.com/api/give-take/review', { method: 'POST', headers: { origin, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ t }) }), env: w.pagesEnv });
-    const forged = await post(tok.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')));
+    // Two forgeries: a changed character in the middle of the signature (always different bytes), and
+    // the last character swapped for a sibling that decodes to the same bytes (A/B/C/D share data
+    // bits), which only the canonical-spelling check refuses.
+    const sigAt = tok.lastIndexOf('.') + 10;
+    const forged = await post(tok.slice(0, sigAt) + (tok[sigAt] === 'A' ? 'B' : 'A') + tok.slice(sigAt + 1));
+    const last = tok.at(-1);
+    const sibling = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'[('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.indexOf(last) ^ 1)];
+    const respelled = await post(tok.slice(0, -1) + sibling);
     const crossSite = await post(tok, 'https://evil.example');
-    check('give and take: a forged or cross-site approval is refused', forged.status === 400 && crossSite.status === 403 && (await GT.GIVE_TAKE_DB.prepare('SELECT status FROM gt_ask WHERE public_id = ?').bind(row.public_id).first()).status === 'waiting');
+    check('give and take: a forged or cross-site approval is refused', forged.status === 400 && respelled.status === 400 && crossSite.status === 403 && (await GT.GIVE_TAKE_DB.prepare('SELECT status FROM gt_ask WHERE public_id = ?').bind(row.public_id).first()).status === 'waiting');
     const ok = await post(tok);
     const board = await boardRead();
     const asks = JSON.parse(board.text).asks;

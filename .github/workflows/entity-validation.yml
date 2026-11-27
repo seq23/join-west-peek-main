@@ -32,6 +32,9 @@ jobs:
       - name: Lead delivery (two channels, alarm, probe)
         run: node scripts/test_lead_delivery.mjs
 
+      - name: Give and Take setup against a fake Cloudflare API (paged project list, idempotent)
+        run: node scripts/test_give_take_setup.mjs
+
       # Scooter, 13 Nov 2026: no dashboard page or data without the password; finance for
       # Scooter only (the owners list is Scooter alone); sending off; no private figures in this repo.
       - name: Productions dashboard gate

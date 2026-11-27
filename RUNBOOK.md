@@ -442,6 +442,9 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   printed), and redeploys that environment's newest deployment when anything changed. Safe to repeat.
   Prints `GIVE_TAKE_SETUP OK`. Order, as for the dashboard: preview in BUILD; production BEFORE the
   merge (after Scooter approves the preview); after the deploy `--env production --redeploy`.
+  The Pages project list pages at 10 (a larger `per_page` is refused 400 8000024); the script walks the
+  pages. `test:give-take-setup` (`scripts/test_give_take_setup.mjs`, in `validate` and CI) runs it against
+  a fake API that refuses per_page > 10 and puts the project on page 2, and proves a second run is a no-op.
 - `first-run` — `node scripts/first_run_all.mjs` runs, with the same `--url`, on a community URL
   `scripts/community_first_run.mjs` (homepage tiles and line, episode order and pages, both feeds, and on a
   preview a marked-TEST Give and Take ask: saved, not on the board, approved through its signed link,

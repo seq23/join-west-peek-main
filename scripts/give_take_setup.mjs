@@ -62,8 +62,14 @@ const b64url = (bytes) => Buffer.from(bytes).toString('base64url');
 // 1. The project that serves joinwestpeek.com. Found by its domain, so a renamed project is still found.
 let PROJECT = arg('project');
 if (!PROJECT) {
-  const projects = (await cf('/pages/projects?per_page=100')) || [];
-  const hit = projects.find((p) => (p.domains || []).some((d) => d === HOST || d === `www.${HOST}`));
+  // The Pages list API pages at 10 and refuses a bigger per_page with 400 8000024 (seen 27 Nov 2026),
+  // so walk the pages until one comes back short.
+  let hit = null;
+  for (let page = 1; page <= 20 && !hit; page++) {
+    const projects = (await cf(`/pages/projects?per_page=10&page=${page}`)) || [];
+    hit = projects.find((p) => (p.domains || []).some((d) => d === HOST || d === `www.${HOST}`)) || null;
+    if (projects.length < 10) break;
+  }
   if (!hit) stop(2, `NAMED STOP give-take:setup: no Pages project serves ${HOST}; pass --project <name>`);
   PROJECT = hit.name;
 }
