@@ -110,8 +110,20 @@ const patch = {};
 if (cfg.d1_databases?.GIVE_TAKE_DB?.id !== dbId) patch.d1_databases = { GIVE_TAKE_DB: { id: dbId } };
 const keyState = cfg.env_vars?.GIVE_TAKE_SIGNING_KEY ? 'present' : 'added';
 if (keyState === 'added') patch.env_vars = { GIVE_TAKE_SIGNING_KEY: { type: 'secret_text', value: b64url(crypto.getRandomValues(new Uint8Array(32))) } };
+// GIVE_TAKE_PREVIEW_LINKS="on" lets a preview hand an ask's review links back to first-run. It lives on
+// the preview environment only; found on production it is REMOVED (null deletes a Pages variable),
+// because there it would let anyone who posts an ask approve it onto the live board.
+const linksFlag = cfg.env_vars?.GIVE_TAKE_PREVIEW_LINKS;
+let linksState = 'absent';
+if (env === 'preview') {
+  linksState = linksFlag?.value === 'on' ? 'present' : 'added';
+  if (linksState === 'added') patch.env_vars = { ...patch.env_vars, GIVE_TAKE_PREVIEW_LINKS: { type: 'plain_text', value: 'on' } };
+} else if (linksFlag) {
+  linksState = 'removed';
+  patch.env_vars = { ...patch.env_vars, GIVE_TAKE_PREVIEW_LINKS: null };
+}
 if (Object.keys(patch).length) await cf(`/pages/projects/${PROJECT}`, { method: 'PATCH', body: JSON.stringify({ deployment_configs: { [env]: patch } }) });
-done.push(`binding ${patch.d1_databases ? 'bound' : 'present'}`, `signing key ${keyState}`);
+done.push(`binding ${patch.d1_databases ? 'bound' : 'present'}`, `signing key ${keyState}`, `preview links flag ${linksState}`);
 
 // 6. A fresh deployment of the same commit, so the binding and key are live when setup ends.
 let redeployState = 'not_needed';

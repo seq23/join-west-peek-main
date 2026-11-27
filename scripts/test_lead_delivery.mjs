@@ -543,7 +543,18 @@ try {
     const mailText = String(mail.text || '');
     check('give and take: Scooter gets the ask with three signed review links', /Approve for the board.*\/api\/give-take\/review\?t=/.test(mailText) && /Decline: /.test(mailText) && /Take down/.test(mailText) && /NOT added to the network list/.test(mailText), mailText.slice(0, 400));
     check('give and take: production never returns the review links to the browser', !a.body.review);
-    const prev = await submit(w, { host: 'work-x.west-peek-community.pages.dev', body: { ...ask, email: 'asker2@example.test', ask: 'Second ask, preview host.' }, token: 'test-key', env: { ...w.pagesEnv, TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' } });
+    // The live site's own pages.dev addresses serve production with the production store: an ask sent
+    // there must NOT get its approve link back, or the sender could put it on the live board himself.
+    const testKeys = { TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' };
+    for (const [label, host, extra] of [
+      ['the production alias west-peek-community.pages.dev, even with the preview flag', 'west-peek-community.pages.dev', { GIVE_TAKE_PREVIEW_LINKS: 'on' }],
+      ['a production deployment URL <hash>.west-peek-community.pages.dev (no preview flag)', 'a1b2c3d4.west-peek-community.pages.dev', {}]
+    ]) {
+      const r = await submit(w, { host, body: { ...ask, email: `alias-${host.length}@example.test`, ask: `Alias ask ${host}` }, token: 'test-key', env: { ...w.pagesEnv, ...testKeys, ...extra } });
+      check(`give and take: ${label} never returns the review links`, r.status === 200 && r.body.give_take === 'saved' && !r.body.review, JSON.stringify(r.body));
+    }
+    await GT.GIVE_TAKE_DB.prepare("DELETE FROM gt_ask WHERE ask LIKE 'Alias ask %'").run();
+    const prev = await submit(w, { host: 'work-x.west-peek-community.pages.dev', body: { ...ask, email: 'asker2@example.test', ask: 'Second ask, preview host.' }, token: 'test-key', env: { ...w.pagesEnv, ...testKeys, GIVE_TAKE_PREVIEW_LINKS: 'on' } });
     check('give and take: a preview returns the review links (first-run approves its own TEST ask)', prev.status === 200 && /\/api\/give-take\/review\?t=/.test(prev.body.review?.approve || ''), JSON.stringify(prev.body));
 
     const boardRead = async () => { const r = await gtBoard.onRequestGet({ request: new Request('https://joinwestpeek.com/api/give-take/board'), env: w.pagesEnv }); return { status: r.status, text: await r.text() }; };

@@ -164,7 +164,12 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   The board (`/api/give-take/board`) returns only approved words, optional kind of help, a public id
   and a day. Offers need the giver's consent box, are never shown, and are emailed to Scooter, who
   makes introductions by hand. The privacy page is NOT changed for this until Scooter approves wording.
-  Without the store the forms refuse (503), never half-save. Guards: `npm run test:lead` (G&T cases),
+  Without the store the forms refuse (503), never half-save. An ask's review links come back in the
+  `/api/lead` response ONLY on a preview deployment (`mayReturnReviewLinks`: the preview
+  environment's `GIVE_TAKE_PREVIEW_LINKS=on`, set by `give-take:setup --env preview`, AND a branch
+  host). Never decided by hostname alone: `west-peek-community.pages.dev` and every
+  `<hash>.west-peek-community.pages.dev` of a production deployment serve the LIVE site, and links
+  there would let a sender approve his own ask. Guards: `npm run test:lead` (G&T cases),
   `validate:community-site`, FORM-10.
 - **Pitch competition naming** (Scooter, 28 Sep 2026): it is "the pitch competition" or the
   "Sengo pitch competition", never "West Peek pitch competition"; the partner is spelled Sengo (owner, 28 Sep 2026; "Sango" was a misspelling).
@@ -439,7 +444,8 @@ Derived by Porter from this repo's `package.json` because the RUNBOOK had no suc
   Pages project serving joinwestpeek.com, finds or creates D1 `west-peek-community-give-take-<env>`,
   applies the additive migrations (`MIGRATIONS` in `functions/_lib/give-take.mjs`, mirrored in
   `migrations/give-take/`), binds `GIVE_TAKE_DB`, adds `GIVE_TAKE_SIGNING_KEY` if absent (never
-  printed), and redeploys that environment's newest deployment when anything changed. Safe to repeat.
+  printed), sets `GIVE_TAKE_PREVIEW_LINKS=on` on PREVIEW only (and REMOVES it if ever found on
+  production), and redeploys that environment's newest deployment when anything changed. Safe to repeat.
   Prints `GIVE_TAKE_SETUP OK`. Order, as for the dashboard: preview in BUILD; production BEFORE the
   merge (after Scooter approves the preview); after the deploy `--env production --redeploy`.
   The Pages project list pages at 10 (a larger `per_page` is refused 400 8000024); the script walks the

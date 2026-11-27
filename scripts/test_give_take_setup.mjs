@@ -52,7 +52,14 @@ const server = http.createServer(async (req, res) => {
       for (const [env, patch] of Object.entries(body.deployment_configs || {})) {
         const cfg = proj.deployment_configs[env];
         if (patch.d1_databases) cfg.d1_databases = { ...cfg.d1_databases, ...patch.d1_databases };
-        if (patch.env_vars) cfg.env_vars = { ...cfg.env_vars, ...Object.fromEntries(Object.entries(patch.env_vars).map(([k, v]) => [k, { type: v.type }])) };
+        // Like the real API: a secret's value is never read back, a plain_text value is, and null deletes.
+        if (patch.env_vars) {
+          cfg.env_vars = { ...cfg.env_vars };
+          for (const [k, v] of Object.entries(patch.env_vars)) {
+            if (v === null) delete cfg.env_vars[k];
+            else cfg.env_vars[k] = v.type === 'plain_text' ? { type: v.type, value: v.value } : { type: v.type };
+          }
+        }
       }
     }
     return send(200, proj);
@@ -71,8 +78,8 @@ const server = http.createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const fails = [];
-const run = () => new Promise((resolve) => {
-  const c = spawn(process.execPath, [SETUP, '--env', 'preview', '--branch', 'work/ours'], { env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_BASE: base, GIVE_TAKE_SETUP_FAST: '1' } });
+const run = (env = 'preview') => new Promise((resolve) => {
+  const c = spawn(process.execPath, [SETUP, '--env', env, ...(env === 'preview' ? ['--branch', 'work/ours'] : [])], { env: { ...process.env, CLOUDFLARE_API_TOKEN: 't', CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_BASE: base, GIVE_TAKE_SETUP_FAST: '1' } });
     let out = '';
     c.stdout.on('data', (b) => { out += b; });
     c.stderr.on('data', (b) => { out += b; });
@@ -87,9 +94,20 @@ const proj = projects.find((x) => x.name === 'join-west-peek-main');
 if (!proj.deployment_configs.preview.d1_databases?.GIVE_TAKE_DB?.id) fails.push('GIVE_TAKE_DB not bound on preview');
 if (retried.join() !== 'our-branch-dep') fails.push(`redeployed ${retried.join() || 'nothing'}, not this branch's own preview`);
 if (proj.deployment_configs.production.d1_databases) fails.push('production was touched by a preview run');
+if (proj.deployment_configs.preview.env_vars?.GIVE_TAKE_PREVIEW_LINKS?.value !== 'on') fails.push('preview did not get GIVE_TAKE_PREVIEW_LINKS=on (first-run could not approve its own TEST ask)');
+if (proj.deployment_configs.production.env_vars?.GIVE_TAKE_PREVIEW_LINKS) fails.push('a preview run put GIVE_TAKE_PREVIEW_LINKS on production');
 const second = await run();
 if (second.code !== 0 || !/d1 found/.test(second.out) || !/binding present/.test(second.out) || !/signing key present/.test(second.out) || !/migrations applied=0/.test(second.out)) fails.push(`second run was not a no-op: ${second.out.trim().split('\n').pop()}`);
+// Production never keeps the preview-links flag: planted there, the production run removes it, and
+// never adds it.
+proj.deployment_configs.production.env_vars = { GIVE_TAKE_PREVIEW_LINKS: { type: 'plain_text', value: 'on' } };
+const prod = await run('production');
+if (prod.code !== 0 || !/preview links flag removed/.test(prod.out)) fails.push(`production run did not remove the planted flag: ${prod.out.trim().split('\n').pop()}`);
+if (proj.deployment_configs.production.env_vars?.GIVE_TAKE_PREVIEW_LINKS) fails.push('GIVE_TAKE_PREVIEW_LINKS still on production after the production run');
+if (!proj.deployment_configs.production.env_vars?.GIVE_TAKE_SIGNING_KEY) fails.push('production run did not add its own signing key');
+const prod2 = await run('production');
+if (prod2.code !== 0 || !/preview links flag absent/.test(prod2.out)) fails.push(`second production run added the flag: ${prod2.out.trim().split('\n').pop()}`);
 server.close();
 
 if (fails.length) { for (const f of fails) console.error(`FAIL ${f}`); process.exit(1); }
-console.log(`GIVE_TAKE_SETUP_TEST OK project found on page 2, created, bound, keyed; redeployed this branch only; second run a no-op (${calls.length} API calls)`);
+console.log(`GIVE_TAKE_SETUP_TEST OK project found on page 2, created, bound, keyed; redeployed this branch only; second run a no-op; preview-links flag on preview only, removed from production (${calls.length} API calls)`);

@@ -170,6 +170,24 @@ export function writesToSheet(hostname, form) {
   return SHEET_SITES.includes(siteForHost(hostname));
 }
 
+/**
+ * Whether this response may carry a Give and Take ask's review links (so `npm run first-run` can
+ * approve its own TEST ask). BOTH must hold, because a hostname alone cannot tell a preview from
+ * production: west-peek-community.pages.dev and every <hash>.west-peek-community.pages.dev of a
+ * production deployment serve the live site with the live store.
+ *   1. the deployment's own environment carries GIVE_TAKE_PREVIEW_LINKS="on", which
+ *      `give-take:setup --env preview` sets on the PREVIEW environment only (and the production run
+ *      removes if it is ever found there);
+ *   2. the host is localhost or a branch preview, never a project's bare pages.dev alias.
+ */
+const PROJECT_ALIASES = ['west-peek-community.pages.dev', 'join-west-peek-main.pages.dev'];
+export function mayReturnReviewLinks(env, hostname) {
+  if (String(env?.GIVE_TAKE_PREVIEW_LINKS || '').trim() !== 'on') return false;
+  const host = String(hostname || '').toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1') return true;
+  return host.endsWith('.pages.dev') && !PROJECT_ALIASES.includes(host) && host.split('.').length >= 4;
+}
+
 /** A preview deployment or a local run: the only places Cloudflare's published test keys are accepted. */
 export function isPreviewHost(hostname) {
   const host = String(hostname || '').toLowerCase();
@@ -617,9 +635,11 @@ export async function onRequestPost({ request, env, waitUntil }) {
   // The email is delivered, so the visitor succeeded. The sheet result is
   // reported, never allowed to overturn that.
   await dashboardKept;
-  // On a preview only, the ask's review links come back too, so `npm run first-run` can approve its
-  // own TEST ask end to end. Production never returns them: there they are in Scooter's email alone.
-  const gtOut = gtKind ? { give_take: 'saved', ...(gtLinks && isPreviewHost(host) ? { review: gtLinks } : {}) } : {};
+  // On a preview deployment only (mayReturnReviewLinks: the preview environment's own flag, never the
+  // hostname alone), the ask's review links come back too, so `npm run first-run` can approve its own
+  // TEST ask end to end. Production never returns them, on any of its hosts: there they are in
+  // Scooter's email alone.
+  const gtOut = gtKind ? { give_take: 'saved', ...(gtLinks && mayReturnReviewLinks(env, host) ? { review: gtLinks } : {}) } : {};
   return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, lane, deck, delivered_by: delivery.deliveredBy, channels: delivery.channels, ...gtOut }, 200);
 }
 
