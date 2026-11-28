@@ -186,6 +186,37 @@ checkHomepage("dist", path.join(root, "dist", "community"));
 checkReducedMotion();
 checkGiveTake();
 
+// Built episode pages: every "More episodes" row is newest first by number (Scooter, 27 Nov 2026:
+// "Order, newest first"), whatever order the rows of episodes.json are in.
+function checkEpisodeOrder() {
+  const eps = JSON.parse(fs.readFileSync(path.join(root, "sites", "community", "assets", "data", "episodes.json"), "utf8"));
+  const num = new Map(eps.map((e) => [e.slug, Number(e.number)]));
+  for (const ep of eps) {
+    check();
+    const file = path.join(root, "dist", "community", "episodes", ep.slug, "index.html");
+    if (!fs.existsSync(file)) { errors.push(`dist/episodes/${ep.slug}/index.html is missing`); continue; }
+    const seq = [...fs.readFileSync(file, "utf8").matchAll(/class="wpc-card" href="\/episodes\/([a-z0-9-]+)\/"/g)].map((m) => num.get(m[1]));
+    if (seq.length !== eps.length - 1 || seq.some((n, i) => i > 0 && !(n < seq[i - 1]))) errors.push(`dist/episodes/${ep.slug}/: "More episodes" is [${seq.join(", ")}]; it must be the other ${eps.length - 1} episodes, newest first`);
+  }
+}
+checkEpisodeOrder();
+
+// Workshops feed: an event stays listed until it ENDS (one in progress still shows), a finished one
+// drops off, soonest first (Scooter, 27 Nov 2026: "confirm ... that finished events drop off").
+async function checkWorkshops() {
+  const { upcomingEvents } = await import(path.join(root, "functions", "api", "workshops.js"));
+  const now = Date.UTC(2026, 11, 3, 18);
+  const h = 3600 * 1000;
+  const got = upcomingEvents([
+    { title: "later", start: now + 48 * h, end: now + 50 * h },
+    { title: "finished", start: now - 3 * h, end: now - h },
+    { title: "in progress", start: now - h, end: now + h },
+  ], now).map((e) => e.title).join("|");
+  check();
+  if (got !== "in progress|later") errors.push(`functions/api/workshops.js upcomingEvents: got [${got}]; want [in progress|later] (a running event stays, a finished one drops, soonest first)`);
+}
+await checkWorkshops();
+
 console.log(`validate:community-site: ${checks} check(s) run`);
 if (errors.length) {
   console.error(`\nvalidate:community-site FAILED - ${errors.length} problem(s):`);
