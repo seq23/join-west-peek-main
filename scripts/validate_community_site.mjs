@@ -14,6 +14,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { GIVE_TAKE_OPEN } from "../functions/_lib/give-take.mjs";
 
 const root = process.cwd();
 const errors = [];
@@ -120,22 +121,50 @@ function checkHomepage(label, dir) {
   check();
   const titles = [...html.matchAll(/class="wpc-tile__btn"[^>]*><span>([^<]+)<\/span>/g)].map((m) => m[1]);
   if (titles.join("|") !== "About|Core Values|Give and Take|Podcasts|Pitch Competitions|Workshops") errors.push(`${label}/index.html: tile titles are "${titles.join(" | ")}"`);
+  // A coloured period after every tile title (Scooter, 28 Nov 2026: "About., Core Values., and so on").
+  check();
+  const dotted = (html.match(/class="wpc-tile__btn"[^>]*><span>[^<]+<\/span><span class="wpc-dot" aria-hidden="true">\.<\/span><\/button>/g) || []).length;
+  if (dotted !== 6) errors.push(`${label}/index.html: ${dotted} of 6 tile titles carry the coloured period (Scooter: "a coloured period after each tile title")`);
+  // The wordmark is his image: lowercase "west peek" with the period in olive (Scooter, 28 Nov 2026).
+  check();
+  if (!/<h1 class="wpc-hero__mark">west peek<span class="wpc-dot">\.<\/span><\/h1>/.test(html)) errors.push(`${label}/index.html: the hero wordmark must be "west peek" lowercase with the olive period (his image), not "${(/<h1 class="wpc-hero__mark">([\s\S]*?)<\/h1>/.exec(html) || [])[1]}"`);
   // Each tile title is a real button that controls its panel.
   check();
   for (const m of html.matchAll(/<button type="button" class="wpc-tile__btn"[^>]*aria-controls="([^"]+)"/g)) {
     if (!html.includes(`id="${m[1]}"`)) errors.push(`${label}/index.html: tile button controls #${m[1]}, which does not exist`);
   }
   if ((html.match(/class="wpc-tile__btn"[^>]*aria-expanded=/g) || []).length !== 6) errors.push(`${label}/index.html: every tile title must be a button with aria-expanded`);
-  // Core Values: his three sentences, word for word.
+  // Core Values: his four values, word for word, in his order (Scooter, 28 Nov 2026). The three
+  // proposed on 27 Nov were replaced by these and must not come back.
   check();
-  for (const line of ["There is enough to go around. We share what we know and who we know.", "We say what is true, including what we need.", "Nobody builds alone. Our strength is how we are connected."]) {
-    if (!html.includes(line)) errors.push(`${label}/index.html: Core Values is missing his sentence "${line}"`);
-  }
+  const values = [...html.matchAll(/<dt>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)].map((m) => [m[1], m[2].replace(/&rsquo;/g, "\u2019")]);
+  const hisValues = [
+    ["Integrity First", "We operate with honesty, transparency, and accountability. We do the right thing even when no one is watching."],
+    ["Authentic Connection", "We prioritize genuine human relationships over transactional networking. We value who people are, not just what they do or who they know."],
+    ["Action Over Perfection", "We believe in taking initiative, embracing experimentation, and learning through doing. Progress matters more than perfection."],
+    ["Community Over Competition", "We believe there is enough opportunity for everyone. We actively support one another, share resources, and celebrate each other\u2019s success."],
+  ];
+  if (JSON.stringify(values) !== JSON.stringify(hisValues)) errors.push(`${label}/index.html: Core Values are ${JSON.stringify(values.map((v) => v[0]))}; his four values word for word, in order, are ${JSON.stringify(hisValues.map((v) => v[0]))}`);
   // Give and Take: his line under the title, the board link and the ask box.
   check();
   if (!html.includes("Ask for what you need. Give what you can.")) errors.push(`${label}/index.html: the Give and Take tile lacks "Ask for what you need. Give what you can."`);
-  if (!/href="\/give-and-take"[^>]*>See who you can help</.test(html)) errors.push(`${label}/index.html: the Give and Take tile lacks the "See who you can help" link`);
-  if (!/name="lead_type" value="give_and_take_ask"/.test(html)) errors.push(`${label}/index.html: the Give and Take tile has no ask box`);
+  check();
+  const gtDescription = "Tell us one thing you could use help with. We read every ask, post it anonymously, and introduce you to someone who can help, only if you both say yes.";
+  if (!html.includes(gtDescription)) errors.push(`${label}/index.html: the Give and Take tile lacks his description, word for word`);
+  // Closed for the first launch (Scooter, 28 Nov 2026: "show 'Opening soon' and no form ... keep the
+  // form built behind it"). The source keeps the ask box and the board link inside <!--GT:open-->;
+  // the built page carries "Opening soon" and no form, link or field that takes a name or an email.
+  check();
+  if (label === "sites") {
+    const openBlock = (/<!--GT:open-->([\s\S]*?)<!--\/GT:open-->/.exec(html) || [])[1] || "";
+    if (!/name="lead_type" value="give_and_take_ask"/.test(openBlock)) errors.push(`${label}/index.html: the ask box must stay built inside <!--GT:open--> for the day Give and Take opens`);
+    if (!/href="\/give-and-take"[^>]*>See who you can help</.test(openBlock)) errors.push(`${label}/index.html: the "See who you can help" link must stay inside <!--GT:open-->`);
+    if (!/<!--GT:closed-->\s*<p class="wpc-soon[^"]*">Opening soon<\/p>\s*<!--\/GT:closed-->/.test(html)) errors.push(`${label}/index.html: the closed block must say "Opening soon"`);
+  } else if (!GIVE_TAKE_OPEN) {
+    if (!/>Opening soon<\/p>/.test(html)) errors.push(`${label}/index.html: Give and Take is closed but the tile does not say "Opening soon"`);
+    if (/give_and_take_(ask|offer)|<form[^>]*>[\s\S]*?<\/form>|name="email"|See who you can help/.test((/data-tile="give"[\s\S]*?<\/section>/.exec(html) || [""])[0])) errors.push(`${label}/index.html: Give and Take is closed but the built tile still carries a form, a field or the board link`);
+    if (/<!--\/?GT:/.test(html)) errors.push(`${label}/index.html: a Give and Take marker survived the build`);
+  }
   // The proposed description he did not approve (his answer, 27 Nov 22:38 UTC: the line under the
   // title is his own words) never ships, here or on /give-and-take.
   check();
@@ -154,6 +183,26 @@ function checkHomepage(label, dir) {
   if (!/id="hero-line">Good people should meet good people\.</.test(html)) errors.push(`${label}/index.html: the line's real text (no-JS, reduced motion, screen readers) must be the first phrase`);
   if ((html.match(/data-phrases=/g) || []).length !== 1) errors.push(`${label}/index.html: there must be exactly one rotating line`);
 }
+
+// /give-and-take while closed: his line, his description, "Opening soon", and on the built page no
+// ask box, no board and no offer form (nothing collects a name, an email or an ask).
+function checkGiveTakePage(label, dir) {
+  const f = path.join(dir, "give-and-take.html");
+  check();
+  if (!fs.existsSync(f)) { errors.push(`${label}/give-and-take.html is missing`); return; }
+  const html = fs.readFileSync(f, "utf8");
+  if (!html.includes("Tell us one thing you could use help with. We read every ask, post it anonymously, and introduce you to someone who can help, only if you both say yes.")) errors.push(`${label}/give-and-take.html: lacks his description, word for word`);
+  check();
+  if (label === "sites") {
+    const openBlock = (/<!--GT:open-->([\s\S]*?)<!--\/GT:open-->/.exec(html) || [])[1] || "";
+    for (const need of ['value="give_and_take_ask"', 'value="give_and_take_offer"', 'id="gt-board"']) if (!openBlock.includes(need)) errors.push(`${label}/give-and-take.html: ${need} must stay built inside <!--GT:open-->`);
+  } else if (!GIVE_TAKE_OPEN) {
+    if (!/>Opening soon<\/p>/.test(html)) errors.push(`${label}/give-and-take.html: closed but does not say "Opening soon"`);
+    if (/<form|give_and_take_(ask|offer)|id="gt-board"|name="email"/.test(html)) errors.push(`${label}/give-and-take.html: closed but the built page still carries a form, a field or the board`);
+  }
+}
+checkGiveTakePage("sites", path.join(root, "sites", "community"));
+checkGiveTakePage("dist", path.join(root, "dist", "community"));
 
 // The motion is off under prefers-reduced-motion: the stylesheet's reduced-motion block turns off
 // every transition and the tile/button transforms (lift, spring, rise, squish).

@@ -4,18 +4,23 @@
  *
  *   node scripts/community_first_run.mjs --url https://<branch>.<project>.pages.dev
  *
- * 1. The homepage: six tiles in his order, each a button; his rotating line; Core Values word for
+ * 1. The homepage: his "west peek." wordmark, six tiles in his order, each a button with its coloured period; his rotating line; his four Core Values word for
  *    word; Give and Take's line; no hover/tap instruction; no placeholder.
  * 2. The podcast: episodes.json newest first (6 Kimberly coming soon, 5 Ila, 4 Meka, 3, 2, 1), Ila's
  *    and Meka's YouTube ids, every episode page 200, /api/podcast-feed answering.
  * 3. Workshops: /api/workshops answers ok with an `upcoming` list (each with a title, start and link).
- * 4. Give and Take, end to end, with a marked TEST ask (a preview only; refused on any other host):
+ * 4. Give and Take. CLOSED for the first launch (Scooter, 28 Nov 2026; GIVE_TAKE_OPEN in
+ *    functions/_lib/give-take.mjs): the tile and /give-and-take say "Opening soon" with his
+ *    description and carry no form, field or board, and /api/lead refuses an ask and an offer 410
+ *    give_take_closed (nothing sent or kept). When the switch is OPEN, end to end, with a marked TEST ask (a preview only; refused on any other host):
  *    submit → saved as waiting and NOT on the board → the signed Approve link shows a button and
  *    changes nothing on GET → pressing it puts the ask on the board → the board, read again as a
  *    second device, shows the words with no name or email → an offer is saved → the board still
  *    shows no offer, name or email → Take down clears the TEST ask off the board again.
  * Prints `FIRST_RUN OK` when every step passed; exits 1 on any failure.
  */
+import { GIVE_TAKE_OPEN } from "../functions/_lib/give-take.mjs";
+
 const urlsIn = (v) => String(v || "").match(/https?:\/\/[^\s,·]+/g) || [];
 const urls = [];
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -45,8 +50,16 @@ const tiles = [...home.text.matchAll(/data-tile="([a-z]+)"/g)].map((m) => m[1]);
 ok("six tiles in his order", tiles.join() === "about,values,give,podcasts,pitch,workshops", tiles.join());
 ok("each tile title is a button with aria-expanded", (home.text.match(/class="wpc-tile__btn"[^>]*aria-expanded=/g) || []).length === 6);
 ok("one rotating line with his four phrases", (home.text.match(/data-phrases=/g) || []).length === 1 && /less lonely building companies/.test(home.text) && /new ideas, opportunities, and relationships/.test(home.text));
-for (const line of ["There is enough to go around. We share what we know and who we know.", "We say what is true, including what we need.", "Nobody builds alone. Our strength is how we are connected."]) ok(`Core Values: "${line.slice(0, 30)}…"`, home.text.includes(line));
+ok('wordmark is "west peek." lowercase with the olive period (his image)', /<h1 class="wpc-hero__mark">west peek<span class="wpc-dot">\.<\/span><\/h1>/.test(home.text));
+ok("a coloured period after each of the six tile titles", (home.text.match(/<\/span><span class="wpc-dot" aria-hidden="true">\.<\/span><\/button>/g) || []).length === 6);
+const css = await get("/assets/community.css");
+ok("the period is olive and the motion is off under reduced motion", /--wpc-mark-olive: #868b5f/.test(css.text) && /prefers-reduced-motion: reduce/.test(css.text) && /@keyframes wpc-pop/.test(css.text));
+const values = [...home.text.matchAll(/<dt>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)].map((m) => m[1]);
+ok("Core Values: his four, in his order", values.join("|") === "Integrity First|Authentic Connection|Action Over Perfection|Community Over Competition", values.join("|"));
+for (const line of ["We operate with honesty, transparency, and accountability. We do the right thing even when no one is watching.", "We prioritize genuine human relationships over transactional networking. We value who people are, not just what they do or who they know.", "We believe in taking initiative, embracing experimentation, and learning through doing. Progress matters more than perfection.", "We believe there is enough opportunity for everyone. We actively support one another, share resources, and celebrate each other&rsquo;s success."]) ok(`Core Values: "${line.slice(0, 30)}…"`, home.text.includes(line));
 ok("Give and Take line", home.text.includes("Ask for what you need. Give what you can."));
+const GT_DESCRIPTION = "Tell us one thing you could use help with. We read every ask, post it anonymously, and introduce you to someone who can help, only if you both say yes.";
+ok("Give and Take description, word for word", home.text.includes(GT_DESCRIPTION));
 ok("no hover/tap instruction", !/\b(hover|tap)\b[^.]{0,60}\b(computer|phone)\b/i.test(text(home.text)));
 ok("no placeholder on the homepage", !PLACEHOLDER.test(text(home.text)));
 
@@ -80,6 +93,28 @@ ok("every upcoming workshop has a title, start and link", (wsBody.upcoming || []
 
 // 4. Give and Take
 const gtPage = await get("/give-and-take");
+const postLead = async (fields) => {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries({ site: "community", website: "", "cf-turnstile-response": "XXXX.DUMMY.TOKEN.XXXX", ...fields })) fd.append(k, v);
+  const r = await fetch(base + "/api/lead", { method: "POST", body: fd, headers: { origin: base, referer: base + "/give-and-take" } });
+  let body = {};
+  try { body = await r.json(); } catch {}
+  return { status: r.status, body };
+};
+if (!GIVE_TAKE_OPEN) {
+  const tile = (/data-tile="give"[\s\S]*?<\/section>/.exec(home.text) || [""])[0];
+  ok("Give and Take tile: Opening soon, no form, field or board link", />Opening soon</.test(tile) && !/<form|name="email"|give_and_take_|See who you can help/.test(tile), tile.slice(0, 300));
+  ok("/give-and-take 200: his line, his description, Opening soon, no form or board", gtPage.status === 200 && gtPage.text.includes("Ask for what you need. Give what you can.") && gtPage.text.includes(GT_DESCRIPTION) && />Opening soon</.test(gtPage.text) && !/<form|name="email"|give_and_take_|id="gt-board"/.test(gtPage.text));
+  if (isPreview) {
+    const stamp = Date.now().toString(36);
+    const a = await postLead({ lead_type: "give_and_take_ask", name: "TEST Asker", email: `first-run-asker-${stamp}@example.test`, ask: `TEST ask ${stamp}: closed check.` });
+    ok("a posted ask is refused while closed (nothing sent or kept)", a.status === 410 && a.body.error === "give_take_closed", JSON.stringify(a));
+    const o = await postLead({ lead_type: "give_and_take_offer", ask_id: "AAAAAAAAAAAAAAAA", name: "TEST Helper", email: `first-run-helper-${stamp}@example.test`, offer: "TEST offer", share_consent: "yes" });
+    ok("a posted offer is refused while closed", o.status === 410 && o.body.error === "give_take_closed", JSON.stringify(o));
+  } else {
+    console.log("  note: not a preview host, so no TEST ask is posted here");
+  }
+} else {
 ok("/give-and-take 200 with the ask box and the board", gtPage.status === 200 && /give_and_take_ask/.test(gtPage.text) && /id="gt-board"/.test(gtPage.text));
 const board = async (ua) => { const r = await get("/api/give-take/board", { ua, headers: { "cache-control": "no-store" } }); let b = {}; try { b = JSON.parse(r.text); } catch {} return { ...r, body: b }; };
 const b0 = await board();
@@ -90,14 +125,7 @@ if (!isPreview) {
 } else if (b0.body.ok) {
   const stamp = Date.now().toString(36);
   const askWords = `TEST ask ${stamp}: an introduction to someone who has run a first-time founder workshop.`;
-  const post = async (fields) => {
-    const fd = new FormData();
-    for (const [k, v] of Object.entries({ site: "community", website: "", "cf-turnstile-response": "XXXX.DUMMY.TOKEN.XXXX", ...fields })) fd.append(k, v);
-    const r = await fetch(base + "/api/lead", { method: "POST", body: fd, headers: { origin: base, referer: base + "/give-and-take" } });
-    let body = {};
-    try { body = await r.json(); } catch {}
-    return { status: r.status, body };
-  };
+  const post = postLead;
   const ask = await post({ lead_type: "give_and_take_ask", name: "TEST Asker", email: `first-run-asker-${stamp}@example.test`, ask: askWords, help_kind: "Introduction" });
   ok("TEST ask submitted and saved", ask.status === 200 && ask.body.give_take === "saved" && ask.body.review?.approve, JSON.stringify(ask.body));
   ok("the ask never touched the network list", ask.body.sheet === "not_applicable", ask.body.sheet);
@@ -130,6 +158,7 @@ if (!isPreview) {
     const down = await fetch(base + "/api/give-take/review", { method: "POST", headers: { origin: base, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ t: td }) });
     ok("Take down clears the TEST ask off the board", down.status === 200 && !onBoard(await board()));
   }
+}
 }
 
 if (fails.length) { console.log(`FIRST_RUN FAIL community ${fails.length} of ${steps} step(s): ${fails.join("; ")}`); process.exit(1); }

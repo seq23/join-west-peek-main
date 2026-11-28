@@ -128,17 +128,24 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
   toggles it, and without JS every tile ships open (`wireTiles` in `assets/community.js`). No
   "hover on a computer, tap on a phone" line anywhere (his words: "Hover and tap should just work").
   Motion (lift, spring, staggered rise, button grow/squish) is transform/opacity only and fully off
-  under `prefers-reduced-motion`. Core Values carry his three sentences word for word; the Give and
-  Take line is exactly "Ask for what you need. Give what you can." (the proposed longer description
-  was NOT approved and must not ship). The Update left the homepage and stays in the nav and at
+  under `prefers-reduced-motion`; the pop on opening and the period's hop animate the separate
+  `scale`/`translate` properties so they stack on the hover lift. Every tile title ends in a coloured
+  period (`<span class="wpc-dot" aria-hidden="true">.</span>`, olive `--wpc-mark-olive`; Scooter,
+  28 Nov 2026: "About., Core Values., and so on"). Core Values are his FOUR values word for word, in
+  his order (28 Nov 2026): Integrity First, Authentic Connection, Action Over Perfection, Community
+  Over Competition (the three proposed on 27 Nov are gone). The Give and Take line is exactly "Ask
+  for what you need. Give what you can." followed by his description (28 Nov 2026) word for word;
+  the description proposed on 27 Nov was NOT approved and must not ship. The Update left the homepage and stays in the nav and at
   `/update`. `/podcast` and `/history` 301 to `/episodes` and `/about` (`sites/community/_redirects`).
   Guard: `npm run validate:community-site`.
-- **The hero is live** (Scooter, 27 Nov 2026, corrected screenshot): the "West Peek" wordmark stays
+- **The hero is live** (Scooter, 27 Nov 2026, corrected screenshot): the wordmark stays
   fixed and ONE line under it types, backspaces and rotates through the four phrases in the line's
   `data-phrases` (`heroTyping`), in his order. The first phrase is the line's real text (`#hero-line`):
   what no-JS and reduced-motion visitors see and screen readers hear; the typed copy is `aria-hidden`
   and a sizer holds the longest phrase so nothing below jumps. Change the phrases in
-  `sites/community/index.html`.
+  `sites/community/index.html`. **The wordmark is his image** (Scooter, 28 Nov 2026,
+  "wordmark-IMG_2840.png"): `west peek` lowercase, bold, dark (`--wpc-mark-ink: #21211f`) with the
+  period olive (`--wpc-mark-olive: #868b5f`), both sampled from the image. The nav logo is unchanged.
 - **Episodes**: sorted newest first by `number` in code (`community.js` and `scripts/build.mjs`),
   never by row order. A record with no `youtube` is "coming soon"; with a `releaseDate` it reads
   "Coming <weekday>, <Mon d>" until that day passes, then "Coming soon". A record with no headshot or
@@ -152,7 +159,20 @@ where is declared in `shared/forms-register.json` and enforced by rule FORM-10.
 - **Workshops feed** (`functions/api/workshops.js`): the Luma calendar ICS, 15-minute cache; each
   upcoming event carries `title`, `start`, `end`, `url`; an event stays listed until it ENDS. None, or
   the feed unreadable: the tile says "Coming soon" with the Luma calendar link.
-- **Give and Take** (Scooter, 27 Nov 2026; `functions/_lib/give-take.mjs`, `/give-and-take`, the
+- **Give and Take is CLOSED for the first launch** (Scooter, 28 Nov 2026: "keep Give and Take
+  submissions closed. Below the description, show 'Opening soon' and no form. Nothing should collect
+  names, emails or asks yet, and nothing should be added to any list ... keep the form built behind
+  it"). ONE switch: `GIVE_TAKE_OPEN` in `functions/_lib/give-take.mjs` (false). The source pages keep
+  the ask box, board and offer form between `<!--GT:open-->` / `<!--/GT:open-->` and "Opening soon"
+  between `<!--GT:closed-->` / `<!--/GT:closed-->`; `scripts/build.mjs` keeps one block and fails a
+  closed build that still carries a form. `lead.js` refuses an ask or offer 410 `give_take_closed`
+  before the bot check, any count, email, sheet or store write. Only code opens it (the tests'
+  `GIVE_TAKE_TEST_OPEN` must be the boolean `true`, which no Pages variable can be). **To open it**
+  (only on Scooter's words, after he decides retention, deletion and the verified-email step): set
+  `GIVE_TAKE_OPEN = true` in a PR, `give-take:setup -- --env preview --branch <branch>`, first-run on
+  the preview (the full TEST ask flow), then `give-take:setup -- --env production` BEFORE the merge.
+  Guards: `test:lead` (closed cases), `validate:community-site`, `first-run`.
+- **Give and Take, when open** (Scooter, 27 Nov 2026; `functions/_lib/give-take.mjs`, `/give-and-take`, the
   homepage tile): asks and offers post to `/api/lead` (`give_and_take_ask` / `give_and_take_offer`)
   with every gate the other forms have, and are kept in their own D1 per environment
   (`west-peek-community-give-take-<env>`, binding `GIVE_TAKE_DB`; review links signed with

@@ -336,8 +336,15 @@ html { overflow-x: hidden; }
   --wpc-tile-pitch: #e7dcef;     /* lavender */
   --wpc-tile-workshops: #f3d2da; /* rose */
   --wpc-spring: cubic-bezier(.34, 1.56, .64, 1);
+  /* The wordmark, from his image (Scooter, 28 Nov 2026, wordmark-IMG_2840.png): dark ink, the
+     period olive green. Sampled from the image itself. The same olive is the coloured period after
+     every tile title, as in his mockup ("About.", "Core Values.", ...). */
+  --wpc-mark-ink: #21211f;
+  --wpc-mark-olive: #868b5f;
 }
-.wpc-hero h1.wpc-hero__mark { font-size: clamp(3rem, 11vw, 5.6rem); line-height: .95; letter-spacing: -0.035em; margin: 0 0 1.1rem; }
+.wpc-dot { color: var(--wpc-mark-olive); }
+.wpc-hero h1.wpc-hero__mark { font-size: clamp(3.2rem, 12vw, 6rem); line-height: .95; letter-spacing: -0.05em; margin: 0 0 1.1rem; color: var(--wpc-mark-ink); text-transform: lowercase; }
+.wpc-hero h1.wpc-hero__mark .wpc-dot { letter-spacing: 0; }
 .wpc-hero__line { font-family: 'Maax', -apple-system, sans-serif; font-weight: 700; font-size: clamp(1.2rem, 3.2vw, 1.75rem); line-height: 1.3; color: var(--wp-text); margin: 0 0 1.75rem; max-width: 30ch; }
 .wpc-hero__live { display: grid; }
 /* Desktop: a wider line so the longest phrase wraps to two lines, not three, and the space it
@@ -355,13 +362,30 @@ html { overflow-x: hidden; }
 .wpc-tile[data-tile="pitch"] { --tile-bg: var(--wpc-tile-pitch); }
 .wpc-tile[data-tile="workshops"] { --tile-bg: var(--wpc-tile-workshops); }
 @media (hover: hover) {
-  .wpc-tile:hover { transform: translateY(-4px); box-shadow: 0 14px 28px -18px rgba(52,63,73,.45); }
+  .wpc-tile:hover { transform: translateY(-6px) scale(1.008); box-shadow: 0 18px 32px -18px rgba(52,63,73,.5); }
+}
+/* Opening pops the tile with a small spring (once per opening; a phone tap gets it too, since a
+   phone has no hover lift), and the title's coloured period does a little hop. */
+.wpc-tile[data-js][data-open] { animation: wpc-pop .55s var(--wpc-spring); }
+/* The pop and the hop animate the separate scale/translate properties, so they stack on the hover
+   lift (transform) instead of replacing it mid-hover. */
+@keyframes wpc-pop { 0% { scale: .985; } 55% { scale: 1.018; } 100% { scale: 1; } }
+.wpc-tile__btn .wpc-dot { display: inline-block; transition: transform .45s var(--wpc-spring); }
+.wpc-tile[data-open] .wpc-tile__btn .wpc-dot { animation: wpc-hop .6s var(--wpc-spring); }
+@keyframes wpc-hop { 0% { translate: 0 0; scale: 1; } 40% { translate: 0 -.22em; scale: 1.25; } 100% { translate: 0 0; scale: 1; } }
+@media (hover: hover) {
+  .wpc-tile:hover .wpc-tile__btn .wpc-dot { transform: translateY(-.08em) scale(1.15); }
 }
 .wpc-tile__head { margin: 0; }
 .wpc-tile__btn { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 1rem; background: none; border: 0; padding: 1.5rem 1.5rem 1.4rem; min-height: 88px; cursor: pointer; text-align: left; color: var(--wp-text); font-family: 'Maax', -apple-system, sans-serif; font-weight: 700; font-size: clamp(2rem, 6.5vw, 3.1rem); line-height: 1.02; letter-spacing: -0.03em; border-radius: 22px; }
 .wpc-tile__btn::after { content: ""; flex: none; width: 14px; height: 14px; border-right: 3px solid currentColor; border-bottom: 3px solid currentColor; transform: rotate(45deg); margin-top: -8px; opacity: .55; transition: transform .35s var(--wpc-spring); }
 .wpc-tile__btn[aria-expanded="true"]::after { transform: rotate(-135deg); margin-top: 6px; }
 .wpc-tile__btn:focus-visible { outline: 3px solid var(--wp-orange); outline-offset: -3px; }
+/* "About." — the coloured period sits right after the title (his mockup); the chevron keeps the
+   far edge. A long title that wraps ("Pitch Competitions") keeps its period on the last line. */
+.wpc-tile__btn { display: block; position: relative; padding-right: 3.6rem; }
+.wpc-tile__btn::after { position: absolute; right: 1.6rem; top: 50%; margin-top: -11px; }
+.wpc-tile__btn[aria-expanded="true"]::after { margin-top: -3px; }
 /* The panel opens by its grid row (0fr -> 1fr), the inner block springs into place, and the lines
    marked .wpc-rise rise in one after another (--i is each line's place, set by community.js). */
 .wpc-tile__panel { display: grid; grid-template-rows: 1fr; }
@@ -370,10 +394,10 @@ html { overflow-x: hidden; }
 .wpc-tile__panel > .wpc-tile__inner { min-height: 0; overflow: hidden; }
 .wpc-tile__inner { padding: 0 1.5rem; }
 .wpc-tile[data-open] .wpc-tile__inner, .wpc-tile:not([data-js]) .wpc-tile__inner { padding-bottom: 1.6rem; }
-.wpc-tile[data-js] .wpc-tile__inner { transform: scale(.97) translateY(-6px); transform-origin: top left; transition: transform .5s var(--wpc-spring); }
+.wpc-tile[data-js] .wpc-tile__inner { transform: scale(.95) translateY(-10px); transform-origin: top left; transition: transform .5s var(--wpc-spring); }
 .wpc-tile[data-js][data-open] .wpc-tile__inner { transform: none; }
-.wpc-tile[data-js] .wpc-rise { opacity: 0; transform: translateY(14px); transition: opacity .3s ease, transform .45s var(--wpc-spring); transition-delay: 0s; }
-.wpc-tile[data-js][data-open] .wpc-rise { opacity: 1; transform: none; transition-delay: calc(80ms + var(--i, 0) * 70ms); }
+.wpc-tile[data-js] .wpc-rise { opacity: 0; transform: translateY(22px); transition: opacity .3s ease, transform .55s var(--wpc-spring); transition-delay: 0s; }
+.wpc-tile[data-js][data-open] .wpc-rise { opacity: 1; transform: none; transition-delay: calc(90ms + var(--i, 0) * 90ms); }
 .wpc-tile__inner p { color: var(--wp-text); line-height: 1.6; max-width: 62ch; margin: 0 0 1rem; font-size: 1.02rem; }
 .wpc-tile__inner p.wpc-tile__lede, .wpc-page-head p.wpc-tile__lede { font-weight: 700; font-size: 1.2rem; color: var(--wp-text); }
 .wpc-tile__split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
@@ -391,7 +415,11 @@ html { overflow-x: hidden; }
 .wpc-tile .wpc-form input, .wpc-tile .wpc-form select, .wpc-tile .wpc-form textarea { background: rgba(255,255,255,.85); }
 .wpc-tile .wpc-form label, .wpc-tile .wpc-form .small { color: var(--wp-body); }
 .wpc-tile .wpc-form { max-width: 640px; margin-bottom: 1rem; }
-.wpc-values { margin: 0; display: grid; gap: 1rem; }
+.wpc-values { margin: 0; display: grid; gap: 1.1rem; }
+@media (min-width: 761px) { .wpc-values { grid-template-columns: 1fr 1fr; column-gap: 2rem; } }
+/* "Opening soon" (Give and Take, closed for the first launch; Scooter, 28 Nov 2026). */
+.wpc-soon { display: inline-block; font-weight: 700; font-size: 1rem; color: var(--wp-text); background: rgba(255,255,255,.8); border: 1px dashed rgba(52,63,73,.4); border-radius: 999px; padding: .45rem 1rem; margin: .25rem 0 1rem; }
+.wpc-page-head p.wpc-soon { max-width: none; }
 .wpc-values dt { font-weight: 700; font-size: 1.15rem; }
 .wpc-values dd { margin: .2rem 0 0; color: var(--wp-text); line-height: 1.55; max-width: 60ch; }
 .wpc-form textarea { min-height: 110px; resize: vertical; }
@@ -401,9 +429,9 @@ html { overflow-x: hidden; }
 /* Buttons grow a little on hover and squish on press (Scooter, 27 Nov 2026). */
 .wpc-body a.wpc-btn, .wpc-btn { transition: background .2s, transform .3s var(--wpc-spring); }
 @media (hover: hover) {
-  .wpc-body a.wpc-btn:hover, .wpc-btn:hover { transform: scale(1.05); }
+  .wpc-body a.wpc-btn:hover, .wpc-btn:hover { transform: scale(1.06); }
 }
-.wpc-body a.wpc-btn:active, .wpc-btn:active { transform: scale(.94); transition-duration: .08s; }
+.wpc-body a.wpc-btn:active, .wpc-btn:active { transform: scale(.92, .88); transition-duration: .08s; }
 
 /* Placeholders for a guest whose headshot has not arrived (marked, never a guessed photo). */
 .wpc-initials { display: flex; flex-direction: column; align-items: center; justify-content: center; aspect-ratio: 1 / 1; width: 100%; border-radius: 10px; background: repeating-linear-gradient(135deg, #f3efe9 0 12px, #ece6dd 12px 24px); border: 1px dashed var(--wp-orange); color: var(--wp-text); }
@@ -449,6 +477,6 @@ html { overflow-x: hidden; }
   .wpc-body * { transition: none !important; animation: none !important; }
   /* No lift, spring, rise or squish: tiles open in place, instantly. */
   .wpc-body .wpc-tile, .wpc-body .wpc-tile:hover, .wpc-body .wpc-btn, .wpc-body a.wpc-btn, .wpc-body .wpc-btn:hover, .wpc-body .wpc-btn:active,
-  .wpc-body .wpc-tile .wpc-tile__inner, .wpc-body .wpc-tile .wpc-rise, .wpc-body .wpc-tile__list a { transform: none !important; }
+  .wpc-body .wpc-tile .wpc-tile__inner, .wpc-body .wpc-tile .wpc-rise, .wpc-body .wpc-tile__list a, .wpc-body .wpc-dot { transform: none !important; }
   .wpc-body .wpc-tile[data-open] .wpc-rise { opacity: 1 !important; }
 }

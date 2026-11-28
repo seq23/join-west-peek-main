@@ -67,7 +67,7 @@ import {
   PROBE_HEADER, PROBE_TO, verifyProbe, incidentsFor, alarmEmail, ALARM_INTERVAL_MS, parseAddressList
 } from '../_lib/lead-delivery.mjs';
 import { recordWebInquiry } from '../_lib/pd/deal.mjs';
-import { kindOf, giveTakeProblem, giveTakeReady, approvedAsk, offerRefusal, saveAsk, saveOffer, forget, reviewLinks, giveTakeMail } from '../_lib/give-take.mjs';
+import { kindOf, giveTakeOpen, giveTakeProblem, giveTakeReady, approvedAsk, offerRefusal, saveAsk, saveOffer, forget, reviewLinks, giveTakeMail } from '../_lib/give-take.mjs';
 
 const MAX_FIELD = 5000;
 const REQUIRED = ['email'];
@@ -437,6 +437,14 @@ export async function onRequestPost({ request, env, waitUntil }) {
   if (HONEYPOT_FIELDS.some((key) => clean(fields[key]))) {
     console.error('lead dropped', JSON.stringify({ reason: 'honeypot', form: formName, host }));
     return json({ ok: true, sheet: 'skipped' }, 200);
+  }
+
+  // Give and Take is closed for the first launch (Scooter, 28 Nov 2026: "Nothing should collect
+  // names, emails or asks yet, and nothing should be added to any list"). A closed ask or offer is
+  // refused here, before the bot check, any count, email, sheet or store write: nothing is kept.
+  if (!isProbe && kindOf(fields) && !giveTakeOpen(env)) {
+    console.error('lead refused', JSON.stringify({ reason: 'give_take_closed', form: formName, host }));
+    return json({ ok: false, error: 'give_take_closed', message: 'Give and Take is opening soon. Nothing was sent or kept.' }, 410);
   }
 
   // Bot checks, every site, before any email, sheet write or file read (jwp-lead-lock, 23 Nov 2026;

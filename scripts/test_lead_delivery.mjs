@@ -13,7 +13,7 @@ import { signProbe } from '../functions/_lib/lead-delivery.mjs';
 import worker from '../workers/forms-mailer/src/index.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fakeD1 } from './lib/fake_d1.mjs';
-import { MIGRATIONS as GT_MIGRATIONS, resetGiveTakeSchemaMemo } from '../functions/_lib/give-take.mjs';
+import { MIGRATIONS as GT_MIGRATIONS, resetGiveTakeSchemaMemo, GIVE_TAKE_OPEN as GT_OPEN } from '../functions/_lib/give-take.mjs';
 import * as gtBoard from '../functions/api/give-take/board.js';
 import * as gtReview from '../functions/api/give-take/review.js';
 
@@ -525,13 +525,14 @@ try {
     check('get in touch: title, service and event dates in his order', gAt.every((i, n) => i >= 0 && (n === 0 || i > gAt[n - 1])), JSON.stringify(gAt) + (gm.text || ''));
     check('get in touch: no raw field names in his email', !/first_name|last_name|job_title|event_start|event_end/.test(`${gm.text}${gm.html}`));
   }
-  // Give and Take (joinwestpeek.com, Scooter 27 Nov 2026). An ask is saved as waiting and emailed to
+  // Give and Take (joinwestpeek.com, Scooter 27 Nov 2026). These cases run with the forms OPEN
+  // (GIVE_TAKE_TEST_OPEN, the test-only boolean; the closed launch is proven after them). An ask is saved as waiting and emailed to
   // Scooter with signed review links; it is NEVER added to the network list; it is on the board only
   // after he approves it, and the board carries words only. Offers need the giver's consent, are
   // private, and follow his spec's rules (no own ask, one per giver per ask, approved asks only).
   {
     resetGiveTakeSchemaMemo();
-    const GT = { GIVE_TAKE_DB: fakeD1(), GIVE_TAKE_SIGNING_KEY: 'k'.repeat(43) };
+    const GT = { GIVE_TAKE_DB: fakeD1(), GIVE_TAKE_SIGNING_KEY: 'k'.repeat(43), GIVE_TAKE_TEST_OPEN: true };
     const w = world({ pages: GT });
     const gtMails = (x) => [...x.sent.cloudflare, ...x.sent.resend].filter((m) => /^(TEST: )?Give and Take/.test(m.subject));
     const ask = { lead_type: 'give_and_take_ask', site: 'community', name: 'Asker Person', email: 'asker@example.test', ask: 'Looking for a warm intro to a food-safety consultant.', help_kind: 'Introduction' };
@@ -611,7 +612,7 @@ try {
     check('give and take: the ask with no offers comes first', order[0] === 'Second ask, preview host.' && order[1] === ask.ask, JSON.stringify(order));
 
     // No store on this deployment: refused before anything is sent.
-    const bare = world();
+    const bare = world({ pages: { GIVE_TAKE_TEST_OPEN: true } });
     const nostore = await submit(bare, { body: ask });
     check('give and take: no store means refused, nothing emailed', nostore.status === 503 && nostore.body.error === 'give_take_unavailable' && gtMails(bare).length === 0);
     // Not the community site: not here.
@@ -619,7 +620,7 @@ try {
     check('give and take: only joinwestpeek.com takes an ask', v.status === 404);
     // Both mail channels down: the ask is not kept to sit unseen.
     resetGiveTakeSchemaMemo();
-    const GT2 = { GIVE_TAKE_DB: fakeD1(), GIVE_TAKE_SIGNING_KEY: 'k'.repeat(43) };
+    const GT2 = { GIVE_TAKE_DB: fakeD1(), GIVE_TAKE_SIGNING_KEY: 'k'.repeat(43), GIVE_TAKE_TEST_OPEN: true };
     const down = world({ cloudflare: 'down', resend: 'down', pages: GT2 });
     const dr = await submit(down, { body: ask });
     check('give and take: an ask nobody was told about is not kept', dr.status >= 500 && !(await GT2.GIVE_TAKE_DB.prepare('SELECT id FROM gt_ask').first()));
@@ -630,6 +631,30 @@ try {
     const fileSql = readdirSync('migrations/give-take').sort().map((f) => readFileSync(`migrations/give-take/${f}`, 'utf8').split('\n').filter((l) => !l.startsWith('--')).join('\n')).join('\n');
     const norm = (x) => x.replace(/\s+/g, ' ').replace(/;\s*/g, ';').trim();
     check('give and take: migrations/ and MIGRATIONS match', norm(fileSql) === norm(GT_MIGRATIONS.flatMap((m) => m.sql).map((q) => `${q};`).join('\n')), norm(fileSql).slice(0, 120));
+
+    // CLOSED for the first launch (Scooter, 28 Nov 2026: "Nothing should collect names, emails or
+    // asks yet, and nothing should be added to any list"). The shipped switch is closed; an ask or an
+    // offer is refused 410 before the bot check, with no email, no sheet row and no store write, even
+    // on a deployment whose store is set up. A Pages variable (always a string) cannot open it.
+    check('give and take: the shipped switch is closed for the first launch', GT_OPEN === false);
+    resetGiveTakeSchemaMemo();
+    for (const [label, flag] of [['the shipped switch', undefined], ['a Pages variable "true"', 'true'], ['a Pages variable "on"', 'on']]) {
+      const GT3 = { GIVE_TAKE_DB: fakeD1(), GIVE_TAKE_SIGNING_KEY: 'k'.repeat(43), ...(flag === undefined ? {} : { GIVE_TAKE_TEST_OPEN: flag }) };
+      const shut = world({ pages: GT3 });
+      const ca = await submit(shut, { body: ask });
+      const co = await submit(shut, { body: { lead_type: 'give_and_take_offer', site: 'community', ask_id: 'AAAAAAAAAAAAAAAA', name: 'Giver Person', email: 'giver@example.test', offer: 'I can help.', share_consent: 'yes' } });
+      const stored = await GT3.GIVE_TAKE_DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'gt_%'").first().catch(() => null);
+      const sentAny = [...shut.sent.cloudflare, ...shut.sent.resend].length;
+      check(`give and take closed (${label}): an ask and an offer are refused, nothing emailed, listed or stored`,
+        ca.status === 410 && ca.body.error === 'give_take_closed' && co.status === 410 && co.body.error === 'give_take_closed' && sentAny === 0 && shut.sheet.length === 0 && !stored,
+        JSON.stringify({ ca: ca.body, co: co.body, sentAny, sheet: shut.sheet.length, stored }));
+    }
+    // Closing Give and Take closes only Give and Take: the Join form still goes through.
+    {
+      const shut = world();
+      const j = await submit(shut, { body: { lead_type: 'community_join', site: 'community', name: 'Join Person', email: 'join@example.test' } });
+      check('give and take closed: other community forms still deliver', j.status === 200 && j.body.ok === true, JSON.stringify(j.body));
+    }
   }
 } finally {
   console.error = quiet;

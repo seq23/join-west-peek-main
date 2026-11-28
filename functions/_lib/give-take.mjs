@@ -67,6 +67,29 @@ const text = (v, max) => String(v ?? '').replace(/\r\n?/g, '\n').trim().slice(0,
 const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const fromB64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
 
+/**
+ * THE ONE SWITCH for taking Give and Take asks and offers (Scooter, 28 Nov 2026: "For the first
+ * launch, keep Give and Take submissions closed. Below the description, show 'Opening soon' and no
+ * form. Nothing should collect names, emails or asks yet, and nothing should be added to any list.
+ * ... keep the form built behind it so we can turn it on when we're ready").
+ *
+ * false: scripts/build.mjs strips every <!--GT:open-->…<!--/GT:open--> block (the ask box, the
+ * board and the offer form) from the built pages and keeps the <!--GT:closed--> "Opening soon"
+ * block; functions/api/lead.js refuses an ask or offer (410 give_take_closed) before the bot check,
+ * any count, email, sheet or store write. Opening it is this one line set to true in a PR, then
+ * `npm run give-take:setup -- --env production` before the merge (RUNBOOK, Give and Take).
+ */
+export const GIVE_TAKE_OPEN = false;
+
+/**
+ * Open on this request? The constant above, or — for the test suite only — `GIVE_TAKE_TEST_OPEN`
+ * set to the BOOLEAN true on the env object. A Pages variable or secret is always a string, so no
+ * Cloudflare setting can ever open the forms this way; only code can.
+ */
+export function giveTakeOpen(env) {
+  return GIVE_TAKE_OPEN === true || (env != null && env.GIVE_TAKE_TEST_OPEN === true);
+}
+
 export function kindOf(fields) {
   const t = String(fields?.lead_type ?? '').trim();
   return t === ASK_TYPE ? 'ask' : t === OFFER_TYPE ? 'offer' : null;

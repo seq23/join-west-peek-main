@@ -24,6 +24,35 @@ fs.mkdirSync(out, { recursive: true });
 
 copyRecursive(src, out);
 
+// Give and Take submissions are closed for the first launch (Scooter, 28 Nov 2026: "show 'Opening
+// soon' and no form ... keep the form built behind it"). The source pages keep the ask box, the board
+// and the offer form between <!--GT:open--> and <!--/GT:open-->, and the "Opening soon" block between
+// <!--GT:closed--> and <!--/GT:closed-->; GIVE_TAKE_OPEN (functions/_lib/give-take.mjs, the same
+// switch lead.js obeys) decides which one the built page carries. The other block is removed whole.
+if (target === "community") {
+  const { GIVE_TAKE_OPEN } = await import("../functions/_lib/give-take.mjs");
+  const drop = GIVE_TAKE_OPEN ? "closed" : "open";
+  const keep = GIVE_TAKE_OPEN ? "open" : "closed";
+  let pages = 0;
+  for (const name of fs.readdirSync(out)) {
+    if (!name.endsWith(".html")) continue;
+    const abs = path.join(out, name);
+    const html = fs.readFileSync(abs, "utf8");
+    if (!html.includes("<!--GT:")) continue;
+    const opens = (html.match(/<!--GT:(open|closed)-->/g) || []).length;
+    const closes = (html.match(/<!--\/GT:(open|closed)-->/g) || []).length;
+    if (opens !== closes) fail(`community/${name}: unbalanced <!--GT:…--> markers (${opens} open, ${closes} close)`);
+    let next = html.replace(new RegExp(`<!--GT:${drop}-->[\\s\\S]*?<!--/GT:${drop}-->`, "g"), "");
+    next = next.replaceAll(`<!--GT:${keep}-->`, "").replaceAll(`<!--/GT:${keep}-->`, "");
+    if (next.includes("<!--GT:") || next.includes("<!--/GT:")) fail(`community/${name}: a <!--GT:…--> marker survived the build`);
+    if (!GIVE_TAKE_OPEN && /give_and_take_(ask|offer)/.test(next)) fail(`community/${name}: Give and Take is closed but the built page still carries an ask or offer form`);
+    fs.writeFileSync(abs, next);
+    pages++;
+  }
+  if (!pages) fail("community: no page carries a <!--GT:…--> block; the Give and Take switch would decide nothing");
+  console.log(`give and take: submissions ${GIVE_TAKE_OPEN ? "OPEN" : "CLOSED (Opening soon, no form)"} on ${pages} page(s)`);
+}
+
 // West Peek Productions' six services come from ONE list (functions/_lib/services.mjs), shared with
 // the dashboard (Scooter, 15 Nov 2026: "same list on the site and the dashboard picker"). Pages carry
 // markers; the build writes the list in, so the site can never drift from the dashboard.
