@@ -111,12 +111,14 @@ gtag("js",new Date());gtag("set",{page_location:l.origin+l.pathname+(q?"?"+q:"")
 </nav>
 
 <header class="wpc-hero" id="top">
-  <!-- Homepage, Scooter 27 Nov 2026: the wordmark stays fixed and ONE line under it types out,
+  <!-- The wordmark is his image (Scooter, 28 Nov 2026, wordmark-IMG_2840.png): "west peek." lowercase,
+       bold, dark, the period olive green.
+       Homepage, Scooter 27 Nov 2026: the wordmark stays fixed and ONE line under it types out,
        backspaces and rotates through the phrases in data-phrases (community.js, heroTyping; his
        corrected screenshot). The first phrase is the line's real text: what a visitor with
        JavaScript off or prefers-reduced-motion sees, and what screen readers hear. The typed copy
        is aria-hidden. The sizer holds the longest phrase invisibly so nothing below ever jumps. -->
-  <h1 class="wpc-hero__mark">West Peek</h1>
+  <h1 class="wpc-hero__mark">west peek<span class="wpc-dot">.</span></h1>
   <p class="wpc-hero__line" id="hero-title" data-phrases='["Good people should meet good people.","We\u2019re a community where you get introduced to new ideas, opportunities, and relationships.","We\u2019re a space for entrepreneurs, creatives and professionals.","We help you feel less lonely building companies."]'>
     <span class="wpc-hero__static" id="hero-line">Good people should meet good people.</span>
     <span class="wpc-hero__live" id="hero-live" aria-hidden="true" hidden><span class="wpc-hero__sizer" id="hero-sizer"></span><span class="wpc-hero__typed"><span id="hero-rotor"></span><span class="wpc-hero__caret"></span></span></span>
@@ -135,7 +137,7 @@ gtag("js",new Date());gtag("set",{page_location:l.origin+l.pathname+(q?"?"+q:"")
      should just work"); scripts/validate_community_site.mjs fails the build on one. -->
 <main class="wpc-tiles" id="tiles" aria-label="West Peek">
   <section class="wpc-tile" data-tile="about" id="about">
-    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-about"><span>About</span></button></h2>
+    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-about"><span>About</span><span class="wpc-dot" aria-hidden="true">.</span></button></h2>
     <div class="wpc-tile__panel" id="tile-about">
       <div class="wpc-tile__inner">
         <p class="wpc-rise">Started in 2020, during the global pandemic. West Peek began when 5,000 people virtually gathered on Sunday, March 22, 2020, to come together, learn, partner, and connect with one another. We saw then the power of community while building your dreams. West Peek is the continuation of that.</p>
@@ -145,53 +147,38 @@ gtag("js",new Date());gtag("set",{page_location:l.origin+l.pathname+(q?"?"+q:"")
   </section>
 
   <section class="wpc-tile" data-tile="values" id="core-values">
-    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-values"><span>Core Values</span></button></h2>
+    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-values"><span>Core Values</span><span class="wpc-dot" aria-hidden="true">.</span></button></h2>
     <div class="wpc-tile__panel" id="tile-values">
       <div class="wpc-tile__inner">
+        <!-- His four values, word for word (Scooter, 28 Nov 2026). -->
         <dl class="wpc-values">
-          <div class="wpc-rise"><dt>Abundance</dt><dd>There is enough to go around. We share what we know and who we know.</dd></div>
-          <div class="wpc-rise"><dt>Honesty</dt><dd>We say what is true, including what we need.</dd></div>
-          <div class="wpc-rise"><dt>Interdependence</dt><dd>Nobody builds alone. Our strength is how we are connected.</dd></div>
+          <div class="wpc-rise"><dt>Integrity First</dt><dd>We operate with honesty, transparency, and accountability. We do the right thing even when no one is watching.</dd></div>
+          <div class="wpc-rise"><dt>Authentic Connection</dt><dd>We prioritize genuine human relationships over transactional networking. We value who people are, not just what they do or who they know.</dd></div>
+          <div class="wpc-rise"><dt>Action Over Perfection</dt><dd>We believe in taking initiative, embracing experimentation, and learning through doing. Progress matters more than perfection.</dd></div>
+          <div class="wpc-rise"><dt>Community Over Competition</dt><dd>We believe there is enough opportunity for everyone. We actively support one another, share resources, and celebrate each other&rsquo;s success.</dd></div>
         </dl>
       </div>
     </div>
   </section>
 
   <section class="wpc-tile" data-tile="give" id="give-and-take">
-    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-give"><span>Give and Take</span></button></h2>
+    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-give"><span>Give and Take</span><span class="wpc-dot" aria-hidden="true">.</span></button></h2>
     <div class="wpc-tile__panel" id="tile-give">
       <div class="wpc-tile__inner">
         <p class="wpc-tile__lede wpc-rise">Ask for what you need. Give what you can.</p>
-        <form class="wpc-form wpc-rise" data-westpeek-form data-bot-check="turnstile" action="/api/lead" method="POST"
-              data-fallback-email="os@joinwestpeek.com"
-              data-success-panel="true"
-              data-success-title="Your ask is in."
-              data-success="We read every ask. If it goes on the board, it shows without your name or email."
-              data-success-link="/give-and-take" data-success-link-label="See who you can help">
-          <input type="hidden" name="site" value="community">
-          <input type="hidden" name="lead_type" value="give_and_take_ask">
-          <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
-          <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
-          <label for="ask-text">What do you need help with?</label>
-          <textarea id="ask-text" name="ask" maxlength="1000" required placeholder="One thing, in your own words."></textarea>
-          <p class="small">Business asks only. Up to 1,000 characters.</p>
-          <label for="ask-kind">Kind of help (optional)</label>
-          <select id="ask-kind" name="help_kind"><option value="">Any</option><option>Introduction</option><option>Conversation</option><option>Feedback</option><option>Advice</option></select>
-          <label for="ask-name">Your name</label>
-          <input id="ask-name" name="name" autocomplete="name" maxlength="120" required>
-          <label for="ask-email">Your email</label>
-          <input id="ask-email" name="email" type="email" autocomplete="email" maxlength="200" required>
-          <p class="small">Only we see your name and email. Nothing goes on the board until we approve it.</p>
-          <button type="submit" class="wpc-btn">Submit</button>
-          <div class="small" data-form-status role="status" aria-live="polite"></div>
-        </form>
-        <p class="wpc-rise"><a class="wpc-btn wpc-btn--ghost" href="/give-and-take">See who you can help</a></p>
+        <p class="wpc-rise">Tell us one thing you could use help with. We read every ask, post it anonymously, and introduce you to someone who can help, only if you both say yes.</p>
+        <!-- Closed for the first launch (Scooter, 28 Nov 2026). GIVE_TAKE_OPEN in
+             functions/_lib/give-take.mjs decides which block the build keeps. -->
+        
+        <p class="wpc-soon wpc-rise">Opening soon</p>
+        
+        
       </div>
     </div>
   </section>
 
   <section class="wpc-tile" data-tile="podcasts" id="podcasts">
-    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-podcasts"><span>Podcasts</span></button></h2>
+    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-podcasts"><span>Podcasts</span><span class="wpc-dot" aria-hidden="true">.</span></button></h2>
     <div class="wpc-tile__panel" id="tile-podcasts">
       <div class="wpc-tile__inner wpc-tile__split">
         <div class="wpc-rise">
@@ -207,7 +194,7 @@ gtag("js",new Date());gtag("set",{page_location:l.origin+l.pathname+(q?"?"+q:"")
   </section>
 
   <section class="wpc-tile" data-tile="pitch" id="pitch-competitions">
-    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-pitch"><span>Pitch Competitions</span></button></h2>
+    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-pitch"><span>Pitch Competitions</span><span class="wpc-dot" aria-hidden="true">.</span></button></h2>
     <div class="wpc-tile__panel" id="tile-pitch">
       <div class="wpc-tile__inner">
         <p class="wpc-rise">We host pitch competitions in partnership with Sengo, so you can get access to non-dilutive capital. This is a great way to practice your pitch &mdash; pitch in front of real investors to get real feedback, and in front of a live audience, which can lead to more opportunities and more awareness.</p>
@@ -218,7 +205,7 @@ gtag("js",new Date());gtag("set",{page_location:l.origin+l.pathname+(q?"?"+q:"")
   </section>
 
   <section class="wpc-tile" data-tile="workshops" id="workshops">
-    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-workshops"><span>Workshops</span></button></h2>
+    <h2 class="wpc-tile__head"><button type="button" class="wpc-tile__btn" aria-expanded="true" aria-controls="tile-workshops"><span>Workshops</span><span class="wpc-dot" aria-hidden="true">.</span></button></h2>
     <div class="wpc-tile__panel" id="tile-workshops">
       <div class="wpc-tile__inner wpc-tile__split">
         <div class="wpc-rise">
