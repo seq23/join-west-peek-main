@@ -1013,7 +1013,7 @@ async function checkFormsRegister() {
   if (leadGate) {
     for (const row of local) {
       if (!row.host) continue;
-      const writes = leadGate.writesToSheet(row.host);
+      const writes = leadGate.writesToSheet(row.host, row.form);
       const shouldWrite = row.destination === 'sheet';
       if (writes !== shouldWrite) {
         fail(

@@ -304,6 +304,15 @@
     if (code === 'deck_file_too_large') return 'That file is over 10 MB, so nothing was sent. Attach a smaller PDF, or leave it off.';
     if (code === 'invalid_email') return 'That email address does not look right, so nothing was sent.';
     if (code === 'rate_limited') return 'We have had too many messages from this connection today, so nothing was sent.';
+    // Give and Take (joinwestpeek.com, 27 Nov 2026).
+    if (code === 'missing_name') return 'Add your name, so nothing was sent yet.';
+    if (code === 'missing_ask') return 'Write the one thing you need help with, so nothing was sent yet.';
+    if (code === 'missing_offer') return 'Say how you can help, so nothing was sent yet.';
+    if (code === 'missing_consent') return 'Tick the box to agree your name and email can be shared if the person accepts, so nothing was sent yet.';
+    if (code === 'invalid_help_kind') return 'Pick a kind of help from the list, or leave it blank, so nothing was sent yet.';
+    if (code === 'own_ask') return 'That is your own ask, so nothing was sent.';
+    if (code === 'already_offered') return 'You have already offered to help with this ask, so nothing new was sent. We have your first offer.';
+    if (code === 'ask_not_found') return 'That ask is no longer on the board, so nothing was sent. Reload the page to see the asks that are.';
     return 'We could not send that just now.';
   }
 

@@ -31,11 +31,14 @@ const SITES = {
   "G-X0CDKY3DXT": "community",
   "G-Y7371XLG0L": "ventures",
 };
-// CTAs that must exist on the deployed pages today. Productions' named CTAs
+// CTAs that must exist on the deployed pages today. The community homepage's
+// "Submit Update" button left with The Update section (its six tiles, 27 Nov
+// 2026); The Update stays in the nav. Give and Take's "See who you can help"
+// takes its place. Productions' named CTAs
 // arrive with its new build (held for launch), so there they are checked
 // wherever they appear rather than required.
 const REQUIRED_CTAS = {
-  community: ["cta_join_community", "cta_view_episodes", "cta_submit_update", "cta_pitch_competition", "cta_workshops"],
+  community: ["cta_join_community", "cta_view_episodes", "cta_give_and_take", "cta_pitch_competition", "cta_workshops"],
   ventures: ["cta_submit_company", "cta_join_community"],
   productions: [],
 };

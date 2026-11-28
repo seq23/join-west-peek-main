@@ -67,6 +67,7 @@ import {
   PROBE_HEADER, PROBE_TO, verifyProbe, incidentsFor, alarmEmail, ALARM_INTERVAL_MS, parseAddressList
 } from '../_lib/lead-delivery.mjs';
 import { recordWebInquiry } from '../_lib/pd/deal.mjs';
+import { kindOf, giveTakeOpen, giveTakeProblem, giveTakeReady, approvedAsk, offerRefusal, saveAsk, saveOffer, forget, reviewLinks, giveTakeMail } from '../_lib/give-take.mjs';
 
 const MAX_FIELD = 5000;
 const REQUIRED = ['email'];
@@ -157,8 +158,34 @@ export function siteForHost(hostname) {
   return 'unknown';
 }
 
-export function writesToSheet(hostname) {
+/**
+ * Forms whose people are never added to the network list, whatever the host. Give and Take (Scooter,
+ * 27 Nov 2026): "Submitting a Give and Take ask should not add anyone to the network list. Someone
+ * posting an ask has not signed up for updates." Registered `own_store` in shared/forms-register.json.
+ */
+export const NEVER_SHEET_FORMS = ['give_and_take_ask', 'give_and_take_offer'];
+
+export function writesToSheet(hostname, form) {
+  if (form && NEVER_SHEET_FORMS.includes(String(form).trim())) return false;
   return SHEET_SITES.includes(siteForHost(hostname));
+}
+
+/**
+ * Whether this response may carry a Give and Take ask's review links (so `npm run first-run` can
+ * approve its own TEST ask). BOTH must hold, because a hostname alone cannot tell a preview from
+ * production: west-peek-community.pages.dev and every <hash>.west-peek-community.pages.dev of a
+ * production deployment serve the live site with the live store.
+ *   1. the deployment's own environment carries GIVE_TAKE_PREVIEW_LINKS="on", which
+ *      `give-take:setup --env preview` sets on the PREVIEW environment only (and the production run
+ *      removes if it is ever found there);
+ *   2. the host is localhost or a branch preview, never a project's bare pages.dev alias.
+ */
+const PROJECT_ALIASES = ['west-peek-community.pages.dev', 'join-west-peek-main.pages.dev'];
+export function mayReturnReviewLinks(env, hostname) {
+  if (String(env?.GIVE_TAKE_PREVIEW_LINKS || '').trim() !== 'on') return false;
+  const host = String(hostname || '').toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1') return true;
+  return host.endsWith('.pages.dev') && !PROJECT_ALIASES.includes(host) && host.split('.').length >= 4;
 }
 
 /** A preview deployment or a local run: the only places Cloudflare's published test keys are accepted. */
@@ -296,7 +323,7 @@ async function addToNetworkSheet(fields, env, request, site) {
 
   // The owner's rule, before anything else happens. A productions submission is
   // a client's, and it goes to Scooter's inbox only.
-  if (!writesToSheet(site)) {
+  if (!writesToSheet(site, form)) {
     const property = siteForHost(site);
     if (property === 'unknown') {
       console.error('lead sheet write skipped: unrecognised host', JSON.stringify({ site, form }));
@@ -412,6 +439,14 @@ export async function onRequestPost({ request, env, waitUntil }) {
     return json({ ok: true, sheet: 'skipped' }, 200);
   }
 
+  // Give and Take is closed for the first launch (Scooter, 28 Nov 2026: "Nothing should collect
+  // names, emails or asks yet, and nothing should be added to any list"). A closed ask or offer is
+  // refused here, before the bot check, any count, email, sheet or store write: nothing is kept.
+  if (!isProbe && kindOf(fields) && !giveTakeOpen(env)) {
+    console.error('lead refused', JSON.stringify({ reason: 'give_take_closed', form: formName, host }));
+    return json({ ok: false, error: 'give_take_closed', message: 'Give and Take is opening soon. Nothing was sent or kept.' }, 410);
+  }
+
   // Bot checks, every site, before any email, sheet write or file read (jwp-lead-lock, 23 Nov 2026;
   // her words: "anyone can trigger them and use up your quota").
   //
@@ -457,6 +492,34 @@ export async function onRequestPost({ request, env, waitUntil }) {
   }
   if (!looksLikeEmail(email)) return json({ ok: false, error: 'invalid_email' }, 400);
 
+  // Give and Take (joinwestpeek.com only; functions/_lib/give-take.mjs). Checked before any count,
+  // email or sheet write: an incomplete ask, an offer on an ask that is not on the board (a forged,
+  // waiting, declined or taken-down id), or a deployment with no Give and Take store is refused here,
+  // so nothing half-happens.
+  const gtKind = isProbe ? null : kindOf(fields);
+  let gtAsk = null;
+  if (gtKind) {
+    if (siteForHost(host) !== 'community') return json({ ok: false, error: 'not_found' }, 404);
+    const problem = giveTakeProblem(gtKind, fields);
+    if (problem) return json({ ok: false, error: problem }, 400);
+    if (!giveTakeReady(env)) {
+      console.error('lead refused NAMED_STOP=GIVE_TAKE_NOT_SET_UP', JSON.stringify({ form: formName, host }));
+      return json({ ok: false, error: 'give_take_unavailable', message: 'We could not take that just now. Please try again in a few minutes.' }, 503);
+    }
+    if (gtKind === 'offer') {
+      let refusal = null;
+      try {
+        gtAsk = await approvedAsk(env, clean(fields.ask_id));
+        if (gtAsk) refusal = await offerRefusal(env, gtAsk, fields);
+      } catch (err) {
+        console.error('lead refused', JSON.stringify({ reason: 'give_take_read', form: formName, host, error: String(err).slice(0, 200) }));
+        return json({ ok: false, error: 'give_take_unavailable', message: 'We could not take that just now. Please try again in a few minutes.' }, 503);
+      }
+      if (!gtAsk) return json({ ok: false, error: 'ask_not_found' }, 400);
+      if (refusal) return json({ ok: false, error: refusal }, 409);
+    }
+  }
+
   // The deck: checked lane only. An unchecked caller's file is never read; the email says one was
   // sent and the visitor is asked to email it instead.
   let deckFile = null;
@@ -494,11 +557,27 @@ export async function onRequestPost({ request, env, waitUntil }) {
       : clean(env.LEAD_TO) || 'scooter@westpeek.ventures';
   const site = host;
 
+  // Give and Take: saved BEFORE anything is sent, so Scooter's email carries working review links.
+  // A store that will not take it refuses the submission (nothing emailed, no sheet row).
+  let gtSaved = null;
+  let gtMail = null;
+  let gtLinks = null;
+  if (gtKind) {
+    gtSaved = gtKind === 'ask' ? await saveAsk(env, fields) : await saveOffer(env, gtAsk, fields);
+    if (!gtSaved) {
+      console.error('lead refused', JSON.stringify({ reason: 'give_take_save', form: formName, host }));
+      return json({ ok: false, error: 'give_take_unavailable', message: 'We could not take that just now. Please try again in a few minutes.' }, 503);
+    }
+    if (gtKind === 'ask') gtLinks = await reviewLinks(env, new URL(request.url).origin, gtSaved.public_id);
+    gtMail = giveTakeMail(gtKind, { ask: gtKind === 'ask' ? gtSaved : gtAsk, offer: gtSaved, links: gtLinks, submittedAt: new Date().toISOString() });
+  }
+
   // The sheet write starts now and is awaited at the end, so it runs alongside
   // the email rather than after it. It is started even when delivery is
   // unconfigured: the person still belongs in the network sheet, and losing
   // them because a mail key is missing would be a second failure caused by the
   // first. A probe never writes.
+  // Give and Take never reaches the network list: writesToSheet(host, form) says no for its forms.
   const sheetWrite = isProbe ? Promise.resolve('skipped') : addToNetworkSheet(fields, env, request, site);
   // A productions inquiry also lands in Scooter's own dashboard (his private database on this same
   // Pages project), beside his form's responses (Scooter, 14 Nov 2026: "Wire the forms on my live
@@ -520,10 +599,10 @@ export async function onRequestPost({ request, env, waitUntil }) {
     to,
     replyTo: email,
     // One line, always: no visitor text can add a header. A TEST submission says so up front.
-    subject: `${isProbe ? '[probe] ' : ''}${!inquiry && !isProbe && isTestInquiry(fields, request.url) ? 'TEST: ' : ''}${inquiry ? inquiry.subject : isCommunityViabilityAssessment
+    subject: `${isProbe ? '[probe] ' : ''}${!inquiry && !isProbe && isTestInquiry(fields, request.url) ? 'TEST: ' : ''}${inquiry ? inquiry.subject : gtMail ? gtMail.subject : isCommunityViabilityAssessment
       ? `New Community Viability Assessment — ${clean(fields.organization) || email}`
       : `New enquiry from ${site}`}`.replace(/[\r\n]+/g, ' '),
-    text: inquiry ? inquiry.text : `${lines}\n\nSubmitted from: ${request.url}`,
+    text: inquiry ? inquiry.text : gtMail ? `${gtMail.text}\n\nSubmitted from: ${request.url}` : `${lines}\n\nSubmitted from: ${request.url}`,
     ...(inquiry ? { html: inquiry.html } : {}),
     deckFile
   };
@@ -556,13 +635,20 @@ export async function onRequestPost({ request, env, waitUntil }) {
   if (!delivered) {
     console.error('lead delivery failed on every channel', JSON.stringify({ host, form: formName, channels: delivery.channels, detail: delivery.detail }));
     await dashboardKept;
+    // Nobody was told about this ask or offer, so it is not kept to sit unseen; the visitor sends again.
+    if (gtSaved) await forget(env, gtKind, gtSaved);
     return json({ ok: false, error, sheet: await sheetWrite, bot_check: botCheck, lane, deck, channels: delivery.channels }, bothUnconfigured ? 503 : 502);
   }
 
   // The email is delivered, so the visitor succeeded. The sheet result is
   // reported, never allowed to overturn that.
   await dashboardKept;
-  return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, lane, deck, delivered_by: delivery.deliveredBy, channels: delivery.channels }, 200);
+  // On a preview deployment only (mayReturnReviewLinks: the preview environment's own flag, never the
+  // hostname alone), the ask's review links come back too, so `npm run first-run` can approve its own
+  // TEST ask end to end. Production never returns them, on any of its hosts: there they are in
+  // Scooter's email alone.
+  const gtOut = gtKind ? { give_take: 'saved', ...(gtLinks && mayReturnReviewLinks(env, host) ? { review: gtLinks } : {}) } : {};
+  return json({ ok: true, sheet: await sheetWrite, bot_check: botCheck, lane, deck, delivered_by: delivery.deliveredBy, channels: delivery.channels, ...gtOut }, 200);
 }
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

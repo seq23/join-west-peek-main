@@ -14,6 +14,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { GIVE_TAKE_OPEN } from "../functions/_lib/give-take.mjs";
 
 const root = process.cwd();
 const errors = [];
@@ -105,6 +106,168 @@ function checkTree(label, dir, isBuilt) {
 
 checkTree("sites", path.join(root, "sites", "community"), false);
 checkTree("dist", path.join(root, "dist", "community"), true);
+
+// The homepage, Scooter 27 Nov 2026. Each rule here is his words, checked on the built page too.
+function checkHomepage(label, dir) {
+  const file = path.join(dir, "index.html");
+  if (!fs.existsSync(file)) { errors.push(`${label}: index.html is missing`); return; }
+  const html = fs.readFileSync(file, "utf8");
+  const text = (h) => h.replace(/<[^>]*>/g, " ").replace(/&[a-z]+;|&#\d+;/g, " ").replace(/\s+/g, " ").trim();
+  // Six tiles, his order.
+  check();
+  const order = [...html.matchAll(/<section class="wpc-tile" data-tile="([a-z]+)"/g)].map((m) => m[1]);
+  const want = ["about", "values", "give", "podcasts", "pitch", "workshops"];
+  if (order.join() !== want.join()) errors.push(`${label}/index.html: tiles are [${order.join(", ")}]; Scooter's order is [${want.join(", ")}]`);
+  check();
+  const titles = [...html.matchAll(/class="wpc-tile__btn"[^>]*><span>([^<]+)<\/span>/g)].map((m) => m[1]);
+  if (titles.join("|") !== "About|Core Values|Give and Take|Podcasts|Pitch Competitions|Workshops") errors.push(`${label}/index.html: tile titles are "${titles.join(" | ")}"`);
+  // A coloured period after every tile title (Scooter, 28 Nov 2026: "About., Core Values., and so on").
+  check();
+  const dotted = (html.match(/class="wpc-tile__btn"[^>]*><span>[^<]+<\/span><span class="wpc-dot" aria-hidden="true">\.<\/span><\/button>/g) || []).length;
+  if (dotted !== 6) errors.push(`${label}/index.html: ${dotted} of 6 tile titles carry the coloured period (Scooter: "a coloured period after each tile title")`);
+  // The wordmark is his image: lowercase "west peek" with the period in olive (Scooter, 28 Nov 2026).
+  check();
+  if (!/<h1 class="wpc-hero__mark">west peek<span class="wpc-dot">\.<\/span><\/h1>/.test(html)) errors.push(`${label}/index.html: the hero wordmark must be "west peek" lowercase with the olive period (his image), not "${(/<h1 class="wpc-hero__mark">([\s\S]*?)<\/h1>/.exec(html) || [])[1]}"`);
+  // Each tile title is a real button that controls its panel.
+  check();
+  for (const m of html.matchAll(/<button type="button" class="wpc-tile__btn"[^>]*aria-controls="([^"]+)"/g)) {
+    if (!html.includes(`id="${m[1]}"`)) errors.push(`${label}/index.html: tile button controls #${m[1]}, which does not exist`);
+  }
+  if ((html.match(/class="wpc-tile__btn"[^>]*aria-expanded=/g) || []).length !== 6) errors.push(`${label}/index.html: every tile title must be a button with aria-expanded`);
+  // Core Values: his four values, word for word, in his order (Scooter, 28 Nov 2026). The three
+  // proposed on 27 Nov were replaced by these and must not come back.
+  check();
+  const values = [...html.matchAll(/<dt>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)].map((m) => [m[1], m[2].replace(/&rsquo;/g, "\u2019")]);
+  const hisValues = [
+    ["Integrity First", "We operate with honesty, transparency, and accountability. We do the right thing even when no one is watching."],
+    ["Authentic Connection", "We prioritize genuine human relationships over transactional networking. We value who people are, not just what they do or who they know."],
+    ["Action Over Perfection", "We believe in taking initiative, embracing experimentation, and learning through doing. Progress matters more than perfection."],
+    ["Community Over Competition", "We believe there is enough opportunity for everyone. We actively support one another, share resources, and celebrate each other\u2019s success."],
+  ];
+  if (JSON.stringify(values) !== JSON.stringify(hisValues)) {
+    const at = hisValues.findIndex((v, i) => JSON.stringify(v) !== JSON.stringify(values[i]));
+    errors.push(`${label}/index.html: Core Values differ from his words at value ${at + 1}: page has ${JSON.stringify(values[at] || null)}, his is ${JSON.stringify(hisValues[at] || null)} (${values.length} of 4 values on the page)`);
+  }
+  // Give and Take: his line under the title, the board link and the ask box.
+  check();
+  if (!html.includes("Ask for what you need. Give what you can.")) errors.push(`${label}/index.html: the Give and Take tile lacks "Ask for what you need. Give what you can."`);
+  check();
+  const gtDescription = "Tell us one thing you could use help with. We read every ask, post it anonymously, and introduce you to someone who can help, only if you both say yes.";
+  if (!html.includes(gtDescription)) errors.push(`${label}/index.html: the Give and Take tile lacks his description, word for word`);
+  // Closed for the first launch (Scooter, 28 Nov 2026: "show 'Opening soon' and no form ... keep the
+  // form built behind it"). The source keeps the ask box and the board link inside <!--GT:open-->;
+  // the built page carries "Opening soon" and no form, link or field that takes a name or an email.
+  check();
+  if (label === "sites") {
+    const openBlock = (/<!--GT:open-->([\s\S]*?)<!--\/GT:open-->/.exec(html) || [])[1] || "";
+    if (!/name="lead_type" value="give_and_take_ask"/.test(openBlock)) errors.push(`${label}/index.html: the ask box must stay built inside <!--GT:open--> for the day Give and Take opens`);
+    if (!/href="\/give-and-take"[^>]*>See who you can help</.test(openBlock)) errors.push(`${label}/index.html: the "See who you can help" link must stay inside <!--GT:open-->`);
+    if (!/<!--GT:closed-->\s*<p class="wpc-soon[^"]*">Opening soon<\/p>\s*<!--\/GT:closed-->/.test(html)) errors.push(`${label}/index.html: the closed block must say "Opening soon"`);
+  } else if (!GIVE_TAKE_OPEN) {
+    if (!/>Opening soon<\/p>/.test(html)) errors.push(`${label}/index.html: Give and Take is closed but the tile does not say "Opening soon"`);
+    if (/give_and_take_(ask|offer)|<form[^>]*>[\s\S]*?<\/form>|name="email"|See who you can help/.test((/data-tile="give"[\s\S]*?<\/section>/.exec(html) || [""])[0])) errors.push(`${label}/index.html: Give and Take is closed but the built tile still carries a form, a field or the board link`);
+    if (/<!--\/?GT:/.test(html)) errors.push(`${label}/index.html: a Give and Take marker survived the build`);
+  }
+  // The proposed description he did not approve (his answer, 27 Nov 22:38 UTC: the line under the
+  // title is his own words) never ships, here or on /give-and-take.
+  check();
+  for (const page of ["index.html", "give-and-take.html"]) {
+    const f = path.join(dir, page);
+    if (fs.existsSync(f) && fs.readFileSync(f, "utf8").includes("Tell us one thing you need help with")) errors.push(`${label}/${page}: carries the Give and Take description Scooter did not approve`);
+  }
+  // No "hover on a computer, tap on a phone" instruction anywhere (Scooter: "Hover and tap should just work").
+  check();
+  if (/\b(hover|tap)\b[^.<]{0,60}\b(computer|phone|tap|hover)\b/i.test(text(html))) errors.push(`${label}/index.html: shows a hover/tap instruction; Scooter: "Don't show any 'hover on a computer, tap on a phone' instruction on the page"`);
+  // The hero: the wordmark, then ONE rotating line through his four phrases, in his order.
+  check();
+  const phrases = (() => { try { return JSON.parse((/data-phrases='([^']+)'/.exec(html) || [])[1] || "[]"); } catch { return []; } })();
+  const his = ["Good people should meet good people.", "We’re a community where you get introduced to new ideas, opportunities, and relationships.", "We’re a space for entrepreneurs, creatives and professionals.", "We help you feel less lonely building companies."];
+  if (phrases.join("|") !== his.join("|")) errors.push(`${label}/index.html: the rotating line is [${phrases.join(" | ")}], not his four phrases in order`);
+  if (!/id="hero-line">Good people should meet good people\.</.test(html)) errors.push(`${label}/index.html: the line's real text (no-JS, reduced motion, screen readers) must be the first phrase`);
+  if ((html.match(/data-phrases=/g) || []).length !== 1) errors.push(`${label}/index.html: there must be exactly one rotating line`);
+}
+
+// /give-and-take while closed: his line, his description, "Opening soon", and on the built page no
+// ask box, no board and no offer form (nothing collects a name, an email or an ask).
+function checkGiveTakePage(label, dir) {
+  const f = path.join(dir, "give-and-take.html");
+  check();
+  if (!fs.existsSync(f)) { errors.push(`${label}/give-and-take.html is missing`); return; }
+  const html = fs.readFileSync(f, "utf8");
+  if (!html.includes("Tell us one thing you could use help with. We read every ask, post it anonymously, and introduce you to someone who can help, only if you both say yes.")) errors.push(`${label}/give-and-take.html: lacks his description, word for word`);
+  check();
+  if (label === "sites") {
+    const openBlock = (/<!--GT:open-->([\s\S]*?)<!--\/GT:open-->/.exec(html) || [])[1] || "";
+    for (const need of ['value="give_and_take_ask"', 'value="give_and_take_offer"', 'id="gt-board"']) if (!openBlock.includes(need)) errors.push(`${label}/give-and-take.html: ${need} must stay built inside <!--GT:open-->`);
+  } else if (!GIVE_TAKE_OPEN) {
+    if (!/>Opening soon<\/p>/.test(html)) errors.push(`${label}/give-and-take.html: closed but does not say "Opening soon"`);
+    if (/<form|give_and_take_(ask|offer)|id="gt-board"|name="email"/.test(html)) errors.push(`${label}/give-and-take.html: closed but the built page still carries a form, a field or the board`);
+  }
+}
+checkGiveTakePage("sites", path.join(root, "sites", "community"));
+checkGiveTakePage("dist", path.join(root, "dist", "community"));
+
+// The motion is off under prefers-reduced-motion: the stylesheet's reduced-motion block turns off
+// every transition and the tile/button transforms (lift, spring, rise, squish).
+function checkReducedMotion() {
+  check();
+  const css = fs.readFileSync(path.join(root, "sites", "community", "assets", "community.css"), "utf8");
+  const block = (/@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css) || [])[1] || "";
+  if (!/transition: none !important/.test(block)) errors.push("community.css: the reduced-motion block does not turn transitions off");
+  for (const sel of [".wpc-tile:hover", ".wpc-btn:active", ".wpc-rise"]) if (!block.includes(sel)) errors.push(`community.css: the reduced-motion block does not reset ${sel}`);
+  if (!/transform: none !important/.test(block)) errors.push("community.css: the reduced-motion block does not reset transforms");
+  const js = fs.readFileSync(path.join(root, "sites", "community", "assets", "community.js"), "utf8");
+  if (!/function heroTyping\(\)[\s\S]{0,900}if \(reduceMotion\) return;/.test(js)) errors.push("community.js: the typing line must not start under prefers-reduced-motion");
+}
+
+// Give and Take never adds anyone to the network list (Scooter, 27 Nov 2026), and the board API
+// never returns a name or an email.
+function checkGiveTake() {
+  check();
+  const lead = fs.readFileSync(path.join(root, "functions", "api", "lead.js"), "utf8");
+  if (!/NEVER_SHEET_FORMS = \['give_and_take_ask', 'give_and_take_offer'\]/.test(lead) || !/writesToSheet\(site, form\)/.test(lead)) errors.push("functions/api/lead.js: Give and Take must skip the network sheet (NEVER_SHEET_FORMS, writesToSheet(site, form))");
+  check();
+  const lib = fs.readFileSync(path.join(root, "functions", "_lib", "give-take.mjs"), "utf8");
+  const board = (/export async function boardAsks[\s\S]*?\n\}/.exec(lib) || [""])[0];
+  const mapped = (/rows\.map\(\(r\) => \(\{(.*)\}\)\);/.exec(board) || [])[1] || "";
+  if (!mapped || /name|email/.test(mapped)) errors.push("functions/_lib/give-take.mjs: the board must return only the ask's words, kind of help, public id and day");
+}
+
+checkHomepage("sites", path.join(root, "sites", "community"));
+checkHomepage("dist", path.join(root, "dist", "community"));
+checkReducedMotion();
+checkGiveTake();
+
+// Built episode pages: every "More episodes" row is newest first by number (Scooter, 27 Nov 2026:
+// "Order, newest first"), whatever order the rows of episodes.json are in.
+function checkEpisodeOrder() {
+  const eps = JSON.parse(fs.readFileSync(path.join(root, "sites", "community", "assets", "data", "episodes.json"), "utf8"));
+  const num = new Map(eps.map((e) => [e.slug, Number(e.number)]));
+  for (const ep of eps) {
+    check();
+    const file = path.join(root, "dist", "community", "episodes", ep.slug, "index.html");
+    if (!fs.existsSync(file)) { errors.push(`dist/episodes/${ep.slug}/index.html is missing`); continue; }
+    const seq = [...fs.readFileSync(file, "utf8").matchAll(/class="wpc-card" href="\/episodes\/([a-z0-9-]+)\/"/g)].map((m) => num.get(m[1]));
+    if (seq.length !== eps.length - 1 || seq.some((n, i) => i > 0 && !(n < seq[i - 1]))) errors.push(`dist/episodes/${ep.slug}/: "More episodes" is [${seq.join(", ")}]; it must be the other ${eps.length - 1} episodes, newest first`);
+  }
+}
+checkEpisodeOrder();
+
+// Workshops feed: an event stays listed until it ENDS (one in progress still shows), a finished one
+// drops off, soonest first (Scooter, 27 Nov 2026: "confirm ... that finished events drop off").
+async function checkWorkshops() {
+  const { upcomingEvents } = await import(path.join(root, "functions", "api", "workshops.js"));
+  const now = Date.UTC(2026, 11, 3, 18);
+  const h = 3600 * 1000;
+  const got = upcomingEvents([
+    { title: "later", start: now + 48 * h, end: now + 50 * h },
+    { title: "finished", start: now - 3 * h, end: now - h },
+    { title: "in progress", start: now - h, end: now + h },
+  ], now).map((e) => e.title).join("|");
+  check();
+  if (got !== "in progress|later") errors.push(`functions/api/workshops.js upcomingEvents: got [${got}]; want [in progress|later] (a running event stays, a finished one drops, soonest first)`);
+}
+await checkWorkshops();
 
 console.log(`validate:community-site: ${checks} check(s) run`);
 if (errors.length) {

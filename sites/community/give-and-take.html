@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Give and Take | West Peek Community</title>
+  <meta name="description" content="Give and Take: ask the West Peek community for one thing you need, or offer to help with someone else’s ask.">
+  <link rel="canonical" href="https://joinwestpeek.com/give-and-take"/>
+  <meta property="og:title" content="Give and Take | West Peek Community">
+  <meta property="og:description" content="Give and Take: ask the West Peek community for one thing you need, or offer to help with someone else’s ask.">
+  <meta property="og:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
+  <meta property="og:url" content="https://joinwestpeek.com/give-and-take">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://joinwestpeek.com/assets/img/og-good-people.jpg">
+  <link rel="stylesheet" href="/assets/community.css">
+</head>
+<body class="wpc-body">
+<nav class="wpc-nav" aria-label="Main navigation">
+  <div class="wpc-nav__inner">
+    <a class="wpc-nav__logo" href="/"><img src="/assets/img/community-monogram.png" alt="West Peek"><span>West Peek</span></a>
+    <button class="wpc-nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div class="wpc-nav__links">
+      <a href="/episodes">Podcast</a>
+      <a href="/update">Update</a>
+      <a href="/pitch">Pitch</a>
+      <a href="/workshops">Workshops</a>
+      <a href="/give-and-take" aria-current="page">Give and Take</a>    </div>
+  </div>
+</nav>
+
+<div class="wpc-page-head">
+  <p class="wpc-breadcrumb"><a href="/">West Peek</a> / Give and Take</p>
+  <h1>Give and Take</h1>
+  <p class="wpc-tile__lede">Ask for what you need. Give what you can.</p>
+  <p>Tell us one thing you could use help with. We read every ask, post it anonymously, and introduce you to someone who can help, only if you both say yes.</p>
+  <!-- Closed for the first launch (Scooter, 28 Nov 2026: "show 'Opening soon' and no form").
+       GIVE_TAKE_OPEN in functions/_lib/give-take.mjs decides which block the build keeps; the ask
+       box, the board and the offer form below stay built for the day it opens. -->
+  <!--GT:closed-->
+  <p class="wpc-soon">Opening soon</p>
+  <!--/GT:closed-->
+</div>
+
+<!--GT:open-->
+
+<div class="wpc-main wpc-gt">
+  <section class="wpc-gt__ask" aria-labelledby="gt-ask-head">
+    <h2 id="gt-ask-head">Ask for help</h2>
+    <form class="wpc-form" data-westpeek-form data-bot-check="turnstile" action="/api/lead" method="POST"
+          data-fallback-email="os@joinwestpeek.com"
+          data-success-panel="true"
+          data-success-title="Your ask is in."
+          data-success="We read every ask. If it goes on the board, it shows without your name or email.">
+      <input type="hidden" name="site" value="community">
+      <input type="hidden" name="lead_type" value="give_and_take_ask">
+      <!-- Bot trap. Genuinely hidden: no label, display:none, not focusable. -->
+      <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+      <label for="gt-ask-text">What do you need help with?</label>
+      <textarea id="gt-ask-text" name="ask" maxlength="1000" required placeholder="One thing, in your own words."></textarea>
+      <p class="small">Business asks only. Up to 1,000 characters.</p>
+      <label for="gt-ask-kind">Kind of help (optional)</label>
+      <select id="gt-ask-kind" name="help_kind"><option value="">Any</option><option>Introduction</option><option>Conversation</option><option>Feedback</option><option>Advice</option></select>
+      <label for="gt-ask-name">Your name</label>
+      <input id="gt-ask-name" name="name" autocomplete="name" maxlength="120" required>
+      <label for="gt-ask-email">Your email</label>
+      <input id="gt-ask-email" name="email" type="email" autocomplete="email" maxlength="200" required>
+      <p class="small">Only we see your name and email. Nothing goes on the board until we approve it.</p>
+      <button type="submit" class="wpc-btn">Submit</button>
+      <div class="small" data-form-status role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section class="wpc-gt__board" aria-labelledby="gt-board-head">
+    <h2 id="gt-board-head">See who you can help</h2>
+    <p class="small">Asks from the community, shown without names. Pick one you can help with; your offer comes to us, and we make the introduction once you both say yes.</p>
+    <ol class="wpc-board" id="gt-board" aria-live="polite"><li class="wpc-tile__note">Loading the board&hellip;</li></ol>
+
+    <!-- One offer form. community.js moves it under the ask whose "I can help with this" was
+         pressed and fills ask_id with that ask's public id. Never shown on the site afterwards. -->
+    <div class="wpc-offer" id="gt-offer" hidden>
+      <p class="wpc-offer__quote" id="gt-offer-quote"></p>
+      <form class="wpc-form" data-westpeek-form data-bot-check="turnstile" action="/api/lead" method="POST"
+            data-fallback-email="os@joinwestpeek.com"
+            data-success-panel="#gt-offer"
+            data-success-title="Thank you. Your offer is in."
+            data-success="It comes to us, not to the board. We will ask the person who asked, and introduce you both by email once you have each said yes.">
+        <input type="hidden" name="site" value="community">
+        <input type="hidden" name="lead_type" value="give_and_take_offer">
+        <input type="hidden" name="ask_id" id="gt-offer-ask" value="">
+        <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="display:none">
+        <label for="gt-offer-text">How can you help?</label>
+        <textarea id="gt-offer-text" name="offer" maxlength="2000" required placeholder="What you could offer, in a few lines."></textarea>
+        <label for="gt-offer-kind">Kind of help you can give (optional)</label>
+        <select id="gt-offer-kind" name="help_kind"><option value="">Any</option><option>Introduction</option><option>Conversation</option><option>Feedback</option><option>Advice</option></select>
+        <label for="gt-offer-name">Your name</label>
+        <input id="gt-offer-name" name="name" autocomplete="name" maxlength="120" required>
+        <label for="gt-offer-email">Your email</label>
+        <input id="gt-offer-email" name="email" type="email" autocomplete="email" maxlength="200" required>
+        <label class="wpc-check" for="gt-offer-consent"><input type="checkbox" id="gt-offer-consent" name="share_consent" value="yes" required> If the person who asked accepts my offer, West Peek may share my name and email with them in an email introduction.</label>
+        <p class="small">Your offer and details come to us only. They never appear on the board.</p>
+        <div class="wpc-offer__actions"><button type="submit" class="wpc-btn">Send my offer</button> <button type="button" class="wpc-btn wpc-btn--ghost" id="gt-offer-cancel">Cancel</button></div>
+        <div class="small" data-form-status role="status" aria-live="polite"></div>
+      </form>
+    </div>
+  </section>
+</div>
+
+<!--/GT:open-->
+<footer class="wpc-footer">
+  <div class="wpc-footer__links"><a href="/join">Join</a> &middot; <a href="https://www.youtube.com/@scootertaylor" target="_blank" rel="noopener">YouTube</a> &middot; <a href="https://www.instagram.com/westpeek" target="_blank" rel="noopener">Instagram</a> &middot; <a href="https://x.com/WestPeek" target="_blank" rel="noopener">X</a> &middot; <a href="/privacy">Privacy</a></div>
+  <div>Good people should meet good people.</div>
+  <div style="margin-top:.5rem">&copy; West Peek</div>
+</footer>
+<script src="/assets/community.js"></script>
+<script src="/assets/js/forms.js"></script>
+</body>
+</html>
