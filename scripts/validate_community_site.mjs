@@ -144,7 +144,10 @@ function checkHomepage(label, dir) {
     ["Action Over Perfection", "We believe in taking initiative, embracing experimentation, and learning through doing. Progress matters more than perfection."],
     ["Community Over Competition", "We believe there is enough opportunity for everyone. We actively support one another, share resources, and celebrate each other\u2019s success."],
   ];
-  if (JSON.stringify(values) !== JSON.stringify(hisValues)) errors.push(`${label}/index.html: Core Values are ${JSON.stringify(values.map((v) => v[0]))}; his four values word for word, in order, are ${JSON.stringify(hisValues.map((v) => v[0]))}`);
+  if (JSON.stringify(values) !== JSON.stringify(hisValues)) {
+    const at = hisValues.findIndex((v, i) => JSON.stringify(v) !== JSON.stringify(values[i]));
+    errors.push(`${label}/index.html: Core Values differ from his words at value ${at + 1}: page has ${JSON.stringify(values[at] || null)}, his is ${JSON.stringify(hisValues[at] || null)} (${values.length} of 4 values on the page)`);
+  }
   // Give and Take: his line under the title, the board link and the ask box.
   check();
   if (!html.includes("Ask for what you need. Give what you can.")) errors.push(`${label}/index.html: the Give and Take tile lacks "Ask for what you need. Give what you can."`);
